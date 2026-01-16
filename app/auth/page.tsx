@@ -10,7 +10,7 @@ export default function AuthPage() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
-  const [mode, setMode] = useState<'magic' | 'password'>('magic');
+  const [mode, setMode] = useState<'magic' | 'password'>('password');
   const router = useRouter();
 
   async function handleSubmit(e: React.FormEvent) {
@@ -22,17 +22,21 @@ export default function AuthPage() {
       const supabase = createClient();
 
       if (mode === 'magic') {
-        // Magic Link (SIEMPRE usa Supabase SMTP -> Resend)
+        // Magic Link
         const { error } = await supabase.auth.signInWithOtp({
           email,
           options: {
-            emailRedirectTo: `${location.origin}/auth/callback`
+            emailRedirectTo: `${window.location.origin}/auth/callback`,
+            shouldCreateUser: false // No crear usuario, solo login
           }
         });
 
-        if (error) throw error;
+        if (error) {
+          console.error('Magic link error:', error);
+          throw error;
+        }
 
-        setMessage('✅ ¡Email enviado! Revisa tu bandeja de entrada y haz click en el enlace.');
+        setMessage('✅ ¡Email enviado! Revisa tu bandeja de entrada (y spam) y haz click en el enlace.\n\nEl enlace expira en 1 hora.');
       } else {
         // Password
         const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
@@ -40,7 +44,15 @@ export default function AuthPage() {
           password
         });
 
-        if (authError) throw authError;
+        if (authError) {
+          if (authError.message.includes('Invalid login credentials')) {
+            throw new Error('Email o contraseña incorrectos');
+          }
+          if (authError.message.includes('Email not confirmed')) {
+            throw new Error('Por favor confirma tu email antes de ingresar. Revisa tu bandeja de entrada.');
+          }
+          throw authError;
+        }
 
         // Obtener rol
         const { data: roleData } = await supabase
@@ -50,7 +62,7 @@ export default function AuthPage() {
           .single();
 
         if (!roleData) {
-          setMessage('❌ Error: No tienes un rol asignado.');
+          setMessage('❌ No tienes un rol asignado. Contacta al administrador.');
           return;
         }
 
@@ -68,7 +80,7 @@ export default function AuthPage() {
 
     } catch (error: any) {
       console.error('Auth error:', error);
-      setMessage(`❌ Error: ${error.message}`);
+      setMessage(`❌ ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -89,20 +101,6 @@ export default function AuthPage() {
           <button
             type="button"
             onClick={() => {
-              setMode('magic');
-              setMessage('');
-            }}
-            className={`flex-1 py-2 px-4 rounded-lg font-medium transition ${
-              mode === 'magic'
-                ? 'bg-indigo-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            Magic Link
-          </button>
-          <button
-            type="button"
-            onClick={() => {
               setMode('password');
               setMessage('');
             }}
@@ -112,7 +110,21 @@ export default function AuthPage() {
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
             }`}
           >
-            Contraseña
+            🔐 Contraseña
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setMode('magic');
+              setMessage('');
+            }}
+            className={`flex-1 py-2 px-4 rounded-lg font-medium transition ${
+              mode === 'magic'
+                ? 'bg-indigo-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            📧 Magic Link
           </button>
         </div>
 
@@ -160,7 +172,7 @@ export default function AuthPage() {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                Procesando...
+                {mode === 'magic' ? 'Enviando...' : 'Ingresando...'}
               </span>
             ) : (
               mode === 'magic' ? '📧 Enviar Magic Link' : '🔐 Ingresar'
@@ -168,7 +180,7 @@ export default function AuthPage() {
           </button>
 
           {message && (
-            <div className={`p-4 rounded-lg text-sm ${
+            <div className={`p-4 rounded-lg text-sm whitespace-pre-line ${
               message.includes('✅') 
                 ? 'bg-green-50 text-green-800 border border-green-200' 
                 : 'bg-red-50 text-red-800 border border-red-200'
@@ -190,7 +202,7 @@ export default function AuthPage() {
         {mode === 'magic' && (
           <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
             <p className="text-xs text-blue-800">
-              💡 <strong>Tip:</strong> El enlace mágico es más seguro y no requiere recordar contraseña.
+              💡 <strong>Tip:</strong> El Magic Link es más seguro y conveniente. No necesitas recordar contraseña.
             </p>
           </div>
         )}
