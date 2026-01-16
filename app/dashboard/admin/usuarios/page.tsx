@@ -3,37 +3,45 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
-interface UserRole {
+interface User {
   id: string;
+  user_id: string;
   email: string;
   role: string;
-  approved: boolean;
   company_name: string | null;
+  approved: boolean;
   created_at: string;
-  approved_at: string | null;
 }
 
-export default function UsuariosPage() {
-  const [users, setUsers] = useState<UserRole[]>([]);
+export default function AdminUsersPage() {
+  const [users, setUsers] = useState<User[]>([]);
+  const [filter, setFilter] = useState<string>('all');
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'all' | 'inmobiliaria' | 'locador' | 'locatario' | 'admin'>('all');
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const router = useRouter();
 
   useEffect(() => {
     loadUsers();
-  }, []);
+  }, [filter]);
 
   async function loadUsers() {
     try {
       const supabase = createClient();
       
-      const { data, error } = await supabase
+      let query = supabase
         .from('user_roles')
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (filter !== 'all') {
+        query = query.eq('role', filter);
+      }
+
+      const { data, error } = await query;
       
+      if (error) throw error;
       setUsers(data || []);
     } catch (error) {
       console.error('Error loading users:', error);
@@ -42,107 +50,179 @@ export default function UsuariosPage() {
     }
   }
 
-  const filteredUsers = filter === 'all' 
-    ? users 
-    : users.filter(u => u.role === filter);
+  async function handleDelete(userId: string, email: string) {
+    if (!confirm(`¿Eliminar usuario ${email}?\n\nEsta acción NO se puede deshacer.`)) {
+      return;
+    }
+    
+    setActionLoading(userId);
+    
+    try {
+      const supabase = createClient();
+      
+      // Eliminar de user_roles
+      const { error } = await supabase
+        .from('user_roles')
+        .delete()
+        .eq('user_id', userId);
 
-  const getRoleBadge = (role: string) => {
-    const badges: Record<string, { text: string; class: string }> = {
-      'admin': { text: 'Admin', class: 'bg-purple-100 text-purple-800' },
-      'inmobiliaria': { text: 'Inmobiliaria', class: 'bg-blue-100 text-blue-800' },
-      'locador': { text: 'Locador', class: 'bg-green-100 text-green-800' },
-      'locatario': { text: 'Locatario', class: 'bg-orange-100 text-orange-800' },
-    };
+      if (error) throw error;
+
+      alert(`✅ Usuario ${email} eliminado exitosamente`);
+      loadUsers();
+    } catch (error: any) {
+      alert(`Error: ${error.message}`);
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  async function handleToggleApproval(userId: string, currentStatus: boolean) {
+    setActionLoading(userId);
     
-    const badge = badges[role] || { text: role, class: 'bg-gray-100 text-gray-800' };
-    
-    return (
-      <span className={`px-2 py-1 rounded text-xs font-semibold ${badge.class}`}>
-        {badge.text}
-      </span>
-    );
+    try {
+      const supabase = createClient();
+      
+      const { error } = await supabase
+        .from('user_roles')
+        .update({ 
+          approved: !currentStatus,
+          approved_at: !currentStatus ? new Date().toISOString() : null
+        })
+        .eq('user_id', userId);
+
+      if (error) throw error;
+
+      alert(`✅ Estado actualizado`);
+      loadUsers();
+    } catch (error: any) {
+      alert(`Error: ${error.message}`);
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  const stats = {
+    total: users.length,
+    admin: users.filter(u => u.role === 'admin').length,
+    inmobiliaria: users.filter(u => u.role === 'inmobiliaria').length,
+    locador: users.filter(u => u.role === 'locador').length,
+    locatario: users.filter(u => u.role === 'locatario').length,
+    pending: users.filter(u => !u.approved).length,
   };
 
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Cargando usuarios...</p>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <Link href="/dashboard/admin" className="text-indigo-600 hover:text-indigo-700 mb-2 inline-block">
+      <header className="bg-white border-b">
+        <div className="max-w-7xl mx-auto px-4 py-4">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">Gestión de Usuarios</h1>
+              <p className="text-sm text-gray-600">Todos los usuarios del sistema</p>
+            </div>
+            <Link href="/dashboard/admin" className="btn-secondary">
               ← Volver al Dashboard
             </Link>
-            <h1 className="text-3xl font-bold text-gray-900">Todos los Usuarios</h1>
-            <p className="text-gray-600">Gestión completa de usuarios del sistema</p>
+          </div>
+
+          {/* Stats */}
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+            <div className="bg-gray-50 rounded-lg p-3 text-center">
+              <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
+              <p className="text-xs text-gray-600">Total</p>
+            </div>
+            <div className="bg-purple-50 rounded-lg p-3 text-center">
+              <p className="text-2xl font-bold text-purple-900">{stats.admin}</p>
+              <p className="text-xs text-purple-600">Admins</p>
+            </div>
+            <div className="bg-blue-50 rounded-lg p-3 text-center">
+              <p className="text-2xl font-bold text-blue-900">{stats.inmobiliaria}</p>
+              <p className="text-xs text-blue-600">Inmobiliarias</p>
+            </div>
+            <div className="bg-green-50 rounded-lg p-3 text-center">
+              <p className="text-2xl font-bold text-green-900">{stats.locador}</p>
+              <p className="text-xs text-green-600">Locadores</p>
+            </div>
+            <div className="bg-orange-50 rounded-lg p-3 text-center">
+              <p className="text-2xl font-bold text-orange-900">{stats.locatario}</p>
+              <p className="text-xs text-orange-600">Locatarios</p>
+            </div>
+            <div className="bg-yellow-50 rounded-lg p-3 text-center">
+              <p className="text-2xl font-bold text-yellow-900">{stats.pending}</p>
+              <p className="text-xs text-yellow-600">Pendientes</p>
+            </div>
           </div>
         </div>
+      </header>
 
+      <div className="max-w-7xl mx-auto px-4 py-6">
         {/* Filters */}
-        <div className="card mb-6">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm font-medium text-gray-700">Filtrar por rol:</span>
-            <button
-              onClick={() => setFilter('all')}
-              className={`px-3 py-1 rounded-lg text-sm font-medium transition ${
-                filter === 'all'
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              Todos ({users.length})
-            </button>
-            <button
-              onClick={() => setFilter('inmobiliaria')}
-              className={`px-3 py-1 rounded-lg text-sm font-medium transition ${
-                filter === 'inmobiliaria'
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              Inmobiliarias ({users.filter(u => u.role === 'inmobiliaria').length})
-            </button>
-            <button
-              onClick={() => setFilter('locador')}
-              className={`px-3 py-1 rounded-lg text-sm font-medium transition ${
-                filter === 'locador'
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              Locadores ({users.filter(u => u.role === 'locador').length})
-            </button>
-            <button
-              onClick={() => setFilter('locatario')}
-              className={`px-3 py-1 rounded-lg text-sm font-medium transition ${
-                filter === 'locatario'
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              Locatarios ({users.filter(u => u.role === 'locatario').length})
-            </button>
-            <button
-              onClick={() => setFilter('admin')}
-              className={`px-3 py-1 rounded-lg text-sm font-medium transition ${
-                filter === 'admin'
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              Admins ({users.filter(u => u.role === 'admin').length})
-            </button>
-          </div>
+        <div className="flex gap-2 mb-6 flex-wrap">
+          <button
+            onClick={() => setFilter('all')}
+            className={`px-4 py-2 rounded-lg font-medium transition ${
+              filter === 'all'
+                ? 'bg-indigo-600 text-white'
+                : 'bg-white text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            Todos ({stats.total})
+          </button>
+          <button
+            onClick={() => setFilter('admin')}
+            className={`px-4 py-2 rounded-lg font-medium transition ${
+              filter === 'admin'
+                ? 'bg-indigo-600 text-white'
+                : 'bg-white text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            Admins ({stats.admin})
+          </button>
+          <button
+            onClick={() => setFilter('inmobiliaria')}
+            className={`px-4 py-2 rounded-lg font-medium transition ${
+              filter === 'inmobiliaria'
+                ? 'bg-indigo-600 text-white'
+                : 'bg-white text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            Inmobiliarias ({stats.inmobiliaria})
+          </button>
+          <button
+            onClick={() => setFilter('locador')}
+            className={`px-4 py-2 rounded-lg font-medium transition ${
+              filter === 'locador'
+                ? 'bg-indigo-600 text-white'
+                : 'bg-white text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            Locadores ({stats.locador})
+          </button>
+          <button
+            onClick={() => setFilter('locatario')}
+            className={`px-4 py-2 rounded-lg font-medium transition ${
+              filter === 'locatario'
+                ? 'bg-indigo-600 text-white'
+                : 'bg-white text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            Locatarios ({stats.locatario})
+          </button>
         </div>
 
         {/* Users Table */}
-        <div className="card overflow-hidden">
+        <div className="bg-white rounded-lg shadow overflow-hidden">
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
@@ -157,86 +237,68 @@ export default function UsuariosPage() {
                     Estado
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Registrado
+                    Registro
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Acciones
                   </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {filteredUsers.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} className="px-6 py-12 text-center text-gray-500">
-                      No hay usuarios con este filtro
+                {users.map((user) => (
+                  <tr key={user.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div>
+                        <div className="text-sm font-medium text-gray-900">
+                          {user.company_name || user.email}
+                        </div>
+                        <div className="text-sm text-gray-500">{user.email}</div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                        user.role === 'admin' ? 'bg-purple-100 text-purple-800' :
+                        user.role === 'inmobiliaria' ? 'bg-blue-100 text-blue-800' :
+                        user.role === 'locador' ? 'bg-green-100 text-green-800' :
+                        'bg-orange-100 text-orange-800'
+                      }`}>
+                        {user.role}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                        user.approved ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                      }`}>
+                        {user.approved ? 'Aprobado' : 'Pendiente'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {new Date(user.created_at).toLocaleDateString('es-AR')}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      <div className="flex justify-end gap-2">
+                        {user.role !== 'admin' && (
+                          <button
+                            onClick={() => handleToggleApproval(user.user_id, user.approved)}
+                            disabled={actionLoading === user.user_id}
+                            className="text-indigo-600 hover:text-indigo-900"
+                          >
+                            {user.approved ? 'Desaprobar' : 'Aprobar'}
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleDelete(user.user_id, user.email)}
+                          disabled={actionLoading === user.user_id}
+                          className="text-red-600 hover:text-red-900 ml-4"
+                        >
+                          Eliminar
+                        </button>
+                      </div>
                     </td>
                   </tr>
-                ) : (
-                  filteredUsers.map((user) => (
-                    <tr key={user.id} className="hover:bg-gray-50 transition">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div>
-                          <div className="text-sm font-medium text-gray-900">
-                            {user.company_name || user.email}
-                          </div>
-                          <div className="text-sm text-gray-500">{user.email}</div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {getRoleBadge(user.role)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {user.approved ? (
-                          <span className="px-2 py-1 rounded text-xs font-semibold bg-green-100 text-green-800">
-                            ✓ Aprobado
-                          </span>
-                        ) : (
-                          <span className="px-2 py-1 rounded text-xs font-semibold bg-yellow-100 text-yellow-800">
-                            ⏳ Pendiente
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {new Date(user.created_at).toLocaleDateString('es-AR', {
-                          day: '2-digit',
-                          month: 'short',
-                          year: 'numeric'
-                        })}
-                      </td>
-                    </tr>
-                  ))
-                )}
+                ))}
               </tbody>
             </table>
-          </div>
-        </div>
-
-        {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mt-6">
-          <div className="card text-center">
-            <p className="text-2xl font-bold text-gray-900">{users.length}</p>
-            <p className="text-sm text-gray-600">Total Usuarios</p>
-          </div>
-          <div className="card text-center">
-            <p className="text-2xl font-bold text-blue-600">
-              {users.filter(u => u.role === 'inmobiliaria').length}
-            </p>
-            <p className="text-sm text-gray-600">Inmobiliarias</p>
-          </div>
-          <div className="card text-center">
-            <p className="text-2xl font-bold text-green-600">
-              {users.filter(u => u.role === 'locador').length}
-            </p>
-            <p className="text-sm text-gray-600">Locadores</p>
-          </div>
-          <div className="card text-center">
-            <p className="text-2xl font-bold text-orange-600">
-              {users.filter(u => u.role === 'locatario').length}
-            </p>
-            <p className="text-sm text-gray-600">Locatarios</p>
-          </div>
-          <div className="card text-center">
-            <p className="text-2xl font-bold text-yellow-600">
-              {users.filter(u => !u.approved).length}
-            </p>
-            <p className="text-sm text-gray-600">Pendientes</p>
           </div>
         </div>
       </div>

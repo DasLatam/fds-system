@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 export default function AuthPage() {
   const [email, setEmail] = useState('');
@@ -134,6 +135,15 @@ export default function AuthPage() {
             </div>
           )}
         </form>
+
+        <div className="mt-6 pt-6 border-t text-center">
+          <p className="text-sm text-gray-600">
+            ¿No tienes cuenta?{' '}
+            <Link href="/registro" className="text-indigo-600 hover:text-indigo-700 font-medium">
+              Registrarse como Inmobiliaria
+            </Link>
+          </p>
+        </div>
       </div>
     </div>
   );
