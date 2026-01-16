@@ -50,15 +50,17 @@ export default function AdminDashboard() {
       }
 
       const { data: userRole } = await supabase
-        .from('user_roles')
-        .select('role, approved')
-        .eq('user_id', session.user.id)
-        .single();
+  .from('user_roles')
+  .select('role, approved')
+  .eq('user_id', session.user.id)
+  .eq('role', 'admin')  // ← FORZAR que busque solo admin
+  .single();
 
       if (!userRole || userRole.role !== 'admin') {
-        router.push('/dashboard/inmobiliaria');
-        return;
-      }
+  console.error('No admin role found');
+  router.push('/auth?error=not_admin');
+  return;
+}
 
       // Cargar pendientes
       const { data: pendingData, error: pendingError } = await supabase
