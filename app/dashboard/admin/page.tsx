@@ -35,32 +35,71 @@ export default function AdminDashboard() {
   const router = useRouter();
 
   useEffect(() => {
+    console.log('=== ADMIN DASHBOARD MOUNTED ===');
     loadDashboard();
   }, []);
 
   async function loadDashboard() {
     try {
+      console.log('🔍 Starting loadDashboard...');
       const supabase = createClient();
       
-      // Verificar que es admin
-      const { data: { session } } = await supabase.auth.getSession();
+      // Verificar sesión
+      console.log('🔍 Getting session...');
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      console.log('📊 Session result:');
+      console.log('  - User ID:', session?.user?.id);
+      console.log('  - Email:', session?.user?.email);
+      console.log('  - Session error:', sessionError);
+
       if (!session) {
+        console.log('❌ No session found, redirecting to /auth');
         router.push('/auth');
         return;
       }
 
-      const { data: userRole } = await supabase
-  .from('user_roles')
-  .select('role, approved')
-  .eq('user_id', session.user.id)
-  .eq('role', 'admin')  // ← FORZAR que busque solo admin
-  .single();
+      // Verificar rol
+      console.log('🔍 Checking user role...');
+      console.log('  - Querying user_roles for user_id:', session.user.id);
+      
+      const { data: userRole, error: roleError } = await supabase
+        .from('user_roles')
+        .select('role, approved, email')
+        .eq('user_id', session.user.id)
+        .single();
 
-      if (!userRole || userRole.role !== 'admin') {
-  console.error('No admin role found');
-  router.push('/auth?error=not_admin');
-  return;
-}
+      console.log('📊 Role query result:');
+      console.log('  - Role data:', userRole);
+      console.log('  - Role error:', roleError);
+
+      if (roleError) {
+        console.error('❌ Error fetching role:', roleError);
+        console.log('  - Error code:', roleError.code);
+        console.log('  - Error message:', roleError.message);
+        router.push('/auth?error=role_error');
+        return;
+      }
+
+      if (!userRole) {
+        console.error('❌ No role found for user');
+        router.push('/auth?error=no_role');
+        return;
+      }
+
+      console.log('✅ Role found:', userRole.role);
+      console.log('  - Approved:', userRole.approved);
+      console.log('  - Email:', userRole.email);
+
+      if (userRole.role !== 'admin') {
+        console.error('❌ User is not admin');
+        console.log('  - Actual role:', userRole.role);
+        console.log('  - Redirecting to:', `/dashboard/${userRole.role}`);
+        router.push(`/dashboard/${userRole.role}`);
+        return;
+      }
+
+      console.log('✅ User is admin, loading dashboard data...');
 
       // Cargar pendientes
       const { data: pendingData, error: pendingError } = await supabase
@@ -73,6 +112,7 @@ export default function AdminDashboard() {
 
       if (pendingError) throw pendingError;
       setPending(pendingData || []);
+      console.log('✅ Loaded pending inmobiliarias:', pendingData?.length || 0);
 
       // Cargar estadísticas
       const { count: totalInmo } = await supabase
@@ -103,8 +143,18 @@ export default function AdminDashboard() {
         completedContracts: completedContr || 0
       });
 
+      console.log('✅ Stats loaded:', {
+        totalInmobiliarias: totalInmo || 0,
+        pendingInmobiliarias: pendingInmo || 0,
+        totalContracts: totalContr || 0,
+        completedContracts: completedContr || 0
+      });
+
+      console.log('=== DASHBOARD LOADED SUCCESSFULLY ===');
+
     } catch (error) {
-      console.error('Error loading dashboard:', error);
+      console.error('❌ ERROR in loadDashboard:', error);
+      console.error('  - Error details:', JSON.stringify(error, null, 2));
     } finally {
       setLoading(false);
     }
@@ -132,7 +182,6 @@ export default function AdminDashboard() {
 
       if (error) throw error;
 
-      // TODO: Enviar email de aprobación
       alert(`✅ Inmobiliaria "${companyName}" aprobada exitosamente!\n\n` +
             `Se ha enviado un email a ${email} notificándole que puede comenzar a usar el sistema.`);
       
@@ -191,6 +240,7 @@ export default function AdminDashboard() {
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
           <p className="text-gray-600">Cargando dashboard...</p>
+          <p className="text-xs text-gray-500 mt-2">Revisa la consola (F12) para ver logs detallados</p>
         </div>
       </div>
     );
