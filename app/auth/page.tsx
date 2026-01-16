@@ -1,121 +1,172 @@
 'use client';
 
 import { useState } from 'react';
-import Image from 'next/image';
-import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 export default function AuthPage() {
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
-  const supabase = createClient();
+  const [mode, setMode] = useState<'password' | 'magic'>('password');
+  const [message, setMessage] = useState('');
+  const router = useRouter();
 
-  const handleLogin = async (e: React.FormEvent) => {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    setMessage(null);
+    setMessage('');
 
     try {
-      const { error } = await supabase.auth.signInWithOtp({
-        email,
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
-        },
-      });
+      const supabase = createClient();
 
-      if (error) throw error;
+      if (mode === 'password') {
+        // Login con contraseña
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email,
+          password
+        });
 
-      setMessage({
-        type: 'success',
-        text: '¡Revisa tu email! Te enviamos un enlace mágico para ingresar.',
-      });
-      setEmail('');
+        if (error) throw error;
+
+        console.log('Login exitoso:', data.user?.email);
+        
+        // Redirigir según rol
+        const { data: roleData } = await supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', data.user.id)
+          .single();
+
+        if (roleData?.role === 'admin') {
+          router.push('/dashboard/admin');
+        } else if (roleData?.role === 'inmobiliaria') {
+          router.push('/dashboard/inmobiliaria');
+        } else if (roleData?.role === 'locador') {
+          router.push('/dashboard/locador');
+        } else if (roleData?.role === 'locatario') {
+          router.push('/dashboard/locatario');
+        } else {
+          router.push('/');
+        }
+
+      } else {
+        // Magic Link
+        const { error } = await supabase.auth.signInWithOtp({
+          email,
+          options: {
+            emailRedirectTo: `${location.origin}/auth/callback`
+          }
+        });
+
+        if (error) throw error;
+        
+        setMessage('✅ Email enviado! Revisa tu bandeja de entrada.');
+      }
+
     } catch (error: any) {
-      setMessage({
-        type: 'error',
-        text: error.message || 'Ocurrió un error. Intenta nuevamente.',
-      });
+      console.error('Auth error:', error);
+      setMessage(`❌ Error: ${error.message}`);
     } finally {
       setLoading(false);
     }
-  };
+  }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 py-12 bg-gradient-to-br from-indigo-50 via-white to-cyan-50">
-      <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-10" />
-      
-      <div className="max-w-md w-full relative z-10">
-        <div className="card">
-          {/* Logo y título */}
-          <div className="text-center mb-8">
-            <div className="flex justify-center mb-4">
-              <Image src="/logo.png" alt="DasLATAM" width={80} height={80} />
-            </div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Bienvenido a FDS</h1>
-            <p className="text-gray-600">Ingresa con tu email</p>
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-cyan-50 flex items-center justify-center p-4">
+      <div className="card max-w-md w-full">
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            FDS - Firma Digital Simple
+          </h1>
+          <p className="text-gray-600">Ingresa a tu cuenta</p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Email
+            </label>
+            <input
+              type="email"
+              required
+              className="input-field"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="tu@email.com"
+              autoComplete="email"
+            />
           </div>
 
-          {/* Formulario */}
-          <form onSubmit={handleLogin} className="space-y-4">
+          {mode === 'password' && (
             <div>
-              <label htmlFor="email" className="label">
-                Email
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Contraseña
               </label>
               <input
-                id="email"
-                type="email"
-                placeholder="tu@email.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="input-field"
+                type="password"
                 required
-                disabled={loading}
+                className="input-field"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Tu contraseña"
+                autoComplete="current-password"
               />
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? (
-                <span className="flex items-center justify-center">
-                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Enviando...
-                </span>
-              ) : (
-                'Enviar enlace mágico'
-              )}
-            </button>
-          </form>
-
-          {/* Mensaje */}
-          {message && (
-            <div className={`mt-4 p-4 rounded-lg ${
-              message.type === 'success' 
-                ? 'bg-green-50 border border-green-200 text-green-800' 
-                : 'bg-red-50 border border-red-200 text-red-800'
-            }`}>
-              <p className="text-sm">{message.text}</p>
             </div>
           )}
 
-          {/* Info adicional */}
-          <div className="mt-6 text-center text-sm text-gray-600">
-            <p>Te enviaremos un enlace seguro a tu email.</p>
-            <p className="mt-2">No necesitas contraseña.</p>
-          </div>
-        </div>
+          <button
+            type="submit"
+            disabled={loading}
+            className="btn-primary w-full"
+          >
+            {loading ? (
+              <span className="flex items-center justify-center">
+                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Ingresando...
+              </span>
+            ) : (
+              mode === 'password' ? 'Ingresar con Contraseña' : 'Enviar Magic Link'
+            )}
+          </button>
 
-        {/* Link al home */}
-        <div className="text-center mt-6">
-          <Link href="/" className="text-indigo-600 hover:text-indigo-700 font-medium">
-            ← Volver al inicio
-          </Link>
+          {message && (
+            <div className={`p-3 rounded-lg text-sm ${
+              message.includes('✅') 
+                ? 'bg-green-50 text-green-800 border border-green-200' 
+                : 'bg-red-50 text-red-800 border border-red-200'
+            }`}>
+              {message}
+            </div>
+          )}
+
+          <div className="text-center">
+            <button
+              type="button"
+              onClick={() => {
+                setMode(mode === 'password' ? 'magic' : 'password');
+                setMessage('');
+              }}
+              className="text-sm text-indigo-600 hover:text-indigo-700"
+            >
+              {mode === 'password' 
+                ? '¿Prefieres usar Magic Link?' 
+                : '¿Prefieres usar contraseña?'}
+            </button>
+          </div>
+        </form>
+
+        <div className="mt-6 pt-6 border-t text-center">
+          <p className="text-sm text-gray-600">
+            ¿No tienes cuenta?{' '}
+            <Link href="/registro" className="text-indigo-600 hover:text-indigo-700 font-medium">
+              Registrarse
+            </Link>
+          </p>
         </div>
       </div>
     </div>
