@@ -49,16 +49,22 @@ export default function RegistroPage() {
 
       const supabase = createClient();
 
-      // Crear usuario en auth
+      // 1. Crear usuario en auth
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        }
       });
 
       if (authError) throw authError;
       if (!authData.user) throw new Error('No se pudo crear el usuario');
 
-      // Crear organización
+      // 2. ESPERAR un momento para que Supabase propague el user
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // 3. Crear organización
       const orgData: any = {
         user_id: authData.user.id,
         email,
@@ -86,7 +92,10 @@ export default function RegistroPage() {
         .from('organizations')
         .insert(orgData);
 
-      if (orgError) throw orgError;
+      if (orgError) {
+        console.error('Error creating organization:', orgError);
+        throw new Error(`Error al crear organización: ${orgError.message}`);
+      }
 
       setMessage('✅ Registro exitoso. Tu cuenta será revisada por un administrador.');
       
@@ -95,6 +104,7 @@ export default function RegistroPage() {
       }, 2000);
 
     } catch (error: any) {
+      console.error('Registration error:', error);
       setMessage(`❌ Error: ${error.message}`);
     } finally {
       setLoading(false);
@@ -105,8 +115,10 @@ export default function RegistroPage() {
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-purple-50 py-12 px-4">
       <div className="max-w-2xl mx-auto">
         <div className="card">
-          <h1 className="text-3xl font-bold text-center mb-2">Crear Cuenta</h1>
-          <p className="text-gray-600 text-center mb-8">FDS - Firma Digital Simple</p>
+          <div className="text-center mb-8">
+            <h1 className="text-3xl font-bold mb-2">Crear Cuenta</h1>
+            <p className="text-gray-600">FDS - Firma Digital Simple</p>
+          </div>
 
           {/* Tabs */}
           <div className="flex gap-2 mb-8">
@@ -153,7 +165,9 @@ export default function RegistroPage() {
                 className="input-field"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                minLength={8}
               />
+              <p className="text-xs text-gray-500 mt-1">Mínimo 8 caracteres</p>
             </div>
 
             <div>
@@ -164,6 +178,7 @@ export default function RegistroPage() {
                 className="input-field"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
+                minLength={8}
               />
             </div>
 
@@ -198,6 +213,7 @@ export default function RegistroPage() {
                       type="text"
                       required
                       className="input-field"
+                      placeholder="20-12345678-9"
                       value={individualCuil}
                       onChange={(e) => setIndividualCuil(e.target.value)}
                     />
@@ -221,6 +237,7 @@ export default function RegistroPage() {
                     type="tel"
                     required
                     className="input-field"
+                    placeholder="+54 9 11 1234-5678"
                     value={individualPhone}
                     onChange={(e) => setIndividualPhone(e.target.value)}
                   />
@@ -249,6 +266,7 @@ export default function RegistroPage() {
                       type="text"
                       required
                       className="input-field"
+                      placeholder="30-12345678-9"
                       value={companyCuit}
                       onChange={(e) => setCompanyCuit(e.target.value)}
                     />
@@ -259,6 +277,7 @@ export default function RegistroPage() {
                       type="text"
                       required
                       className="input-field"
+                      placeholder="Ej: Inmobiliaria, Servicios, etc"
                       value={companyIndustry}
                       onChange={(e) => setCompanyIndustry(e.target.value)}
                     />
