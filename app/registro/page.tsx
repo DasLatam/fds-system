@@ -6,21 +6,24 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
 export default function RegistroPage() {
-  const [accountType, setAccountType] = useState<'individual' | 'company'>('individual');
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState('');
   const router = useRouter();
+  const [loading, setLoading] = useState(false);
+  const [accountType, setAccountType] = useState<'individual' | 'company'>('individual');
+  const [message, setMessage] = useState('');
 
+  // Common fields
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
+  // Individual fields
   const [individualName, setIndividualName] = useState('');
   const [individualDni, setIndividualDni] = useState('');
   const [individualCuil, setIndividualCuil] = useState('');
   const [individualAddress, setIndividualAddress] = useState('');
   const [individualPhone, setIndividualPhone] = useState('');
 
+  // Company fields
   const [companyName, setCompanyName] = useState('');
   const [companyCuit, setCompanyCuit] = useState('');
   const [companyIndustry, setCompanyIndustry] = useState('');
@@ -40,87 +43,72 @@ export default function RegistroPage() {
         throw new Error('Las contraseñas no coinciden');
       }
 
-      if (password.length < 8) {
-        throw new Error('La contraseña debe tener al menos 8 caracteres');
-      }
-
       const supabase = createClient();
 
-      // 1. Crear usuario en auth
+      // 1. Create auth user
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
+          data: { account_type: accountType }
         }
       });
 
       if (authError) throw authError;
       if (!authData.user) throw new Error('No se pudo crear el usuario');
 
-      console.log('User created:', authData.user.id);
+      // 2. Wait a bit for trigger
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
-      // 2. ESPERAR y VERIFICAR que el usuario existe
-      let userExists = false;
-      let attempts = 0;
-      const maxAttempts = 5;
+      // 3. Verify organization exists
+      const { data: org, error: orgCheckError } = await supabase
+        .from('organizations')
+        .select('id')
+        .eq('user_id', authData.user.id)
+        .single();
 
-      while (!userExists && attempts < maxAttempts) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        const { data: userData } = await supabase.auth.getUser();
-        if (userData.user?.id === authData.user.id) {
-          userExists = true;
-          console.log('User verified in auth.users');
-        } else {
-          attempts++;
-          console.log(`Attempt ${attempts}: User not yet in auth.users`);
-        }
+      if (orgCheckError || !org) {
+        // Create manually if trigger failed
+        const { error: manualOrgError } = await supabase
+          .from('organizations')
+          .insert({
+            user_id: authData.user.id,
+            email,
+            account_type: accountType,
+            approved_status: 'pending'
+          });
+
+        if (manualOrgError) throw manualOrgError;
       }
 
-      if (!userExists) {
-        throw new Error('No se pudo verificar el usuario. Intenta nuevamente en unos momentos.');
-      }
-
-      // 3. Crear organización
-      const orgData: any = {
-        user_id: authData.user.id,
-        email,
-        account_type: accountType,
-      };
+      // 4. Update organization data
+      const updateData: any = { email };
 
       if (accountType === 'individual') {
-        orgData.individual_name = individualName;
-        orgData.individual_dni = individualDni;
-        orgData.individual_cuil = individualCuil;
-        orgData.individual_address = individualAddress;
-        orgData.individual_phone = individualPhone;
+        updateData.individual_name = individualName;
+        updateData.individual_dni = individualDni;
+        updateData.individual_cuil = individualCuil;
+        updateData.individual_address = individualAddress;
+        updateData.individual_phone = individualPhone;
       } else {
-        orgData.company_name = companyName;
-        orgData.company_cuit = companyCuit;
-        orgData.company_industry = companyIndustry;
-        orgData.company_address = companyAddress;
-        orgData.company_phone = companyPhone;
-        orgData.company_representative_name = representativeName;
-        orgData.company_representative_phone = representativePhone;
-        orgData.company_representative_email = representativeEmail;
+        updateData.company_name = companyName;
+        updateData.company_cuit = companyCuit;
+        updateData.company_industry = companyIndustry;
+        updateData.company_address = companyAddress;
+        updateData.company_phone = companyPhone;
+        updateData.company_representative_name = representativeName;
+        updateData.company_representative_phone = representativePhone;
+        updateData.company_representative_email = representativeEmail;
       }
 
-      const { error: orgError } = await supabase
+      const { error: updateError } = await supabase
         .from('organizations')
-        .insert(orgData);
+        .update(updateData)
+        .eq('user_id', authData.user.id);
 
-      if (orgError) {
-        console.error('Error creating organization:', orgError);
-        throw new Error(`Error al crear organización: ${orgError.message}`);
-      }
+      if (updateError) throw updateError;
 
-      setMessage('✅ Registro exitoso. Tu cuenta será revisada por un administrador.');
-      
-      setTimeout(() => {
-        router.push('/pending-approval');
-      }, 2000);
-
+      router.push('/pending-approval');
     } catch (error: any) {
       console.error('Registration error:', error);
       setMessage(`❌ Error: ${error.message}`);
@@ -130,255 +118,285 @@ export default function RegistroPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-purple-50 py-12 px-4">
-      <div className="max-w-2xl mx-auto">
-        <div className="card">
-          <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold mb-2">Crear Cuenta</h1>
-            <p className="text-gray-600">FDS - Firma Digital Simple</p>
-          </div>
+    <div className="min-h-screen bg-gray-50">
+      {/* Header con link de vuelta */}
+      <header className="bg-white shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+            <div className="text-3xl">✍️</div>
+            <h1 className="text-2xl font-bold text-indigo-600">FDS</h1>
+          </Link>
+        </div>
+      </header>
 
-          <div className="flex gap-2 mb-8">
-            <button
-              onClick={() => setAccountType('individual')}
-              className={`flex-1 py-3 px-4 rounded-lg font-medium transition ${
-                accountType === 'individual'
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-gray-100 text-gray-700'
-              }`}
-            >
-              👤 Particular
-            </button>
-            <button
-              onClick={() => setAccountType('company')}
-              className={`flex-1 py-3 px-4 rounded-lg font-medium transition ${
-                accountType === 'company'
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-gray-100 text-gray-700'
-              }`}
-            >
-              🏢 Empresa
-            </button>
-          </div>
+      <div className="py-12 px-4">
+        <div className="max-w-2xl mx-auto">
+          <div className="card">
+            <h2 className="text-3xl font-bold mb-6">Crear Cuenta</h2>
+            <p className="text-gray-600 mb-6">FDS - Firma Digital Simple</p>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="label">Email *</label>
-              <input
-                type="email"
-                required
-                className="input-field"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
+            {/* Account Type Selector */}
+            <div className="flex gap-4 mb-6">
+              <button
+                onClick={() => setAccountType('individual')}
+                className={`flex-1 py-3 px-4 rounded-lg border-2 transition-colors ${
+                  accountType === 'individual'
+                    ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
+                    : 'border-gray-300 hover:border-gray-400'
+                }`}
+              >
+                👤 Particular
+              </button>
+              <button
+                onClick={() => setAccountType('company')}
+                className={`flex-1 py-3 px-4 rounded-lg border-2 transition-colors ${
+                  accountType === 'company'
+                    ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
+                    : 'border-gray-300 hover:border-gray-400'
+                }`}
+              >
+                🏢 Empresa
+              </button>
             </div>
 
-            <div>
-              <label className="label">Contraseña *</label>
-              <input
-                type="password"
-                required
-                className="input-field"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                minLength={8}
-              />
-            </div>
-
-            <div>
-              <label className="label">Confirmar Contraseña *</label>
-              <input
-                type="password"
-                required
-                className="input-field"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-              />
-            </div>
-
-            {accountType === 'individual' && (
-              <>
-                <div>
-                  <label className="label">Nombre Completo *</label>
-                  <input
-                    type="text"
-                    required
-                    className="input-field"
-                    value={individualName}
-                    onChange={(e) => setIndividualName(e.target.value)}
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="label">DNI *</label>
-                    <input
-                      type="text"
-                      required
-                      className="input-field"
-                      value={individualDni}
-                      onChange={(e) => setIndividualDni(e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <label className="label">CUIL *</label>
-                    <input
-                      type="text"
-                      required
-                      className="input-field"
-                      value={individualCuil}
-                      onChange={(e) => setIndividualCuil(e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="label">Dirección *</label>
-                  <input
-                    type="text"
-                    required
-                    className="input-field"
-                    value={individualAddress}
-                    onChange={(e) => setIndividualAddress(e.target.value)}
-                  />
-                </div>
-
-                <div>
-                  <label className="label">Celular *</label>
-                  <input
-                    type="tel"
-                    required
-                    className="input-field"
-                    value={individualPhone}
-                    onChange={(e) => setIndividualPhone(e.target.value)}
-                  />
-                </div>
-              </>
-            )}
-
-            {accountType === 'company' && (
-              <>
-                <div>
-                  <label className="label">Nombre de la Empresa *</label>
-                  <input
-                    type="text"
-                    required
-                    className="input-field"
-                    value={companyName}
-                    onChange={(e) => setCompanyName(e.target.value)}
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="label">CUIT *</label>
-                    <input
-                      type="text"
-                      required
-                      className="input-field"
-                      value={companyCuit}
-                      onChange={(e) => setCompanyCuit(e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <label className="label">Rubro *</label>
-                    <input
-                      type="text"
-                      required
-                      className="input-field"
-                      value={companyIndustry}
-                      onChange={(e) => setCompanyIndustry(e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="label">Dirección *</label>
-                  <input
-                    type="text"
-                    required
-                    className="input-field"
-                    value={companyAddress}
-                    onChange={(e) => setCompanyAddress(e.target.value)}
-                  />
-                </div>
-
-                <div>
-                  <label className="label">Teléfono *</label>
-                  <input
-                    type="tel"
-                    required
-                    className="input-field"
-                    value={companyPhone}
-                    onChange={(e) => setCompanyPhone(e.target.value)}
-                  />
-                </div>
-
-                <div className="border-t pt-4 mt-6">
-                  <h3 className="font-bold mb-4">Datos del Apoderado</h3>
-
-                  <div>
-                    <label className="label">Nombre del Apoderado *</label>
-                    <input
-                      type="text"
-                      required
-                      className="input-field"
-                      value={representativeName}
-                      onChange={(e) => setRepresentativeName(e.target.value)}
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4 mt-4">
-                    <div>
-                      <label className="label">Celular *</label>
-                      <input
-                        type="tel"
-                        required
-                        className="input-field"
-                        value={representativePhone}
-                        onChange={(e) => setRepresentativePhone(e.target.value)}
-                      />
-                    </div>
-                    <div>
-                      <label className="label">Email *</label>
-                      <input
-                        type="email"
-                        required
-                        className="input-field"
-                        value={representativeEmail}
-                        onChange={(e) => setRepresentativeEmail(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </>
-            )}
-
-            <button type="submit" disabled={loading} className="btn-primary w-full mt-6">
-              {loading ? 'Registrando...' : 'Registrarse'}
-            </button>
-
-            {message && (
-              <div className={`p-4 rounded-lg text-sm ${
-                message.includes('✅') 
-                  ? 'bg-green-50 text-green-800' 
-                  : 'bg-red-50 text-red-800'
-              }`}>
-                {message}
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Common Fields */}
+              <div>
+                <label className="label">Email *</label>
+                <input
+                  type="email"
+                  required
+                  className="input-field"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
               </div>
-            )}
-          </form>
 
-          <div className="mt-6 pt-6 border-t text-center">
-            <p className="text-sm text-gray-600">
-              ¿Ya tienes cuenta?{' '}
-              <Link href="/auth" className="text-indigo-600 hover:text-indigo-700 font-medium">
-                Iniciar Sesión
-              </Link>
-            </p>
+              <div>
+                <label className="label">Contraseña *</label>
+                <input
+                  type="password"
+                  required
+                  className="input-field"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className="label">Confirmar Contraseña *</label>
+                <input
+                  type="password"
+                  required
+                  className="input-field"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                />
+              </div>
+
+              {/* Individual Fields */}
+              {accountType === 'individual' && (
+                <>
+                  <div>
+                    <label className="label">Nombre Completo *</label>
+                    <input
+                      type="text"
+                      required
+                      className="input-field"
+                      value={individualName}
+                      onChange={(e) => setIndividualName(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="label">DNI *</label>
+                      <input
+                        type="text"
+                        required
+                        className="input-field"
+                        value={individualDni}
+                        onChange={(e) => setIndividualDni(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="label">CUIL *</label>
+                      <input
+                        type="text"
+                        required
+                        className="input-field"
+                        value={individualCuil}
+                        onChange={(e) => setIndividualCuil(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="label">Dirección *</label>
+                    <input
+                      type="text"
+                      required
+                      className="input-field"
+                      value={individualAddress}
+                      onChange={(e) => setIndividualAddress(e.target.value)}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="label">Celular *</label>
+                    <input
+                      type="tel"
+                      required
+                      className="input-field"
+                      value={individualPhone}
+                      onChange={(e) => setIndividualPhone(e.target.value)}
+                    />
+                  </div>
+                </>
+              )}
+
+              {/* Company Fields */}
+              {accountType === 'company' && (
+                <>
+                  <div>
+                    <label className="label">Nombre de la Empresa *</label>
+                    <input
+                      type="text"
+                      required
+                      className="input-field"
+                      value={companyName}
+                      onChange={(e) => setCompanyName(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="label">CUIT *</label>
+                      <input
+                        type="text"
+                        required
+                        className="input-field"
+                        value={companyCuit}
+                        onChange={(e) => setCompanyCuit(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="label">Rubro *</label>
+                      <input
+                        type="text"
+                        required
+                        className="input-field"
+                        value={companyIndustry}
+                        onChange={(e) => setCompanyIndustry(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="label">Dirección *</label>
+                    <input
+                      type="text"
+                      required
+                      className="input-field"
+                      value={companyAddress}
+                      onChange={(e) => setCompanyAddress(e.target.value)}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="label">Teléfono *</label>
+                    <input
+                      type="tel"
+                      required
+                      className="input-field"
+                      value={companyPhone}
+                      onChange={(e) => setCompanyPhone(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="border-t pt-4 mt-6">
+                    <h3 className="font-bold mb-4">Datos del Apoderado</h3>
+
+                    <div>
+                      <label className="label">Nombre del Apoderado *</label>
+                      <input
+                        type="text"
+                        required
+                        className="input-field"
+                        value={representativeName}
+                        onChange={(e) => setRepresentativeName(e.target.value)}
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 mt-4">
+                      <div>
+                        <label className="label">Celular *</label>
+                        <input
+                          type="tel"
+                          required
+                          className="input-field"
+                          value={representativePhone}
+                          onChange={(e) => setRepresentativePhone(e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <label className="label">Email *</label>
+                        <input
+                          type="email"
+                          required
+                          className="input-field"
+                          value={representativeEmail}
+                          onChange={(e) => setRepresentativeEmail(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="btn-primary w-full"
+              >
+                {loading ? 'Registrando...' : 'Registrarse'}
+              </button>
+
+              {message && (
+                <div className={`p-4 rounded-lg text-sm ${
+                  message.includes('✅') 
+                    ? 'bg-green-50 text-green-800' 
+                    : 'bg-red-50 text-red-800'
+                }`}>
+                  {message}
+                </div>
+              )}
+
+              <p className="text-center text-sm text-gray-600">
+                ¿Ya tienes cuenta?{' '}
+                <Link href="/auth" className="text-indigo-600 hover:underline">
+                  Iniciar Sesión
+                </Link>
+              </p>
+            </form>
           </div>
         </div>
       </div>
+
+      {/* Footer */}
+      <footer className="bg-gray-900 text-gray-300 py-8 mt-12">
+        <div className="max-w-7xl mx-auto px-4 text-center text-sm">
+          <div className="flex justify-center gap-6 mb-4">
+            <Link href="/legal/terminos" className="hover:text-white">
+              Términos y Condiciones
+            </Link>
+            <Link href="/legal/privacidad" className="hover:text-white">
+              Política de Privacidad
+            </Link>
+          </div>
+          <p>© 2026 DasLATAM. Todos los derechos reservados.</p>
+        </div>
+      </footer>
     </div>
   );
 }
