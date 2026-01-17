@@ -9,12 +9,13 @@ export default function AdminDashboard() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [pendingOrgs, setPendingOrgs] = useState<any[]>([]);
+  const [myOrg, setMyOrg] = useState<any>(null);
 
   useEffect(() => {
-    checkAdminAndLoadData();
+    loadData();
   }, []);
 
-  async function checkAdminAndLoadData() {
+  async function loadData() {
     try {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
@@ -24,34 +25,34 @@ export default function AdminDashboard() {
         return;
       }
 
+      // Get my org
       const { data: org } = await supabase
         .from('organizations')
-        .select('is_admin')
+        .select('*')
         .eq('user_id', user.id)
         .single();
 
+      setMyOrg(org);
+
+      // Si NO es admin, redirigir a user dashboard
       if (!org?.is_admin) {
         router.push('/dashboard/user');
         return;
       }
 
-      await loadPendingOrgs();
+      // Load pending orgs
+      const { data: pending } = await supabase
+        .from('organizations')
+        .select('*')
+        .eq('approved_status', 'pending')
+        .order('created_at', { ascending: false });
+
+      setPendingOrgs(pending || []);
     } catch (error) {
       console.error('Error:', error);
     } finally {
       setLoading(false);
     }
-  }
-
-  async function loadPendingOrgs() {
-    const supabase = createClient();
-    const { data } = await supabase
-      .from('organizations')
-      .select('*')
-      .eq('approved_status', 'pending')
-      .order('created_at', { ascending: false });
-
-    setPendingOrgs(data || []);
   }
 
   async function handleApprove(orgId: string) {
@@ -67,7 +68,7 @@ export default function AdminDashboard() {
       if (error) throw error;
 
       alert('✅ Cuenta aprobada');
-      await loadPendingOrgs();
+      await loadData();
     } catch (error: any) {
       alert('❌ Error: ' + error.message);
     }
@@ -86,7 +87,7 @@ export default function AdminDashboard() {
       if (error) throw error;
 
       alert('✅ Cuenta rechazada');
-      await loadPendingOrgs();
+      await loadData();
     } catch (error: any) {
       alert('❌ Error: ' + error.message);
     }
@@ -108,7 +109,6 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
       <nav className="bg-white border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
@@ -119,6 +119,9 @@ export default function AdminDashboard() {
               </Link>
             </div>
             <div className="flex items-center gap-4">
+              <span className="text-sm text-gray-600">
+                {myOrg?.email}
+              </span>
               <button onClick={handleLogout} className="btn-secondary">
                 Cerrar Sesión
               </button>
@@ -132,18 +135,18 @@ export default function AdminDashboard() {
 
         <div className="card mb-6">
           <h3 className="text-xl font-bold mb-4">
-            Cuentas Pendientes de Aprobación ({pendingOrgs.length})
+            Cuentas Pendientes ({pendingOrgs.length})
           </h3>
 
           {pendingOrgs.length === 0 ? (
             <div className="text-center py-12 text-gray-500">
               <div className="text-6xl mb-4">✅</div>
-              <p>No hay cuentas pendientes</p>
+              <p>No hay cuentas pendientes de aprobación</p>
             </div>
           ) : (
             <div className="space-y-4">
               {pendingOrgs.map((org) => (
-                <div key={org.id} className="border rounded-lg p-6">
+                <div key={org.id} className="border rounded-lg p-6 bg-yellow-50">
                   <div className="flex justify-between items-start mb-4">
                     <div>
                       <h4 className="text-lg font-bold">
@@ -155,8 +158,8 @@ export default function AdminDashboard() {
                         {org.account_type === 'individual' ? '👤 Particular' : '🏢 Empresa'}
                       </p>
                     </div>
-                    <span className="bg-yellow-100 text-yellow-800 text-sm px-3 py-1 rounded-full">
-                      ⏳ Pendiente
+                    <span className="bg-yellow-200 text-yellow-900 text-sm px-3 py-1 rounded-full font-bold">
+                      ⏳ PENDIENTE
                     </span>
                   </div>
 
@@ -191,10 +194,6 @@ export default function AdminDashboard() {
                           <p className="text-sm text-gray-600">Rubro</p>
                           <p className="font-medium">{org.company_industry || 'No especificado'}</p>
                         </div>
-                        <div>
-                          <p className="text-sm text-gray-600">Teléfono</p>
-                          <p className="font-medium">{org.company_phone || 'No especificado'}</p>
-                        </div>
                       </>
                     )}
                   </div>
@@ -212,7 +211,7 @@ export default function AdminDashboard() {
                     </button>
                     <button
                       onClick={() => handleReject(org.id)}
-                      className="btn-secondary flex-1"
+                      className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 flex-1"
                     >
                       ❌ Rechazar
                     </button>
@@ -223,21 +222,6 @@ export default function AdminDashboard() {
           )}
         </div>
       </div>
-
-      {/* Footer */}
-      <footer className="bg-gray-900 text-gray-300 py-8 mt-12">
-        <div className="max-w-7xl mx-auto px-4 text-center text-sm">
-          <div className="flex justify-center gap-6 mb-4">
-            <Link href="/legal/terminos" className="hover:text-white">
-              Términos y Condiciones
-            </Link>
-            <Link href="/legal/privacidad" className="hover:text-white">
-              Política de Privacidad
-            </Link>
-          </div>
-          <p>© 2026 DasLATAM. Todos los derechos reservados.</p>
-        </div>
-      </footer>
     </div>
   );
 }

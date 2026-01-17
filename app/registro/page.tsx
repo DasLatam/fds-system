@@ -11,19 +11,16 @@ export default function RegistroPage() {
   const [accountType, setAccountType] = useState<'individual' | 'company'>('individual');
   const [message, setMessage] = useState('');
 
-  // Common fields
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
-  // Individual fields
   const [individualName, setIndividualName] = useState('');
   const [individualDni, setIndividualDni] = useState('');
   const [individualCuil, setIndividualCuil] = useState('');
   const [individualAddress, setIndividualAddress] = useState('');
   const [individualPhone, setIndividualPhone] = useState('');
 
-  // Company fields
   const [companyName, setCompanyName] = useState('');
   const [companyCuit, setCompanyCuit] = useState('');
   const [companyIndustry, setCompanyIndustry] = useState('');
@@ -45,31 +42,28 @@ export default function RegistroPage() {
 
       const supabase = createClient();
 
-      // 1. Create auth user
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          data: { account_type: accountType }
+          data: { account_type: accountType },
+          emailRedirectTo: undefined
         }
       });
 
       if (authError) throw authError;
       if (!authData.user) throw new Error('No se pudo crear el usuario');
 
-      // 2. Wait a bit for trigger
       await new Promise(resolve => setTimeout(resolve, 1000));
 
-      // 3. Verify organization exists
-      const { data: org, error: orgCheckError } = await supabase
+      const { data: org } = await supabase
         .from('organizations')
         .select('id')
         .eq('user_id', authData.user.id)
         .single();
 
-      if (orgCheckError || !org) {
-        // Create manually if trigger failed
-        const { error: manualOrgError } = await supabase
+      if (!org) {
+        await supabase
           .from('organizations')
           .insert({
             user_id: authData.user.id,
@@ -77,11 +71,8 @@ export default function RegistroPage() {
             account_type: accountType,
             approved_status: 'pending'
           });
-
-        if (manualOrgError) throw manualOrgError;
       }
 
-      // 4. Update organization data
       const updateData: any = { email };
 
       if (accountType === 'individual') {
@@ -101,13 +92,12 @@ export default function RegistroPage() {
         updateData.company_representative_email = representativeEmail;
       }
 
-      const { error: updateError } = await supabase
+      await supabase
         .from('organizations')
         .update(updateData)
         .eq('user_id', authData.user.id);
 
-      if (updateError) throw updateError;
-
+      // Éxito - redirigir sin importar si el email falló
       router.push('/pending-approval');
     } catch (error: any) {
       console.error('Registration error:', error);
@@ -119,7 +109,6 @@ export default function RegistroPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header con link de vuelta */}
       <header className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
@@ -132,16 +121,15 @@ export default function RegistroPage() {
       <div className="py-12 px-4">
         <div className="max-w-2xl mx-auto">
           <div className="card">
-            <h2 className="text-3xl font-bold mb-6">Crear Cuenta</h2>
-            <p className="text-gray-600 mb-6">FDS - Firma Digital Simple</p>
+            <h2 className="text-3xl font-bold mb-2">Crear Cuenta</h2>
+            <p className="text-gray-600 mb-6">Registrate para comenzar a usar FDS</p>
 
-            {/* Account Type Selector */}
             <div className="flex gap-4 mb-6">
               <button
                 onClick={() => setAccountType('individual')}
                 className={`flex-1 py-3 px-4 rounded-lg border-2 transition-colors ${
                   accountType === 'individual'
-                    ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
+                    ? 'border-indigo-600 bg-indigo-50 text-indigo-700 font-bold'
                     : 'border-gray-300 hover:border-gray-400'
                 }`}
               >
@@ -151,7 +139,7 @@ export default function RegistroPage() {
                 onClick={() => setAccountType('company')}
                 className={`flex-1 py-3 px-4 rounded-lg border-2 transition-colors ${
                   accountType === 'company'
-                    ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
+                    ? 'border-indigo-600 bg-indigo-50 text-indigo-700 font-bold'
                     : 'border-gray-300 hover:border-gray-400'
                 }`}
               >
@@ -160,7 +148,6 @@ export default function RegistroPage() {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Common Fields */}
               <div>
                 <label className="label">Email *</label>
                 <input
@@ -177,6 +164,7 @@ export default function RegistroPage() {
                 <input
                   type="password"
                   required
+                  minLength={6}
                   className="input-field"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -194,8 +182,7 @@ export default function RegistroPage() {
                 />
               </div>
 
-              {/* Individual Fields */}
-              {accountType === 'individual' && (
+              {accountType === 'individual' ? (
                 <>
                   <div>
                     <label className="label">Nombre Completo *</label>
@@ -253,10 +240,7 @@ export default function RegistroPage() {
                     />
                   </div>
                 </>
-              )}
-
-              {/* Company Fields */}
-              {accountType === 'company' && (
+              ) : (
                 <>
                   <div>
                     <label className="label">Nombre de la Empresa *</label>
@@ -314,40 +298,42 @@ export default function RegistroPage() {
                     />
                   </div>
 
-                  <div className="border-t pt-4 mt-6">
+                  <div className="border-t pt-4">
                     <h3 className="font-bold mb-4">Datos del Apoderado</h3>
 
-                    <div>
-                      <label className="label">Nombre del Apoderado *</label>
-                      <input
-                        type="text"
-                        required
-                        className="input-field"
-                        value={representativeName}
-                        onChange={(e) => setRepresentativeName(e.target.value)}
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4 mt-4">
+                    <div className="space-y-4">
                       <div>
-                        <label className="label">Celular *</label>
+                        <label className="label">Nombre *</label>
                         <input
-                          type="tel"
+                          type="text"
                           required
                           className="input-field"
-                          value={representativePhone}
-                          onChange={(e) => setRepresentativePhone(e.target.value)}
+                          value={representativeName}
+                          onChange={(e) => setRepresentativeName(e.target.value)}
                         />
                       </div>
-                      <div>
-                        <label className="label">Email *</label>
-                        <input
-                          type="email"
-                          required
-                          className="input-field"
-                          value={representativeEmail}
-                          onChange={(e) => setRepresentativeEmail(e.target.value)}
-                        />
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="label">Celular *</label>
+                          <input
+                            type="tel"
+                            required
+                            className="input-field"
+                            value={representativePhone}
+                            onChange={(e) => setRepresentativePhone(e.target.value)}
+                          />
+                        </div>
+                        <div>
+                          <label className="label">Email *</label>
+                          <input
+                            type="email"
+                            required
+                            className="input-field"
+                            value={representativeEmail}
+                            onChange={(e) => setRepresentativeEmail(e.target.value)}
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -359,22 +345,18 @@ export default function RegistroPage() {
                 disabled={loading}
                 className="btn-primary w-full"
               >
-                {loading ? 'Registrando...' : 'Registrarse'}
+                {loading ? 'Creando cuenta...' : 'Registrarse'}
               </button>
 
               {message && (
-                <div className={`p-4 rounded-lg text-sm ${
-                  message.includes('✅') 
-                    ? 'bg-green-50 text-green-800' 
-                    : 'bg-red-50 text-red-800'
-                }`}>
+                <div className="bg-red-50 text-red-800 p-4 rounded-lg text-sm">
                   {message}
                 </div>
               )}
 
               <p className="text-center text-sm text-gray-600">
                 ¿Ya tienes cuenta?{' '}
-                <Link href="/auth" className="text-indigo-600 hover:underline">
+                <Link href="/auth" className="text-indigo-600 hover:underline font-medium">
                   Iniciar Sesión
                 </Link>
               </p>
@@ -382,21 +364,6 @@ export default function RegistroPage() {
           </div>
         </div>
       </div>
-
-      {/* Footer */}
-      <footer className="bg-gray-900 text-gray-300 py-8 mt-12">
-        <div className="max-w-7xl mx-auto px-4 text-center text-sm">
-          <div className="flex justify-center gap-6 mb-4">
-            <Link href="/legal/terminos" className="hover:text-white">
-              Términos y Condiciones
-            </Link>
-            <Link href="/legal/privacidad" className="hover:text-white">
-              Política de Privacidad
-            </Link>
-          </div>
-          <p>© 2026 DasLATAM. Todos los derechos reservados.</p>
-        </div>
-      </footer>
     </div>
   );
 }
