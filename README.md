@@ -1,294 +1,209 @@
-# FDS - Firma Digital Simple
+# 📝 FDS v2.0 - Firma Digital Simple
 
-Sistema de gestión y firma digital de contratos de alquiler temporario desarrollado por **DasLATAM**.
+Sistema profesional de firma digital con validez legal en Argentina.
 
-## 📋 Características
+## 🚀 Características
 
-✅ **Autenticación sin contraseña** (Magic Links via Supabase)
-✅ **3 Roles**: Inmobiliaria, Locador, Locatario
-✅ **Creación de contratos** con formulario completo
-✅ **Generación automática de PDFs** basados en template
-✅ **Sistema de firmas digitales** con canvas
-✅ **Notificaciones automáticas** por email en cada paso
-✅ **Storage de PDFs** en Supabase
-✅ **100% Responsive** y mobile-friendly
+- ✅ Registro de particulares y empresas con datos completos
+- ✅ Subida de PDFs para firmar
+- ✅ Múltiples firmantes por documento
+- ✅ Notificaciones automáticas por email (Resend)
+- ✅ Dashboard de administración
+- ✅ Dashboard de usuario
+- ✅ Firma digital con validez legal (Ley 25.506)
+- ✅ Tracking de firmas en tiempo real
+- ✅ Templates para inmobiliarias (próximamente)
 
-### 🔒 SEGURIDAD ROBUSTA (NUEVO v2.0)
-✅ **Rate limiting** anti-spam con Upstash Redis
-✅ **Expiración de tokens** (30 días automático)
-✅ **Auditoría completa** con tracking de IP y user agent
-✅ **HTTPS obligatorio** con certificado SSL/TLS
-✅ **Backup automático diario** vía Supabase
-✅ **Row Level Security** (RLS) en base de datos
+## 📦 Instalación
 
-### ⚖️ CUMPLIMIENTO LEGAL (NUEVO v2.0)
-✅ **Ley 25.506** - Firma Digital Argentina
-✅ **Ley 25.326** - Protección de Datos Personales
-✅ **Art. 288 CCyC** - Validez jurídica de firma digital
-✅ **Términos y Condiciones** página completa
-✅ **Política de Privacidad** GDPR-compliant
-✅ **Consentimiento explícito** popup antes de firmar
-✅ **Derechos GDPR** implementados (acceso, olvido, portabilidad)
-
-## 🛠 Stack Tecnológico
-
-- **Frontend**: Next.js 14 + TypeScript + Tailwind CSS
-- **Backend**: Next.js API Routes
-- **Base de Datos**: Supabase (PostgreSQL)
-- **Autenticación**: Supabase Auth
-- **Storage**: Supabase Storage
-- **Emails**: SMTP (Ferozo)
-- **PDFs**: pdf-lib
-- **Hosting**: Vercel
-
-## 🚀 Instalación Local
-
-### Prerequisitos
-
-- Node.js 18+ instalado
-- Cuenta en Supabase (gratuita)
-- Cuenta en Vercel (gratuita)
-
-### Paso 1: Clonar el Proyecto
+### 1. Clonar/Descomprimir el proyecto
 
 ```bash
-# Si tienes el proyecto en un ZIP, descomprimirlo
-# Si está en GitHub:
-# git clone https://github.com/tu-repo/fds-system.git
-cd fds-system
+cd tu-directorio
+# Ya tienes los archivos descomprimidos
 ```
 
-### Paso 2: Instalar Dependencias
+### 2. Instalar dependencias
 
 ```bash
 npm install
 ```
 
-### Paso 3: Configurar Supabase
+### 3. Configurar Base de Datos
 
-1. Crear un nuevo proyecto en [Supabase](https://supabase.com)
-2. Ir a **SQL Editor** y ejecutar el script `supabase-schema.sql`
-3. Ir a **Storage** y verificar que se creó el bucket `contracts`
-4. Copiar las credenciales del proyecto:
-   - Project URL
-   - Anon/Public Key
-   - Service Role Key (desde Settings > API)
+**En Supabase → SQL Editor:**
 
-### Paso 4: Configurar Variables de Entorno
+Ejecuta TODO el contenido de `DATABASE.sql`
 
-Crear un archivo `.env.local` en la raíz del proyecto:
+Esto creará:
+- Tabla `organizations` (usuarios)
+- Tabla `documents` (documentos para firmar)
+- Tabla `signers` (firmantes)
+- Storage bucket para PDFs
+- Triggers y funciones
+- Usuario admin inicial
+
+### 4. Configurar Variables de Entorno
+
+Copia `.env.example` a `.env.local`:
 
 ```bash
-# Copiar desde .env.example
 cp .env.example .env.local
 ```
 
-Editar `.env.local` con tus valores:
+Edita `.env.local` con tus valores:
 
 ```env
-# Supabase
 NEXT_PUBLIC_SUPABASE_URL=https://tu-proyecto.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=tu_anon_key_aqui
-SUPABASE_SERVICE_ROLE_KEY=tu_service_role_key_aqui
-
-# SMTP (Ferozo)
-SMTP_HOST=va000847.ferozo.com
-SMTP_PORT=465
-SMTP_SECURE=true
-SMTP_USER=firmadigitalsimple@daslatam.org
-SMTP_PASS=tu_password_smtp_aqui
-
-# App URL
-NEXT_PUBLIC_APP_URL=http://localhost:3000
+NEXT_PUBLIC_SITE_URL=https://tu-dominio.vercel.app
+RESEND_API_KEY=re_tu_api_key_aqui
 ```
 
-### Paso 5: Ejecutar en Desarrollo
+### 5. Configurar DNS en Ferozo
+
+Para que funcionen los emails, agrega en Ferozo estos registros DNS:
+
+#### Record 1 - DKIM
+```
+Tipo: TXT
+Host: resend._domainkey
+Valor: p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQC+VKPhYSZae6+7dUQiTrO3NWuA9JJl58YAHKegHFtpd2qqgWlYMdDHzh9epItA6eMyXLUcnuAr4HPKRGN36pIHEDSh0lk3Vt39bZqCwX8hGA6KFmqwaYltcP7zq6lWDPwKkcCoYfJANY4ElXBsXMGwprHOYamMVauFGD4GXYXAkwIDAQAB
+TTL: 3600
+```
+
+#### Record 2 - SPF
+```
+Tipo: TXT
+Host: send
+Valor: v=spf1 include:amazonses.com ~all
+TTL: 3600
+```
+
+#### Record 3 - MX
+```
+Tipo: MX
+Host: send
+Valor: feedback-smtp.us-east-1.amazonses.com
+Prioridad: 10
+TTL: 3600
+```
+
+**Espera 10-30 minutos para propagación DNS**
+
+### 6. Configurar SMTP en Supabase
+
+**Supabase → Project Settings → Auth → SMTP Settings:**
+
+```
+Enable custom SMTP: ON
+
+Sender name: FDS
+Sender email: noreply@daslatam.org
+
+Host: smtp.resend.com
+Port: 465
+
+Username: resend
+Password: re_tu_api_key (tu API key de Resend)
+```
+
+**Click "Save changes"**
+
+### 7. Ejecutar en desarrollo
 
 ```bash
 npm run dev
 ```
 
-La aplicación estará disponible en [http://localhost:3000](http://localhost:3000)
+Abre http://localhost:3000
 
-## 📦 Deploy en Vercel
-
-### Opción 1: Deploy desde GitHub
-
-1. Subir el proyecto a GitHub
-2. Ir a [Vercel](https://vercel.com)
-3. Click en **"Add New Project"**
-4. Importar tu repositorio de GitHub
-5. Configurar las variables de entorno:
-   - `NEXT_PUBLIC_SUPABASE_URL`
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   - `SUPABASE_SERVICE_ROLE_KEY`
-   - `SMTP_HOST`
-   - `SMTP_PORT`
-   - `SMTP_SECURE`
-   - `SMTP_USER`
-   - `SMTP_PASS`
-   - `NEXT_PUBLIC_APP_URL` (será `https://tu-proyecto.vercel.app`)
-6. Click en **"Deploy"**
-
-### Opción 2: Deploy con Vercel CLI
+### 8. Deploy en Vercel
 
 ```bash
-# Instalar Vercel CLI globalmente
-npm install -g vercel
-
-# Login en Vercel
-vercel login
-
-# Deploy
+# Conecta tu repo a Vercel
 vercel
 
-# Configurar las variables de entorno en el dashboard de Vercel
+# Agrega las variables de entorno en Vercel Dashboard
 ```
 
-### Paso Importante: Actualizar URLs
+## 📱 Uso
 
-Después del deploy, actualizar estas URLs:
+### Como Admin
 
-1. **En Supabase**:
-   - Ir a **Authentication** > **URL Configuration**
-   - Agregar tu URL de Vercel en **Site URL**: `https://tu-proyecto.vercel.app`
-   - Agregar en **Redirect URLs**: `https://tu-proyecto.vercel.app/auth/callback`
+1. Login con `firmadigitalsimple@daslatam.org` / tu password
+2. Ve a Dashboard Admin
+3. Aprueba organizaciones pendientes
+4. Monitorea todos los documentos
 
-2. **En Vercel**:
-   - Actualizar la variable `NEXT_PUBLIC_APP_URL` con tu URL de producción
+### Como Usuario/Empresa
 
-## 📝 Uso del Sistema
+1. Registrarse en `/registro`
+2. Completar datos (individual o empresa)
+3. Esperar aprobación del admin
+4. Acceder al dashboard
+5. Crear documentos
+6. Agregar firmantes
+7. Enviar invitaciones
 
-### Como Inmobiliaria
+### Como Firmante
 
-1. **Registrarse**: Ir a `/auth` e ingresar tu email
-2. **Magic Link**: Revisar email y hacer click en el enlace
-3. **Dashboard**: Serás redirigido al dashboard de inmobiliaria
-4. **Crear Contrato**: Click en "Nuevo Contrato"
-5. **Completar Formulario**: Llenar todos los datos del locador, locatario e inmueble
-6. **Enviar**: El sistema automáticamente:
-   - Genera el PDF del contrato
-   - Envía emails al locador y locatario con links únicos
-   - Crea los registros en la base de datos
+1. Recibir email con link de firma
+2. Click en el link
+3. Revisar documento
+4. Firmar digitalmente
+5. Recibir confirmación
 
-### Como Locador o Locatario
-
-1. **Recibir Email**: Llegarán un email con el enlace para firmar
-2. **Revisar Contrato**: Ver todos los detalles y descargar el PDF
-3. **Firmar**: Dibujar la firma en el canvas
-4. **Confirmar**: Click en "Confirmar y Firmar Contrato"
-5. **Listo**: Recibirás un email cuando ambas partes hayan firmado
-
-## 📁 Estructura del Proyecto
+## 🗂️ Estructura del Proyecto
 
 ```
-fds-system/
+fds-v2/
 ├── app/
-│   ├── api/                    # API Routes
-│   │   ├── contracts/
-│   │   │   └── create/
-│   │   └── signatures/
-│   │       ├── verify/
-│   │       └── sign/
-│   ├── auth/                   # Autenticación
-│   │   └── callback/
-│   ├── dashboard/              # Dashboards
-│   │   ├── inmobiliaria/
-│   │   ├── locador/
-│   │   └── locatario/
-│   ├── firma/                  # Sistema de firmas
-│   │   ├── [token]/
-│   │   └── exito/
-│   ├── layout.tsx
-│   ├── page.tsx
-│   └── globals.css
-├── components/                 # Componentes React
-│   ├── ContractsList.tsx
-│   ├── NuevoContratoForm.tsx
-│   └── SignaturePage.tsx
-├── lib/                        # Utilidades
-│   ├── supabase/
-│   │   ├── client.ts
-│   │   └── server.ts
-│   ├── email.ts
-│   └── pdf-generator.ts
-├── types/                      # TypeScript types
-│   └── index.ts
-├── public/                     # Archivos estáticos
-│   ├── logo.png
-│   └── template-contrato.pdf
-├── middleware.ts               # Middleware de Next.js
-├── supabase-schema.sql         # Schema de la base de datos
-├── .env.example
-├── package.json
-├── tsconfig.json
-├── tailwind.config.js
-└── README.md
+│   ├── auth/              # Login
+│   ├── registro/          # Registro con todos los campos
+│   ├── dashboard/
+│   │   ├── admin/        # Panel admin
+│   │   └── user/         # Panel usuario
+│   ├── firma/[id]/       # Página de firma
+│   ├── legal/            # Términos y privacidad
+│   └── api/              # Rutas API
+├── components/           # Componentes React
+├── lib/
+│   ├── supabase/        # Cliente Supabase
+│   └── email-templates.ts
+├── public/              # Assets estáticos
+└── DATABASE.sql         # SQL completo para Supabase
 ```
 
-## 🔧 Configuración Avanzada
+## 🔒 Seguridad
 
-### Personalizar el Template PDF
+- Encriptación SSL/TLS
+- Autenticación con Supabase Auth
+- Tokens únicos por firmante
+- Registro de IP y metadata de firma
+- Storage seguro de documentos
 
-El template del PDF está en `public/template-contrato.pdf`. Para personalizarlo:
+## 📄 Legal
 
-1. Editar el PDF con Adobe Acrobat o herramientas similares
-2. Reemplazar el archivo en `public/`
-3. Ajustar las coordenadas en `lib/pdf-generator.ts` si es necesario
+El sistema cumple con:
+- ✅ Ley 25.506 de Firma Digital (Argentina)
+- ✅ Código Civil y Comercial
+- ✅ Ley de Protección de Datos Personales
 
-### Personalizar Emails
+## 🆘 Soporte
 
-Los templates de email están en `lib/email.ts`. Puedes modificar:
+Email: firmadigitalsimple@daslatam.org
 
-- Diseño HTML
-- Textos
-- Estilos
-- Logo (cambiar la URL)
+## 📝 Licencia
 
-### Añadir Campos al Contrato
-
-1. Actualizar el schema SQL en `supabase-schema.sql`
-2. Agregar el campo en `types/index.ts` (interface Contract)
-3. Añadir el campo en el formulario (`components/NuevoContratoForm.tsx`)
-4. Actualizar la API de creación (`app/api/contracts/create/route.ts`)
-5. Actualizar el generador de PDF (`lib/pdf-generator.ts`)
-
-## 🐛 Troubleshooting
-
-### Los emails no se envían
-
-- Verificar que las credenciales SMTP sean correctas
-- Verificar que el puerto 465 esté abierto
-- Revisar los logs del servidor
-
-### Las firmas no aparecen en el PDF
-
-- Verificar que las URLs de las firmas sean públicas
-- Verificar que el bucket de Supabase Storage tenga permisos públicos
-- Revisar la función `addSignaturesToPDF` en `lib/pdf-generator.ts`
-
-### Error de autenticación
-
-- Verificar que las URLs de callback estén configuradas en Supabase
-- Verificar que `NEXT_PUBLIC_APP_URL` sea correcto
-- Revisar el middleware (`middleware.ts`)
-
-### Los PDFs no se generan
-
-- Verificar que `template-contrato.pdf` exista en `public/`
-- Verificar los permisos del bucket de Storage
-- Revisar las coordenadas en `lib/pdf-generator.ts`
-
-## 📄 Licencia
-
-© 2026 DasLATAM. Todos los derechos reservados.
-
-## 🤝 Soporte
-
-Para soporte, contactar a DasLATAM:
-- Email: firmadigitalsimple@daslatam.org
-- Web: [daslatam.org](https://daslatam.org)
+© 2026 DasLATAM - Todos los derechos reservados
 
 ---
 
-Desarrollado con ❤️ por DasLATAM
+**¡Listo para usar!** 🚀
+
+Si tienes problemas:
+1. Verifica que el SQL se ejecutó correctamente
+2. Verifica que las variables de entorno están configuradas
+3. Verifica que los DNS de Resend están configurados
+4. Revisa la consola del navegador para errores

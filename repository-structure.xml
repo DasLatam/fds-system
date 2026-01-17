@@ -1,0 +1,132 @@
+<?xml version="1.0" ?>
+<repository name="fds-system" path="/workspaces/fds-system">
+  <file name=".env.local" path=".env.local" size="444" extension="local"/>
+  <file name=".gitignore" path=".gitignore" size="291"/>
+  <file name="CHANGELOG.md" path="CHANGELOG.md" size="5739" extension="md"/>
+  <file name="CORRECCIONES.md" path="CORRECCIONES.md" size="1856" extension="md"/>
+  <file name="DEPLOYMENT.md" path="DEPLOYMENT.md" size="8579" extension="md"/>
+  <file name="LEEME-PRIMERO-v2.md" path="LEEME-PRIMERO-v2.md" size="7330" extension="md"/>
+  <file name="LEEME-PRIMERO.md" path="LEEME-PRIMERO.md" size="6898" extension="md"/>
+  <file name="NOTAS-FINALES.md" path="NOTAS-FINALES.md" size="7239" extension="md"/>
+  <file name="README-IMPLEMENTACION.md" path="README-IMPLEMENTACION.md" size="8913" extension="md"/>
+  <file name="README.md" path="README.md" size="8570" extension="md"/>
+  <file name="SECURITY.md" path="SECURITY.md" size="6201" extension="md"/>
+  <file name="TROUBLESHOOTING.md" path="TROUBLESHOOTING.md" size="5392" extension="md"/>
+  <folder name="app" path="app">
+    <folder name="api" path="app/api">
+      <folder name="contracts" path="app/api/contracts">
+        <folder name="create" path="app/api/contracts/create">
+          <file name="route.ts" path="app/api/contracts/create/route.ts" size="5960" extension="ts"/>
+        </folder>
+        <folder name="generate-pdf" path="app/api/contracts/generate-pdf">
+          <file name="route.ts" path="app/api/contracts/generate-pdf/route.ts" size="1751" extension="ts"/>
+        </folder>
+        <folder name="send-emails" path="app/api/contracts/send-emails">
+          <file name="route.ts" path="app/api/contracts/send-emails/route.ts" size="8390" extension="ts"/>
+        </folder>
+      </folder>
+      <folder name="signatures" path="app/api/signatures">
+        <folder name="sign" path="app/api/signatures/sign">
+          <file name="route.ts" path="app/api/signatures/sign/route.ts" size="8070" extension="ts"/>
+        </folder>
+        <folder name="verify" path="app/api/signatures/verify">
+          <file name="route.ts" path="app/api/signatures/verify/route.ts" size="3587" extension="ts"/>
+        </folder>
+      </folder>
+    </folder>
+    <folder name="auth" path="app/auth">
+      <folder name="callback" path="app/auth/callback">
+        <file name="route.ts" path="app/auth/callback/route.ts" size="4231" extension="ts"/>
+      </folder>
+      <file name="page.tsx" path="app/auth/page.tsx" size="7206" extension="tsx"/>
+    </folder>
+    <folder name="contrato" path="app/contrato">
+      <folder name="[id]" path="app/contrato/[id]">
+        <file name="page.tsx" path="app/contrato/[id]/page.tsx" size="9295" extension="tsx"/>
+      </folder>
+    </folder>
+    <folder name="dashboard" path="app/dashboard">
+      <folder name="admin" path="app/dashboard/admin">
+        <file name="page.tsx" path="app/dashboard/admin/page.tsx" size="17265" extension="tsx"/>
+        <folder name="usuarios" path="app/dashboard/admin/usuarios">
+          <file name="page.tsx" path="app/dashboard/admin/usuarios/page.tsx" size="11497" extension="tsx"/>
+        </folder>
+      </folder>
+      <folder name="inmobiliaria" path="app/dashboard/inmobiliaria">
+        <folder name="contrato" path="app/dashboard/inmobiliaria/contrato">
+          <folder name="[id]" path="app/dashboard/inmobiliaria/contrato/[id]">
+            <file name="page.tsx" path="app/dashboard/inmobiliaria/contrato/[id]/page.tsx" size="11533" extension="tsx"/>
+          </folder>
+        </folder>
+        <folder name="nuevo-contrato" path="app/dashboard/inmobiliaria/nuevo-contrato">
+          <file name="page.tsx" path="app/dashboard/inmobiliaria/nuevo-contrato/page.tsx" size="20931" extension="tsx"/>
+        </folder>
+        <file name="page.tsx" path="app/dashboard/inmobiliaria/page.tsx" size="3944" extension="tsx"/>
+      </folder>
+      <folder name="locador" path="app/dashboard/locador">
+        <file name="page.tsx" path="app/dashboard/locador/page.tsx" size="11257" extension="tsx"/>
+      </folder>
+      <folder name="locatario" path="app/dashboard/locatario">
+        <file name="page.tsx" path="app/dashboard/locatario/page.tsx" size="11265" extension="tsx"/>
+      </folder>
+    </folder>
+    <file name="globals.css" path="app/globals.css" size="1370" extension="css"/>
+    <file name="icon.tsx" path="app/icon.tsx" size="555" extension="tsx"/>
+    <file name="layout.tsx" path="app/layout.tsx" size="602" extension="tsx"/>
+    <folder name="legal" path="app/legal">
+      <folder name="privacidad" path="app/legal/privacidad">
+        <file name="page.tsx" path="app/legal/privacidad/page.tsx" size="12968" extension="tsx"/>
+      </folder>
+      <folder name="terminos" path="app/legal/terminos">
+        <file name="page.tsx" path="app/legal/terminos/page.tsx" size="14962" extension="tsx"/>
+      </folder>
+    </folder>
+    <file name="page.tsx" path="app/page.tsx" size="8539" extension="tsx"/>
+    <folder name="pending-approval" path="app/pending-approval">
+      <file name="page.tsx" path="app/pending-approval/page.tsx" size="7944" extension="tsx"/>
+    </folder>
+    <folder name="registro" path="app/registro">
+      <file name="page.tsx" path="app/registro/page.tsx" size="6824" extension="tsx"/>
+    </folder>
+    <folder name="test" path="app/test">
+      <file name="page.tsx" path="app/test/page.tsx" size="265" extension="tsx"/>
+    </folder>
+  </folder>
+  <folder name="components" path="components">
+    <file name="ContractsList.tsx" path="components/ContractsList.tsx" size="5802" extension="tsx"/>
+    <file name="LegalConsentPopup.tsx" path="components/LegalConsentPopup.tsx" size="6936" extension="tsx"/>
+    <file name="Navbar.tsx" path="components/Navbar.tsx" size="3907" extension="tsx"/>
+    <file name="NuevoContratoForm.tsx" path="components/NuevoContratoForm.tsx" size="16434" extension="tsx"/>
+    <file name="SignaturePage.tsx" path="components/SignaturePage.tsx" size="10842" extension="tsx"/>
+  </folder>
+  <file name="generate_structure_xml.py" path="generate_structure_xml.py" size="2862" extension="py"/>
+  <folder name="lib" path="lib">
+    <file name="audit.ts" path="lib/audit.ts" size="1903" extension="ts"/>
+    <file name="email-templates.ts" path="lib/email-templates.ts" size="4716" extension="ts"/>
+    <file name="email.ts" path="lib/email.ts" size="7334" extension="ts"/>
+    <file name="pdf-generator.ts" path="lib/pdf-generator.ts" size="5453" extension="ts"/>
+    <file name="ratelimit.ts" path="lib/ratelimit.ts" size="1037" extension="ts"/>
+    <folder name="supabase" path="lib/supabase">
+      <file name="client.ts" path="lib/supabase/client.ts" size="211" extension="ts"/>
+      <file name="server.ts" path="lib/supabase/server.ts" size="639" extension="ts"/>
+    </folder>
+  </folder>
+  <file name="middleware.ts" path="middleware.ts" size="1617" extension="ts"/>
+  <file name="next.config.js" path="next.config.js" size="160" extension="js"/>
+  <file name="package.json" path="package.json" size="605" extension="json"/>
+  <file name="postcss.config.js" path="postcss.config.js" size="82" extension="js"/>
+  <folder name="public" path="public">
+    <file name="logo.png" path="public/logo.png" size="5284" extension="png"/>
+    <file name="template-contrato.pdf" path="public/template-contrato.pdf" size="2047730" extension="pdf"/>
+    <file name="test.html" path="public/test.html" size="314" extension="html"/>
+  </folder>
+  <file name="supabase-schema.sql" path="supabase-schema.sql" size="12699" extension="sql"/>
+  <file name="supabase-setup.sql" path="supabase-setup.sql" size="10517" extension="sql"/>
+  <file name="tailwind.config.js" path="tailwind.config.js" size="602" extension="js"/>
+  <file name="test-resend.js" path="test-resend.js" size="814" extension="js"/>
+  <file name="tsconfig.json" path="tsconfig.json" size="598" extension="json"/>
+  <folder name="types" path="types">
+    <file name="index.ts" path="types/index.ts" size="1856" extension="ts"/>
+  </folder>
+  <file name="vercel.json" path="vercel.json" size="44" extension="json"/>
+</repository>

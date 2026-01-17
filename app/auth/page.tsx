@@ -10,7 +10,6 @@ export default function AuthPage() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
-  const [mode, setMode] = useState<'magic' | 'password'>('password');
   const router = useRouter();
 
   async function handleSubmit(e: React.FormEvent) {
@@ -21,170 +20,77 @@ export default function AuthPage() {
     try {
       const supabase = createClient();
 
-      if (mode === 'magic') {
-        // Magic Link
-        const { error } = await supabase.auth.signInWithOtp({
-          email,
-          options: {
-            emailRedirectTo: `${window.location.origin}/auth/callback`,
-            shouldCreateUser: false // No crear usuario, solo login
-          }
-        });
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
 
-        if (error) {
-          console.error('Magic link error:', error);
-          throw error;
-        }
+      if (authError) throw authError;
 
-        setMessage('✅ ¡Email enviado! Revisa tu bandeja de entrada (y spam) y haz click en el enlace.\n\nEl enlace expira en 1 hora.');
+      const { data: org } = await supabase
+        .from('organizations')
+        .select('*')
+        .eq('user_id', authData.user.id)
+        .single();
+
+      if (!org) {
+        setMessage('No se encontró tu organización');
+        return;
+      }
+
+      if (!org.approved && org.role !== 'admin') {
+        router.push('/pending-approval');
+        return;
+      }
+
+      if (org.role === 'admin') {
+        router.push('/dashboard/admin');
       } else {
-        // Password
-        const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-          email,
-          password
-        });
-
-        if (authError) {
-          if (authError.message.includes('Invalid login credentials')) {
-            throw new Error('Email o contraseña incorrectos');
-          }
-          if (authError.message.includes('Email not confirmed')) {
-            throw new Error('Por favor confirma tu email antes de ingresar. Revisa tu bandeja de entrada.');
-          }
-          throw authError;
-        }
-
-        // Obtener rol
-        const { data: roleData } = await supabase
-          .from('user_roles')
-          .select('role, approved')
-          .eq('user_id', authData.user.id)
-          .single();
-
-        if (!roleData) {
-          setMessage('❌ No tienes un rol asignado. Contacta al administrador.');
-          return;
-        }
-
-        // Redirigir según rol
-        if (roleData.role === 'admin') {
-          router.push('/dashboard/admin');
-        } else if (roleData.role === 'inmobiliaria') {
-          router.push(roleData.approved ? '/dashboard/inmobiliaria' : '/pending-approval');
-        } else if (roleData.role === 'locador') {
-          router.push('/dashboard/locador');
-        } else if (roleData.role === 'locatario') {
-          router.push('/dashboard/locatario');
-        }
+        router.push('/dashboard/user');
       }
 
     } catch (error: any) {
-      console.error('Auth error:', error);
-      setMessage(`❌ ${error.message}`);
+      setMessage(error.message);
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-cyan-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-purple-50 flex items-center justify-center p-4">
       <div className="card max-w-md w-full">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            FDS - Firma Digital Simple
-          </h1>
-          <p className="text-gray-600">Ingresa a tu cuenta</p>
-        </div>
-
-        {/* Tabs */}
-        <div className="flex gap-2 mb-6">
-          <button
-            type="button"
-            onClick={() => {
-              setMode('password');
-              setMessage('');
-            }}
-            className={`flex-1 py-2 px-4 rounded-lg font-medium transition ${
-              mode === 'password'
-                ? 'bg-indigo-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            🔐 Contraseña
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setMode('magic');
-              setMessage('');
-            }}
-            className={`flex-1 py-2 px-4 rounded-lg font-medium transition ${
-              mode === 'magic'
-                ? 'bg-indigo-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            📧 Magic Link
-          </button>
-        </div>
+        <h1 className="text-3xl font-bold text-center mb-2">Iniciar Sesión</h1>
+        <p className="text-gray-600 text-center mb-8">FDS - Firma Digital Simple</p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Email
-            </label>
+            <label className="label">Email</label>
             <input
               type="email"
               required
               className="input-field"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="tu@email.com"
-              autoComplete="email"
             />
           </div>
 
-          {mode === 'password' && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Contraseña
-              </label>
-              <input
-                type="password"
-                required
-                className="input-field"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Tu contraseña"
-                autoComplete="current-password"
-              />
-            </div>
-          )}
+          <div>
+            <label className="label">Contraseña</label>
+            <input
+              type="password"
+              required
+              className="input-field"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="btn-primary w-full"
-          >
-            {loading ? (
-              <span className="flex items-center justify-center">
-                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                {mode === 'magic' ? 'Enviando...' : 'Ingresando...'}
-              </span>
-            ) : (
-              mode === 'magic' ? '📧 Enviar Magic Link' : '🔐 Ingresar'
-            )}
+          <button type="submit" disabled={loading} className="btn-primary w-full">
+            {loading ? 'Ingresando...' : 'Ingresar'}
           </button>
 
           {message && (
-            <div className={`p-4 rounded-lg text-sm whitespace-pre-line ${
-              message.includes('✅') 
-                ? 'bg-green-50 text-green-800 border border-green-200' 
-                : 'bg-red-50 text-red-800 border border-red-200'
-            }`}>
+            <div className="p-4 bg-red-50 text-red-800 rounded-lg text-sm">
               {message}
             </div>
           )}
@@ -194,18 +100,10 @@ export default function AuthPage() {
           <p className="text-sm text-gray-600">
             ¿No tienes cuenta?{' '}
             <Link href="/registro" className="text-indigo-600 hover:text-indigo-700 font-medium">
-              Registrarse como Inmobiliaria
+              Registrarse
             </Link>
           </p>
         </div>
-
-        {mode === 'magic' && (
-          <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-            <p className="text-xs text-blue-800">
-              💡 <strong>Tip:</strong> El Magic Link es más seguro y conveniente. No necesitas recordar contraseña.
-            </p>
-          </div>
-        )}
       </div>
     </div>
   );

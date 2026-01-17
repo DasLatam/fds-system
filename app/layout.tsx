@@ -1,22 +1,22 @@
-import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
-import './globals.css'
+import type { Metadata } from "next";
+import { Inter } from "next/font/google";
+import "./globals.css";
 
-const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
+const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: 'FDS - Firma Digital Simple | DasLATAM',
-  description: 'Sistema de gestión y firma digital de contratos de alquiler temporario',
-}
+  title: "FDS - Firma Digital Simple",
+  description: "Sistema profesional de firma digital con validez legal en Argentina",
+};
 
 export default function RootLayout({
   children,
 }: {
-  children: React.ReactNode
+  children: React.ReactNode;
 }) {
   return (
     <html lang="es">
-      <body className={inter.variable}>{children}</body>
+      <body className={inter.className}>{children}</body>
     </html>
-  )
+  );
 }
