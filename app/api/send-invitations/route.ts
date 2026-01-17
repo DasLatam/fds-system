@@ -37,12 +37,12 @@ export async function POST(request: NextRequest) {
     const results = [];
     for (const signer of signers) {
       try {
-        const signUrl = \`\${process.env.NEXT_PUBLIC_SITE_URL}/firma/\${signer.signature_token}\`;
+        const signUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/firma/${signer.signature_token}`;
         
         const { data, error } = await resend.emails.send({
           from: 'FDS <noreply@daslatam.org>',
           to: signer.email,
-          subject: \`Documento para firmar: \${document.title}\`,
+          subject: `Documento para firmar: ${document.title}`,
           html: generateSignerInvitationEmail({
             signerName: signer.name,
             documentTitle: document.title,
@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
         });
 
         if (error) {
-          console.error(\`Error sending to \${signer.email}:\`, error);
+          console.error(`Error sending to ${signer.email}:`, error);
           results.push({ email: signer.email, success: false, error });
         } else {
           // Update invitation_sent_at
