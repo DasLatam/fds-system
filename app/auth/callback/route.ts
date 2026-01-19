@@ -12,9 +12,13 @@ export async function GET(req: NextRequest) {
   // Si NO hay code, igual redirigimos a la página client callback
   // para que consuma implicit hash tokens si existen.
   if (!code) {
-    const toClient = new URL(`/auth/callback?next=${encodeURIComponent(next)}`, req.url);
-    return NextResponse.redirect(toClient);
-  }
+  const toClient = new URL(
+    `/auth/callback-client?next=${encodeURIComponent(next)}`,
+    req.url
+  );
+  return NextResponse.redirect(toClient);
+}
+
 
   const cookieStore = await cookies();
 
