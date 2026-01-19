@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
-import { supabaseAdmin } from '../../../lib/supabase/admin'
+import { supabaseAdmin } from '@/lib/supabase/admin'
 import { signPdf } from '../../../lib/pdf/signPdf'
 import { createHash } from 'crypto'
 import { Resend } from 'resend'

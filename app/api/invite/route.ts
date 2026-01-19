@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
-import { supabaseAdmin } from '../../../lib/supabase/admin'
+import { supabaseAdmin } from "@/lib/supabase/admin";
 import { Resend } from 'resend'
 import { randomUUID } from 'crypto'
 

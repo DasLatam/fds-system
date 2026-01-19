@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin"; // o tu import real
+import { supabaseAdmin } from "@/lib/supabase/admin";
 
 export async function GET(
   _req: NextRequest,
@@ -7,10 +7,7 @@ export async function GET(
 ) {
   const { token } = await context.params;
 
-  const supabase = createAdminClient();
-
-  // --- tu lógica actual, ejemplo típico ---
-  const { data: reqRow, error: reqErr } = await supabase
+  const { data: reqRow, error: reqErr } = await supabaseAdmin
     .from("signing_requests")
     .select("id,email,status,document_id")
     .eq("token", token)
@@ -20,7 +17,7 @@ export async function GET(
     return NextResponse.json({ error: "Token inválido" }, { status: 404 });
   }
 
-  const { data: docRow, error: docErr } = await supabase
+  const { data: docRow, error: docErr } = await supabaseAdmin
     .from("documents")
     .select("title,original_path,status")
     .eq("id", reqRow.document_id)
@@ -30,10 +27,9 @@ export async function GET(
     return NextResponse.json({ error: "Documento no encontrado" }, { status: 404 });
   }
 
-  // Signed URL del PDF original (bucket fds)
-  const { data: signed, error: signedErr } = await supabase.storage
+  const { data: signed, error: signedErr } = await supabaseAdmin.storage
     .from("fds")
-    .createSignedUrl(docRow.original_path, 60 * 10);
+    .createSignedUrl(docRow.original_path, 600);
 
   if (signedErr || !signed?.signedUrl) {
     return NextResponse.json({ error: "No se pudo generar URL" }, { status: 500 });
