@@ -1,5 +1,8 @@
+cat > postcss.config.mjs <<'EOF'
 export default {
   plugins: {
-    '@tailwindcss/postcss': {},
+    "@tailwindcss/postcss": {},
+    autoprefixer: {},
   },
-}
+};
+EOF
