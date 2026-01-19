@@ -4,21 +4,13 @@ import { createServerClient } from "@supabase/ssr";
 
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
-
-  // PKCE flow: viene ?code=...
   const code = url.searchParams.get("code");
   const next = url.searchParams.get("next") || "/dashboard";
 
-  // Si NO hay code, igual redirigimos a la página client callback
-  // para que consuma implicit hash tokens si existen.
+  // Con PKCE debería venir code. Si no viene, mandamos a login con error claro.
   if (!code) {
-  const toClient = new URL(
-    `/auth/callback-client?next=${encodeURIComponent(next)}`,
-    req.url
-  );
-  return NextResponse.redirect(toClient);
-}
-
+    return NextResponse.redirect(new URL("/login?error=missing_code", req.url));
+  }
 
   const cookieStore = await cookies();
 

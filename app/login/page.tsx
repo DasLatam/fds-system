@@ -4,14 +4,12 @@ import { useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 
 function getRedirectTo() {
-  // En prod será https://firmadigitalsimple.vercel.app
   const origin =
     typeof window !== "undefined"
       ? window.location.origin
       : "https://firmadigitalsimple.vercel.app";
 
   const safeOrigin = origin.startsWith("http") ? origin : `https://${origin}`;
-
   return `${safeOrigin}/auth/callback?next=/dashboard`;
 }
 
@@ -30,7 +28,7 @@ export default function LoginPage() {
     const { error } = await supabaseBrowser.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: redirectTo, // ✅ ABSOLUTO (con https)
+        emailRedirectTo: redirectTo,
       },
     });
 
@@ -45,9 +43,7 @@ export default function LoginPage() {
   return (
     <div className="mx-auto max-w-md p-6">
       <h1 className="text-2xl font-semibold">Ingresar</h1>
-      <p className="mt-2 text-sm text-zinc-600">
-        Login por Magic Link (Supabase Auth).
-      </p>
+      <p className="mt-2 text-sm text-zinc-600">Login por Magic Link (Supabase Auth).</p>
 
       <form onSubmit={sendLink} className="mt-6 space-y-3">
         <input
@@ -67,9 +63,7 @@ export default function LoginPage() {
         </button>
 
         {sent && (
-          <p className="text-sm text-emerald-700">
-            Te enviamos un link de acceso a tu email.
-          </p>
+          <p className="text-sm text-emerald-700">Te enviamos un link de acceso a tu email.</p>
         )}
 
         {errorMsg && <p className="text-sm text-red-600">{errorMsg}</p>}

@@ -4,8 +4,8 @@ import { getSupabaseBrowserEnv } from "./env";
 let cachedBrowserClient: SupabaseClient | null = null;
 
 /**
- * Supabase client para el navegador.
- * (Session en localStorage + detectSessionInUrl para magic links)
+ * Supabase client para el navegador (PKCE)
+ * PKCE evita el hash (#access_token) y usa ?code=... -> ideal para route handler /auth/callback.
  */
 export function createSupabaseBrowserClient() {
   if (cachedBrowserClient) return cachedBrowserClient;
@@ -14,6 +14,7 @@ export function createSupabaseBrowserClient() {
 
   cachedBrowserClient = createClient(url, anonKey, {
     auth: {
+      flowType: "pkce",
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: true,
@@ -23,5 +24,4 @@ export function createSupabaseBrowserClient() {
   return cachedBrowserClient;
 }
 
-// Export común (si lo usás directo en componentes client)
 export const supabaseBrowser = createSupabaseBrowserClient();
