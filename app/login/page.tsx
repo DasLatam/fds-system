@@ -4,35 +4,38 @@ import { useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 
 function getRedirectTo() {
-  // en prod va a ser https://firmadigitalsimple.vercel.app
+  // En prod será https://firmadigitalsimple.vercel.app
   const origin =
-    typeof window !== "undefined" ? window.location.origin : "https://firmadigitalsimple.vercel.app";
+    typeof window !== "undefined"
+      ? window.location.origin
+      : "https://firmadigitalsimple.vercel.app";
 
-  // Si por alguna razón origin viniera sin protocolo (raro), lo forzamos
   const safeOrigin = origin.startsWith("http") ? origin : `https://${origin}`;
 
   return `${safeOrigin}/auth/callback?next=/dashboard`;
 }
 
-
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  async function sendLink(e: React.FormEvent) {
+  async function sendLink(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setError(null);
+    setErrorMsg(null);
+    setSent(false);
 
     const redirectTo = getRedirectTo();
 
-    await supabaseBrowser.auth.signInWithOtp({
-  email,
-  options: { emailRedirectTo: getRedirectTo() },
-});
+    const { error } = await supabaseBrowser.auth.signInWithOtp({
+      email,
+      options: {
+        emailRedirectTo: redirectTo, // ✅ ABSOLUTO (con https)
+      },
+    });
 
     if (error) {
-      setError(error.message);
+      setErrorMsg(error.message);
       return;
     }
 
@@ -42,7 +45,9 @@ export default function LoginPage() {
   return (
     <div className="mx-auto max-w-md p-6">
       <h1 className="text-2xl font-semibold">Ingresar</h1>
-      <p className="mt-2 text-sm text-zinc-600">Login por Magic Link (Supabase Auth).</p>
+      <p className="mt-2 text-sm text-zinc-600">
+        Login por Magic Link (Supabase Auth).
+      </p>
 
       <form onSubmit={sendLink} className="mt-6 space-y-3">
         <input
@@ -51,9 +56,13 @@ export default function LoginPage() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
+          type="email"
         />
 
-        <button className="w-full rounded-md bg-black px-4 py-2 text-sm font-medium text-white">
+        <button
+          type="submit"
+          className="w-full rounded-md bg-black px-4 py-2 text-sm font-medium text-white"
+        >
           Enviar link
         </button>
 
@@ -63,7 +72,7 @@ export default function LoginPage() {
           </p>
         )}
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {errorMsg && <p className="text-sm text-red-600">{errorMsg}</p>}
       </form>
     </div>
   );
