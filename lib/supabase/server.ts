@@ -2,10 +2,10 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
 /**
- * Server client con cookies (Next 16: cookies() es async).
- * Úsalo SOLO en Server Components / Route Handlers.
+ * Supabase server client con cookies (Next 16: cookies() es async).
+ * Úsalo en Server Components / Route Handlers.
  */
-export async function await createSupabaseServerClient() {
+export async function createSupabaseServerClient() {
   const cookieStore = await cookies();
 
   type CookieOptions = Parameters<typeof cookieStore.set>[2];
@@ -25,8 +25,8 @@ export async function await createSupabaseServerClient() {
             cookieStore.set(name, value, options);
           });
         } catch {
-          // En Server Components puede fallar setear cookies (solo se permite en Route Handlers / Server Actions).
-          // No hacemos throw para no romper render.
+          // En Server Components a veces no se permite setear cookies.
+          // No rompemos render por eso.
         }
       },
     },

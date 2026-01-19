@@ -11,11 +11,20 @@ function getClient(req: NextRequest, res: NextResponse) {
         getAll() {
           return req.cookies.getAll()
         },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => {
-            res.cookies.set(name, value, options)
-          })
-        }
+        setAll(
+        cookiesToSet: Array<{
+        name: string;
+        value: string;
+        options?: Parameters<typeof res.cookies.set>[2];
+        }>
+      ) 
+
+{
+  cookiesToSet.forEach(({ name, value, options }) => {
+    res.cookies.set(name, value, options);
+  });
+},
+
       }
     }
   )
@@ -26,7 +35,11 @@ export async function middleware(req: NextRequest) {
 
   // Rate limit only API routes
   if (req.nextUrl.pathname.startsWith('/api')) {
-    const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || req.ip || 'unknown'
+    const ip =
+  req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+  req.headers.get("x-real-ip")?.trim() ||
+  "unknown";
+
     const { success } = await apiRateLimit.limit(`ip:${ip}`)
     if (!success) {
       return new NextResponse('Too Many Requests', { status: 429 })
