@@ -130,10 +130,23 @@ export async function POST(req: NextRequest) {
       userAgent,
     });
 
-    // Update counts
-    await admin.rpc("increment_signed_count", { p_document_id: doc.id }).catch(() => {
-      // If rpc not present, we'll do manual update below
-    });
+    let rpcWorked = false;
+
+try {
+  const { error: rpcErr } = await admin.rpc("increment_signed_count", {
+    p_document_id: doc.id,
+  });
+
+  if (!rpcErr) rpcWorked = true;
+} catch {
+  rpcWorked = false;
+}
+
+// Si no existe el RPC o falló, hacé el update manual (tu fallback)
+if (!rpcWorked) {
+  // ✅ tu lógica manual existente debajo (no la cambies)
+}
+
 
     // Manual recount (robust)
     const { count: signedCount } = await admin
