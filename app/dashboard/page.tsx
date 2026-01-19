@@ -3,7 +3,7 @@ import UploadForm from './UploadForm'
 import { createSupabaseServerClient } from '../../lib/supabase/server'
 
 export default async function DashboardPage() {
-  const supabase = createSupabaseServerClient()
+  const supabase = await createSupabaseServerClient()
   const { data: userData } = await supabase.auth.getUser()
   const user = userData.user!
 
