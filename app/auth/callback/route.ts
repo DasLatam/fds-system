@@ -10,8 +10,12 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(new URL("/login?error=missing_code", req.url));
   }
 
-  // ✅ Next 16: cookies() es async (Promise)
+  // Next 16: cookies() es async
   const cookieStore = await cookies();
+
+  // ✅ Tipos robustos (sin any)
+  type CookieOptions = Parameters<typeof cookieStore.set>[2];
+  type CookieToSet = { name: string; value: string; options?: CookieOptions };
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -21,8 +25,8 @@ export async function GET(req: NextRequest) {
         getAll() {
           return cookieStore.getAll();
         },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => {
+        setAll(cookiesToSet: CookieToSet[]) {
+          cookiesToSet.forEach(({ name, value, options }: CookieToSet) => {
             cookieStore.set(name, value, options);
           });
         },
