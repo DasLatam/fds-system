@@ -4,12 +4,16 @@ import { useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 
 function getRedirectTo() {
-  // En prod: window.location.origin = https://firmadigitalsimple.vercel.app
-  // En local: http://localhost:3000
+  // en prod va a ser https://firmadigitalsimple.vercel.app
   const origin =
-    typeof window !== "undefined" ? window.location.origin : "http://localhost:3000";
-  return `${origin}/auth/callback?next=/dashboard`;
+    typeof window !== "undefined" ? window.location.origin : "https://firmadigitalsimple.vercel.app";
+
+  // Si por alguna razón origin viniera sin protocolo (raro), lo forzamos
+  const safeOrigin = origin.startsWith("http") ? origin : `https://${origin}`;
+
+  return `${safeOrigin}/auth/callback?next=/dashboard`;
 }
+
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -22,12 +26,10 @@ export default function LoginPage() {
 
     const redirectTo = getRedirectTo();
 
-    const { error } = await supabaseBrowser.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: redirectTo, // ✅ ABSOLUTO SIEMPRE
-      },
-    });
+    await supabaseBrowser.auth.signInWithOtp({
+  email,
+  options: { emailRedirectTo: getRedirectTo() },
+});
 
     if (error) {
       setError(error.message);
