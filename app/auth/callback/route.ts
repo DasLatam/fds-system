@@ -36,9 +36,14 @@ export async function GET(req: NextRequest) {
 
   const { error } = await supabase.auth.exchangeCodeForSession(code);
 
-  if (error) {
-    return NextResponse.redirect(new URL("/login?error=auth_callback_failed", req.url));
-  }
+if (error) {
+  // Log server-side (Vercel -> Functions logs)
+  console.error("exchangeCodeForSession error:", error);
+  // devolvemos un error con código visible (sin filtrar secretos)
+  return NextResponse.redirect(
+    new URL(`/login?error=auth_callback_failed&msg=${encodeURIComponent(error.message)}`, req.url)
+  );
+}
 
   return NextResponse.redirect(new URL(next, req.url));
 }

@@ -26,11 +26,12 @@ export default function LoginPage() {
     const redirectTo = getRedirectTo();
 
     const { error } = await supabaseBrowser.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: redirectTo,
-      },
-    });
+  email,
+  options: {
+    emailRedirectTo: redirectTo,
+    shouldCreateUser: false,
+  },
+});
 
     if (error) {
       setErrorMsg(error.message);
