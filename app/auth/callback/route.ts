@@ -4,16 +4,20 @@ import { createServerClient } from "@supabase/ssr";
 
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
-  const code = url.searchParams.get("code");
 
+  // PKCE flow: viene ?code=...
+  const code = url.searchParams.get("code");
+  const next = url.searchParams.get("next") || "/dashboard";
+
+  // Si NO hay code, igual redirigimos a la página client callback
+  // para que consuma implicit hash tokens si existen.
   if (!code) {
-    return NextResponse.redirect(new URL("/login?error=missing_code", req.url));
+    const toClient = new URL(`/auth/callback?next=${encodeURIComponent(next)}`, req.url);
+    return NextResponse.redirect(toClient);
   }
 
-  // Next 16: cookies() es async
   const cookieStore = await cookies();
 
-  // ✅ Tipos robustos (sin any)
   type CookieOptions = Parameters<typeof cookieStore.set>[2];
   type CookieToSet = { name: string; value: string; options?: CookieOptions };
 
@@ -40,5 +44,5 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(new URL("/login?error=auth_callback_failed", req.url));
   }
 
-  return NextResponse.redirect(new URL("/dashboard", req.url));
+  return NextResponse.redirect(new URL(next, req.url));
 }
