@@ -13,7 +13,7 @@ export default function NewDocumentPage() {
     setMsg(null);
 
     if (!file) {
-      setMsg("Seleccioná un PDF.");
+      setMsg("Seleccioná un PDF antes de subir.");
       return;
     }
 
@@ -31,9 +31,13 @@ export default function NewDocumentPage() {
         return;
       }
 
-      setMsg("PDF subido. Volvé al dashboard para invitar firmantes.");
-      setTitle("");
-      setFile(null);
+      const id = data?.documentId;
+      if (!id) {
+        setMsg("Subió, pero no recibí documentId (error inesperado).");
+        return;
+      }
+
+      window.location.href = `/dashboard/doc/${id}`;
     } catch (err: any) {
       setMsg(err?.message || "Error inesperado.");
     } finally {
@@ -64,6 +68,11 @@ export default function NewDocumentPage() {
             className="block w-full text-sm"
             onChange={(e) => setFile(e.target.files?.[0] || null)}
           />
+          {file ? (
+            <p className="mt-2 text-xs text-zinc-600">
+              Seleccionado: {file.name} ({Math.round(file.size / 1024)} KB)
+            </p>
+          ) : null}
         </div>
 
         <button
