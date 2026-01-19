@@ -1,25 +1,19 @@
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createBrowserClient } from "@supabase/ssr";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { getSupabaseBrowserEnv } from "./env";
 
 let cachedBrowserClient: SupabaseClient | null = null;
 
 /**
- * Supabase client para el navegador (PKCE)
- * PKCE evita el hash (#access_token) y usa ?code=... -> ideal para route handler /auth/callback.
+ * Supabase client para el navegador (SSR-friendly).
+ * Usa cookies para PKCE, compatible con exchangeCodeForSession en server.
  */
 export function createSupabaseBrowserClient() {
   if (cachedBrowserClient) return cachedBrowserClient;
 
   const { url, anonKey } = getSupabaseBrowserEnv();
 
-  cachedBrowserClient = createClient(url, anonKey, {
-    auth: {
-      flowType: "pkce",
-      persistSession: true,
-      autoRefreshToken: true,
-      detectSessionInUrl: true,
-    },
-  });
+  cachedBrowserClient = createBrowserClient(url, anonKey);
 
   return cachedBrowserClient;
 }
