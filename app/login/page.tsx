@@ -3,6 +3,19 @@
 import { useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 
+function getAppUrl() {
+  // En Vercel debe existir NEXT_PUBLIC_APP_URL = https://firmadigitalsimple.vercel.app
+  const fromEnv = process.env.NEXT_PUBLIC_APP_URL;
+
+  if (fromEnv && fromEnv.startsWith("http")) return fromEnv.replace(/\/$/, "");
+
+  // Fallback local/dev
+  if (typeof window !== "undefined") return window.location.origin;
+
+  // Último fallback
+  return "http://localhost:3000";
+}
+
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
@@ -12,15 +25,13 @@ export default function LoginPage() {
     e.preventDefault();
     setError(null);
 
-    const appUrl =
-      process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
-
+    const appUrl = getAppUrl();
     const redirectTo = `${appUrl}/auth/callback?next=/dashboard`;
 
     const { error } = await supabaseBrowser.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: redirectTo,
+        emailRedirectTo: redirectTo, // ✅ ABSOLUTO con https
       },
     });
 
