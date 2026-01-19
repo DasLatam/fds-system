@@ -1,35 +1,46 @@
-# Firma Digital Simple (FDS)
+# Firma Digital Simple (FDS) — Release 1
 
-Proyecto Next.js 16 + Supabase + Resend + Upstash.
+Next.js 16 (App Router) + TypeScript + Tailwind CSS 4 + Supabase (Auth, Postgres, Storage) + Resend + Upstash Redis.
 
-## Requisitos
-- Node 20+
-- Proyecto Supabase con Auth Email (Magic Link) habilitado
-- Bucket privado `fds` en Supabase Storage
+> Bucket de Storage: **fds** (privado)
+> - Original: `{userId}/{docId}/original/original.pdf`
+> - Final: `{userId}/{docId}/final/final.pdf`
 
-## Variables de entorno (Vercel / .env.local)
+## 1) Variables de entorno (Vercel / .env.local)
 
-### Public (se exponen al browser)
-- NEXT_PUBLIC_SUPABASE_URL
-- NEXT_PUBLIC_SUPABASE_ANON_KEY
-- NEXT_PUBLIC_APP_URL (ej: https://firmadigitalsimple.vercel.app)
+### App
+- `NEXT_PUBLIC_APP_URL` = `https://firmadigitalsimple.vercel.app`
 
-### Server-only
-- SUPABASE_SERVICE_ROLE_KEY
-- RESEND_API_KEY
-- RESEND_FROM (ej: "FDS <no-reply@tu-dominio.com>")
-- UPSTASH_REDIS_REST_URL
-- UPSTASH_REDIS_REST_TOKEN
+### Supabase
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY` (solo server)
 
-## Supabase SQL
-Ejecutá `supabase.sql` en el SQL editor de Supabase.
+### Resend
+- `RESEND_API_KEY`
+- `RESEND_FROM` (ej: `FDS <noreply@tu-dominio.com>`)
 
-## Storage
-Crear bucket privado `fds`.
+### Upstash Redis (Rate limit)
+- `UPSTASH_REDIS_REST_URL`
+- `UPSTASH_REDIS_REST_TOKEN`
 
-## Desarrollo
+## 2) Supabase
+
+1) Ejecutá `supabase/schema.sql` en el SQL Editor.
+2) Storage → Buckets → crear bucket **fds** y marcarlo como **Private**.
+
+## 3) Desarrollo local
 
 ```bash
 npm install
 npm run dev
 ```
+
+## 4) Producción (Vercel)
+
+- Configurar las env vars en Vercel (All Environments)
+- Deploy
+
+## Notas legales
+
+El servicio implementa **firma electrónica** (Ley 25.506, art. 5). No constituye firma digital certificada (Ley 25.506, art. 2).

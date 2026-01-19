@@ -1,9 +1,9 @@
--- FDS System (v0.2) - Supabase SQL
--- Run in Supabase SQL Editor.
+-- FDS System (Release 1) - Supabase SQL
+-- Run in Supabase SQL Editor. Safe to re-run.
 
 create extension if not exists "uuid-ossp";
 
--- Profiles (for Personal + Signer identity)
+-- Profiles (Personal/Empresa) + identity fields
 create table if not exists public.profiles (
   user_id uuid primary key,
   role text not null default 'personal' check (role in ('personal','company')),
@@ -12,6 +12,7 @@ create table if not exists public.profiles (
   cuil text,
   address text,
   phone text,
+  plan text not null default 'free' check (plan in ('free','personal_usd1','personal_20','company_30')),
   created_at timestamptz not null default now()
 );
 
@@ -66,10 +67,11 @@ create table if not exists public.signing_requests (
   signed_at timestamptz,
   signer_ip text,
   signature_hash text,
+  signature_path text,
   created_at timestamptz not null default now()
 );
 
--- Audit events
+-- Audit events (append-only)
 create table if not exists public.audit_events (
   id bigserial primary key,
   document_id uuid not null references public.documents(id) on delete cascade,
@@ -86,7 +88,7 @@ create table if not exists public.audit_events (
   created_at timestamptz not null default now()
 );
 
--- Credits ledger (usage / subscriptions)
+-- Credits ledger (usage / subscriptions - payments not included in Release 1)
 create table if not exists public.credits_ledger (
   id bigserial primary key,
   user_id uuid not null,
@@ -100,6 +102,7 @@ create index if not exists documents_created_by_idx on public.documents(created_
 create index if not exists signing_requests_document_id_idx on public.signing_requests(document_id);
 create index if not exists signing_requests_token_idx on public.signing_requests(token);
 create index if not exists audit_events_doc_idx on public.audit_events(document_id, created_at desc);
+create index if not exists audit_events_req_idx on public.audit_events(signing_request_id, created_at desc);
 create index if not exists credits_ledger_user_idx on public.credits_ledger(user_id, created_at desc);
 
 -- RLS
@@ -110,22 +113,58 @@ alter table public.signing_requests enable row level security;
 alter table public.audit_events enable row level security;
 alter table public.credits_ledger enable row level security;
 
+-- Helper to create policies idempotently
+create or replace function public._create_policy_if_missing(
+  p_name text,
+  p_table regclass,
+  p_cmd text,
+  p_using text,
+  p_check text default null
+) returns void language plpgsql as $$
+begin
+  if not exists (
+    select 1 from pg_policies where policyname = p_name and tablename = split_part(p_table::text, '.', 2)
+  ) then
+    execute format(
+      'create policy %I on %s for %s using (%s)%s',
+      p_name,
+      p_table,
+      p_cmd,
+      p_using,
+      case when p_check is null then '' else format(' with check (%s)', p_check) end
+    );
+  end if;
+end; $$;
+
 -- Policies
-create policy "profiles_select_own" on public.profiles for select using (user_id = auth.uid());
-create policy "profiles_upsert_own" on public.profiles for insert with check (user_id = auth.uid());
-create policy "profiles_update_own" on public.profiles for update using (user_id = auth.uid());
+select public._create_policy_if_missing('profiles_select_own','public.profiles','select','user_id = auth.uid()');
+select public._create_policy_if_missing('profiles_insert_own','public.profiles','insert','true','user_id = auth.uid()');
+select public._create_policy_if_missing('profiles_update_own','public.profiles','update','user_id = auth.uid()');
 
-create policy "organizations_select_own" on public.organizations for select using (owner_user_id = auth.uid());
-create policy "organizations_insert_own" on public.organizations for insert with check (owner_user_id = auth.uid());
-create policy "organizations_update_own" on public.organizations for update using (owner_user_id = auth.uid());
+select public._create_policy_if_missing('organizations_select_own','public.organizations','select','owner_user_id = auth.uid()');
+select public._create_policy_if_missing('organizations_insert_own','public.organizations','insert','true','owner_user_id = auth.uid()');
+select public._create_policy_if_missing('organizations_update_own','public.organizations','update','owner_user_id = auth.uid()');
 
-create policy "documents_select_own" on public.documents for select using (created_by = auth.uid());
-create policy "documents_insert_own" on public.documents for insert with check (created_by = auth.uid());
-create policy "documents_update_own" on public.documents for update using (created_by = auth.uid());
+select public._create_policy_if_missing('documents_select_own','public.documents','select','created_by = auth.uid()');
+select public._create_policy_if_missing('documents_insert_own','public.documents','insert','true','created_by = auth.uid()');
+select public._create_policy_if_missing('documents_update_own','public.documents','update','created_by = auth.uid()');
 
-create policy "audit_select_own" on public.audit_events for select using (actor_user_id = auth.uid());
+select public._create_policy_if_missing('credits_select_own','public.credits_ledger','select','user_id = auth.uid()');
+select public._create_policy_if_missing('credits_insert_own','public.credits_ledger','insert','true','user_id = auth.uid()');
 
-create policy "credits_select_own" on public.credits_ledger for select using (user_id = auth.uid());
-create policy "credits_insert_own" on public.credits_ledger for insert with check (user_id = auth.uid());
+-- signing_requests and audit_events are mostly server-side via service role.
+-- For dashboard UX we allow document owners to READ them.
 
--- signing_requests: server-side (service role) handles inserts/updates, keep locked down
+select public._create_policy_if_missing(
+  'signing_requests_select_owner',
+  'public.signing_requests',
+  'select',
+  'exists (select 1 from public.documents d where d.id = signing_requests.document_id and d.created_by = auth.uid())'
+);
+
+select public._create_policy_if_missing(
+  'audit_events_select_owner',
+  'public.audit_events',
+  'select',
+  'exists (select 1 from public.documents d where d.id = audit_events.document_id and d.created_by = auth.uid())'
+);

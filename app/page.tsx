@@ -3,109 +3,144 @@ import Link from "next/link";
 export default function HomePage() {
   return (
     <div>
-      <section className="relative overflow-hidden">
-        <div className="absolute inset-0 -z-10">
-          <div className="absolute -top-32 left-1/2 h-96 w-96 -translate-x-1/2 rounded-full bg-zinc-200/60 blur-3xl" />
-          <div className="absolute -bottom-32 left-1/3 h-96 w-96 rounded-full bg-zinc-100 blur-3xl" />
-          <svg className="absolute inset-0 h-full w-full opacity-[0.05]" aria-hidden>
-            <defs>
-              <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
-                <path d="M 32 0 L 0 0 0 32" fill="none" stroke="currentColor" strokeWidth="1" />
-              </pattern>
-            </defs>
-            <rect width="100%" height="100%" fill="url(#grid)" />
-          </svg>
-        </div>
+      <section className="border-b border-zinc-200">
+        <div className="mx-auto grid max-w-5xl grid-cols-1 gap-10 px-4 py-14 md:grid-cols-2 md:py-20">
+          <div>
+            <p className="text-sm font-medium text-zinc-600">Firma electrónica en Argentina</p>
+            <h1 className="mt-3 text-4xl font-semibold tracking-tight md:text-5xl">
+              Firmá PDFs online, simple y robusto.
+            </h1>
+            <p className="mt-4 text-base leading-relaxed text-zinc-600">
+              Invitá firmantes por email, capturá firma manuscrita y generá un PDF final con evidencia técnica
+              (hash SHA-256, IP y timestamp). Pensado para contratos, autorizaciones y documentación diaria.
+            </p>
 
-        <div className="mx-auto max-w-5xl px-4 py-16">
-          <div className="grid gap-10 lg:grid-cols-2 lg:items-center">
-            <div>
-              <p className="inline-flex items-center rounded-full border border-zinc-200 bg-white px-3 py-1 text-xs text-zinc-700">
-                Firma electrónica en Argentina · Evidencia técnica reforzada
-              </p>
-              <h1 className="mt-4 text-4xl font-semibold tracking-tight text-zinc-900 sm:text-5xl">
-                Firmá documentos online de forma simple, segura y legal.
-              </h1>
-              <p className="mt-4 text-base leading-relaxed text-zinc-700">
-                Subí un PDF, invitá firmantes y obtené un documento final con sello de integridad (SHA-256), timestamp, IP y auditoría por evento.
-                Diseñado para procesos legales y administrativos sin fricción.
-              </p>
-
-              <div className="mt-6 flex flex-wrap items-center gap-3">
-                <Link
-                  href="/login"
-                  className="rounded-md bg-black px-5 py-2.5 text-sm font-medium text-white"
-                >
-                  Empezar gratis
-                </Link>
-                <Link
-                  href="/pricing"
-                  className="rounded-md border border-zinc-200 px-5 py-2.5 text-sm font-medium"
-                >
-                  Ver planes
-                </Link>
-              </div>
-
-              <div className="mt-6 grid gap-3 sm:grid-cols-3">
-                {[
-                  { k: "0 costo", v: "Firmar siempre es gratis" },
-                  { k: "Integridad", v: "Hash SHA-256 + evidencia" },
-                  { k: "Auditoría", v: "Eventos: view/open/sign" },
-                ].map((x) => (
-                  <div key={x.k} className="rounded-xl border border-zinc-200 bg-white p-4">
-                    <div className="text-sm font-semibold">{x.k}</div>
-                    <div className="mt-1 text-xs text-zinc-600">{x.v}</div>
-                  </div>
-                ))}
-              </div>
+            <div className="mt-7 flex flex-wrap items-center gap-3">
+              <Link
+                href="/login"
+                className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white"
+              >
+                Empezar gratis
+              </Link>
+              <Link
+                href="/pricing"
+                className="rounded-md border border-zinc-200 px-4 py-2 text-sm font-medium"
+              >
+                Ver planes
+              </Link>
+              <Link href="#como-funciona" className="text-sm text-zinc-700 hover:text-zinc-900">
+                Cómo funciona
+              </Link>
             </div>
 
+            <div className="mt-8 grid grid-cols-1 gap-3 text-sm text-zinc-600 sm:grid-cols-3">
+              <div className="rounded-lg border border-zinc-200 p-3">
+                <div className="font-medium text-zinc-900">Gratis para firmar</div>
+                <div className="mt-1">Firmantes sin costo, con historial.</div>
+              </div>
+              <div className="rounded-lg border border-zinc-200 p-3">
+                <div className="font-medium text-zinc-900">Evidencia técnica</div>
+                <div className="mt-1">Hash + auditoría + timestamps.</div>
+              </div>
+              <div className="rounded-lg border border-zinc-200 p-3">
+                <div className="font-medium text-zinc-900">Bucket privado</div>
+                <div className="mt-1">Archivos protegidos por defecto.</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="relative">
+            <div className="absolute inset-0 -z-10 rounded-2xl bg-gradient-to-br from-zinc-50 to-zinc-100" />
             <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
-              <div className="flex items-center justify-between">
-                <div className="text-sm font-medium">Ejemplo de sello</div>
-                <div className="text-xs text-zinc-500">Vista previa</div>
-              </div>
-              <div className="mt-4 rounded-xl border border-dashed border-zinc-300 bg-zinc-50 p-4">
-                <div className="text-xs text-zinc-600">Documento: Contrato_Alquiler.pdf</div>
-                <div className="mt-2 text-xs text-zinc-600">Hash (SHA-256):</div>
-                <div className="mt-1 font-mono text-[11px] text-zinc-800">
-                  8f3d…c9a1 (ejemplo)
+              <div className="flex items-center gap-3">
+                <div className="grid size-10 place-items-center rounded-xl border border-zinc-200 bg-white text-2xl">
+                  ✍️
                 </div>
-                <div className="mt-3 grid gap-2 text-xs text-zinc-600">
-                  <div>
-                    Timestamp: <span className="text-zinc-800">2026-01-19 00:00:00 UTC-3</span>
-                  </div>
-                  <div>
-                    IP firmante: <span className="text-zinc-800">190.10.20.30</span>
-                  </div>
-                  <div>
-                    Estado: <span className="text-emerald-700">Firmado</span>
-                  </div>
+                <div>
+                  <div className="text-sm font-medium">Firma Digital Simple</div>
+                  <div className="text-xs text-zinc-600">Evidencia, trazabilidad y control.</div>
                 </div>
               </div>
-              <p className="mt-4 text-xs leading-relaxed text-zinc-600">
-                * Firma electrónica conforme a Ley 25.506 (art. 5). Incluye consentimiento y trazabilidad. No reemplaza firma digital certificada.
-              </p>
+              <div className="mt-6 space-y-3">
+                <div className="rounded-lg border border-zinc-200 p-4">
+                  <div className="text-xs text-zinc-500">Documento</div>
+                  <div className="mt-1 font-medium">Contrato de alquiler</div>
+                  <div className="mt-2 text-xs text-zinc-600">
+                    Hash SHA-256: <span className="font-mono">a3f1…9c2b</span>
+                  </div>
+                </div>
+                <div className="rounded-lg border border-zinc-200 p-4">
+                  <div className="text-xs text-zinc-500">Firmantes</div>
+                  <ul className="mt-2 space-y-2 text-sm">
+                    <li className="flex items-center justify-between">
+                      <span>ariel@…</span>
+                      <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700">Pendiente</span>
+                    </li>
+                    <li className="flex items-center justify-between">
+                      <span>cliente@…</span>
+                      <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">Firmado</span>
+                    </li>
+                  </ul>
+                </div>
+                <div className="rounded-lg border border-zinc-200 p-4">
+                  <div className="text-xs text-zinc-500">Auditoría</div>
+                  <div className="mt-2 text-xs text-zinc-600">
+                    view/open/sign/email-sent con IP, user-agent y timestamp.
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      <section className="border-t border-zinc-200 bg-white">
+      <section id="como-funciona" className="mx-auto max-w-5xl px-4 py-14">
+        <h2 className="text-2xl font-semibold">Cómo funciona</h2>
+        <div className="mt-6 grid gap-4 md:grid-cols-4">
+          {[
+            { t: "Subí el PDF", d: "Guardado en bucket privado." },
+            { t: "Invitá firmantes", d: "Links únicos por email." },
+            { t: "Firman online", d: "Firma manuscrita + consentimiento." },
+            { t: "Descargá el final", d: "PDF con evidencia y auditoría." },
+          ].map((s) => (
+            <div key={s.t} className="rounded-xl border border-zinc-200 p-4">
+              <div className="font-medium">{s.t}</div>
+              <div className="mt-1 text-sm text-zinc-600">{s.d}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="border-t border-zinc-200 bg-zinc-50">
         <div className="mx-auto max-w-5xl px-4 py-14">
-          <h2 className="text-2xl font-semibold">Cómo funciona</h2>
-          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {[
-              { t: "1. Subís el PDF", d: "Storage privado con control de acceso." },
-              { t: "2. Invitás firmantes", d: "Links únicos + rate limiting." },
-              { t: "3. Firman", d: "Firma manuscrita + datos identificatorios." },
-              { t: "4. Cerrás", d: "PDF final sellado + auditoría." },
-            ].map((x) => (
-              <div key={x.t} className="rounded-xl border border-zinc-200 bg-white p-5">
-                <div className="text-sm font-semibold">{x.t}</div>
-                <div className="mt-2 text-sm text-zinc-600">{x.d}</div>
-              </div>
-            ))}
+          <h2 className="text-2xl font-semibold">Legal y seguridad</h2>
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            <div className="rounded-xl border border-zinc-200 bg-white p-5">
+              <div className="font-medium">Cumplimiento</div>
+              <p className="mt-2 text-sm leading-relaxed text-zinc-600">
+                Implementamos firma electrónica conforme a la Ley 25.506. Generamos evidencia técnica para respaldar
+                integridad y trazabilidad del documento (hash SHA-256, timestamps, auditoría de eventos).
+              </p>
+            </div>
+            <div className="rounded-xl border border-zinc-200 bg-white p-5">
+              <div className="font-medium">Protección de datos</div>
+              <p className="mt-2 text-sm leading-relaxed text-zinc-600">
+                PDFs en bucket privado, acceso por URLs firmadas temporales y registros de auditoría. Retención de evidencia
+                hasta 10 años para fines de seguridad y cumplimiento, con acceso restringido.
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-8 flex flex-wrap items-center gap-3">
+            <Link href="/login" className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white">
+              Probar gratis
+            </Link>
+            <Link href="/terms" className="text-sm text-zinc-700 hover:text-zinc-900">
+              Leer términos
+            </Link>
+            <Link href="/privacy" className="text-sm text-zinc-700 hover:text-zinc-900">
+              Ver privacidad
+            </Link>
           </div>
         </div>
       </section>

@@ -1,20 +1,23 @@
 declare module "react-signature-canvas" {
   import * as React from "react";
 
-  export interface SignatureCanvasProps {
-    penColor?: string;
+  export type SignatureCanvasProps = {
     canvasProps?: React.CanvasHTMLAttributes<HTMLCanvasElement>;
     clearOnResize?: boolean;
     backgroundColor?: string;
-    throttle?: number;
+    penColor?: string;
+    velocityFilterWeight?: number;
     minWidth?: number;
     maxWidth?: number;
-  }
+    minDistance?: number;
+    dotSize?: number;
+  };
 
   export default class SignatureCanvas extends React.Component<SignatureCanvasProps> {
     clear(): void;
     isEmpty(): boolean;
-    toDataURL(type?: string, encoderOptions?: number): string;
     getTrimmedCanvas(): HTMLCanvasElement;
+    fromDataURL(dataUrl: string): void;
+    toDataURL(type?: string): string;
   }
 }
