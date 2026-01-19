@@ -7,13 +7,11 @@ export async function GET(req: NextRequest) {
   const code = url.searchParams.get("code");
   const next = url.searchParams.get("next") || "/dashboard";
 
-  // Con PKCE debería venir code. Si no viene, mandamos a login con error claro.
   if (!code) {
     return NextResponse.redirect(new URL("/login?error=missing_code", req.url));
   }
 
   const cookieStore = await cookies();
-
   type CookieOptions = Parameters<typeof cookieStore.set>[2];
   type CookieToSet = { name: string; value: string; options?: CookieOptions };
 
@@ -29,21 +27,18 @@ export async function GET(req: NextRequest) {
           cookiesToSet.forEach(({ name, value, options }: CookieToSet) => {
             cookieStore.set(name, value, options);
           });
-        },
-      },
+        }
+      }
     }
   );
 
   const { error } = await supabase.auth.exchangeCodeForSession(code);
-
-if (error) {
-  // Log server-side (Vercel -> Functions logs)
-  console.error("exchangeCodeForSession error:", error);
-  // devolvemos un error con código visible (sin filtrar secretos)
-  return NextResponse.redirect(
-    new URL(`/login?error=auth_callback_failed&msg=${encodeURIComponent(error.message)}`, req.url)
-  );
-}
+  if (error) {
+    console.error("exchangeCodeForSession error:", error);
+    return NextResponse.redirect(
+      new URL(`/login?error=auth_callback_failed&msg=${encodeURIComponent(error.message)}`, req.url)
+    );
+  }
 
   return NextResponse.redirect(new URL(next, req.url));
 }

@@ -1,66 +1,23 @@
-import { NextResponse, type NextRequest } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
-import { apiRateLimit } from './lib/security/ratelimit'
-
-function getClient(req: NextRequest, res: NextResponse) {
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return req.cookies.getAll()
-        },
-        setAll(
-        cookiesToSet: Array<{
-        name: string;
-        value: string;
-        options?: Parameters<typeof res.cookies.set>[2];
-        }>
-      ) 
-
-{
-  cookiesToSet.forEach(({ name, value, options }) => {
-    res.cookies.set(name, value, options);
-  });
-},
-
-      }
-    }
-  )
-}
+import { NextResponse, type NextRequest } from "next/server";
+import { apiRateLimit } from "@/lib/security/ratelimit";
 
 export async function middleware(req: NextRequest) {
-  const res = NextResponse.next()
-
-  // Rate limit only API routes
-  if (req.nextUrl.pathname.startsWith('/api')) {
+  // Rate limit API only
+  if (req.nextUrl.pathname.startsWith("/api")) {
     const ip =
-  req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-  req.headers.get("x-real-ip")?.trim() ||
-  "unknown";
+      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      req.headers.get("x-real-ip")?.trim() ||
+      "unknown";
 
-    const { success } = await apiRateLimit.limit(`ip:${ip}`)
+    const { success } = await apiRateLimit.limit(`ip:${ip}`);
     if (!success) {
-      return new NextResponse('Too Many Requests', { status: 429 })
-    }
-    return res
-  }
-
-  // Protect dashboard
-  if (req.nextUrl.pathname.startsWith('/dashboard')) {
-    const supabase = getClient(req, res)
-    const { data } = await supabase.auth.getUser()
-    if (!data.user) {
-      const url = req.nextUrl.clone()
-      url.pathname = '/login'
-      return NextResponse.redirect(url)
+      return new NextResponse("Too Many Requests", { status: 429 });
     }
   }
 
-  return res
+  return NextResponse.next();
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/api/:path*']
-}
+  matcher: ["/api/:path*"],
+};

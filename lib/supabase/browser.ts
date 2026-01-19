@@ -2,20 +2,13 @@ import { createBrowserClient } from "@supabase/ssr";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getSupabaseBrowserEnv } from "./env";
 
-let cachedBrowserClient: SupabaseClient | null = null;
+let cached: SupabaseClient | null = null;
 
-/**
- * Supabase client para el navegador (SSR-friendly).
- * Usa cookies para PKCE, compatible con exchangeCodeForSession en server.
- */
-export function createSupabaseBrowserClient() {
-  if (cachedBrowserClient) return cachedBrowserClient;
-
+export function createSupabaseBrowserClient(): SupabaseClient {
+  if (cached) return cached;
   const { url, anonKey } = getSupabaseBrowserEnv();
-
-  cachedBrowserClient = createBrowserClient(url, anonKey);
-
-  return cachedBrowserClient;
+  cached = createBrowserClient(url, anonKey);
+  return cached;
 }
 
 export const supabaseBrowser = createSupabaseBrowserClient();

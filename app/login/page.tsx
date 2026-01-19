@@ -4,12 +4,8 @@ import { useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 
 function getRedirectTo() {
-  const origin =
-    typeof window !== "undefined"
-      ? window.location.origin
-      : "https://firmadigitalsimple.vercel.app";
-
-  const safeOrigin = origin.startsWith("http") ? origin : `https://${origin}`;
+  const origin = typeof window !== "undefined" ? window.location.origin : (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000");
+  const safeOrigin = origin.startsWith("http") ? origin.replace(/\/$/, "") : `https://${origin}`;
   return `${safeOrigin}/auth/callback?next=/dashboard`;
 }
 
@@ -23,21 +19,18 @@ export default function LoginPage() {
     setErrorMsg(null);
     setSent(false);
 
-    const redirectTo = getRedirectTo();
-
     const { error } = await supabaseBrowser.auth.signInWithOtp({
-  email,
-  options: {
-    emailRedirectTo: redirectTo,
-    shouldCreateUser: false,
-  },
-});
+      email,
+      options: {
+        emailRedirectTo: getRedirectTo(),
+        shouldCreateUser: true
+      }
+    });
 
     if (error) {
       setErrorMsg(error.message);
       return;
     }
-
     setSent(true);
   }
 
@@ -63,10 +56,7 @@ export default function LoginPage() {
           Enviar link
         </button>
 
-        {sent && (
-          <p className="text-sm text-emerald-700">Te enviamos un link de acceso a tu email.</p>
-        )}
-
+        {sent && <p className="text-sm text-emerald-700">Te enviamos un link de acceso a tu email.</p>}
         {errorMsg && <p className="text-sm text-red-600">{errorMsg}</p>}
       </form>
     </div>
