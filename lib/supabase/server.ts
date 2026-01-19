@@ -5,7 +5,7 @@ import { cookies } from "next/headers";
  * Server client con cookies (Next 16: cookies() es async).
  * Úsalo SOLO en Server Components / Route Handlers.
  */
-export async function createSupabaseServerClient() {
+export async function await createSupabaseServerClient() {
   const cookieStore = await cookies();
 
   type CookieOptions = Parameters<typeof cookieStore.set>[2];
