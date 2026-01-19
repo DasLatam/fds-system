@@ -3,17 +3,12 @@
 import { useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 
-function getAppUrl() {
-  // En Vercel debe existir NEXT_PUBLIC_APP_URL = https://firmadigitalsimple.vercel.app
-  const fromEnv = process.env.NEXT_PUBLIC_APP_URL;
-
-  if (fromEnv && fromEnv.startsWith("http")) return fromEnv.replace(/\/$/, "");
-
-  // Fallback local/dev
-  if (typeof window !== "undefined") return window.location.origin;
-
-  // Último fallback
-  return "http://localhost:3000";
+function getRedirectTo() {
+  // En prod: window.location.origin = https://firmadigitalsimple.vercel.app
+  // En local: http://localhost:3000
+  const origin =
+    typeof window !== "undefined" ? window.location.origin : "http://localhost:3000";
+  return `${origin}/auth/callback?next=/dashboard`;
 }
 
 export default function LoginPage() {
@@ -25,13 +20,12 @@ export default function LoginPage() {
     e.preventDefault();
     setError(null);
 
-    const appUrl = getAppUrl();
-    const redirectTo = `${appUrl}/auth/callback?next=/dashboard`;
+    const redirectTo = getRedirectTo();
 
     const { error } = await supabaseBrowser.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: redirectTo, // ✅ ABSOLUTO con https
+        emailRedirectTo: redirectTo, // ✅ ABSOLUTO SIEMPRE
       },
     });
 
@@ -46,9 +40,7 @@ export default function LoginPage() {
   return (
     <div className="mx-auto max-w-md p-6">
       <h1 className="text-2xl font-semibold">Ingresar</h1>
-      <p className="mt-2 text-sm text-zinc-600">
-        Login por Magic Link (Supabase Auth).
-      </p>
+      <p className="mt-2 text-sm text-zinc-600">Login por Magic Link (Supabase Auth).</p>
 
       <form onSubmit={sendLink} className="mt-6 space-y-3">
         <input
