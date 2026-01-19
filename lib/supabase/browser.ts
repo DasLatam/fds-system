@@ -1,11 +1,27 @@
-'use client'
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { getSupabaseBrowserEnv } from "./env";
 
-import { createBrowserClient } from '@supabase/ssr'
-import { requiredEnv } from './env'
+let cachedBrowserClient: SupabaseClient | null = null;
 
+/**
+ * Supabase client para el navegador.
+ * (Session en localStorage + detectSessionInUrl para magic links)
+ */
 export function createSupabaseBrowserClient() {
-  return createBrowserClient(
-    requiredEnv('NEXT_PUBLIC_SUPABASE_URL'),
-    requiredEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY')
-  )
+  if (cachedBrowserClient) return cachedBrowserClient;
+
+  const { url, anonKey } = getSupabaseBrowserEnv();
+
+  cachedBrowserClient = createClient(url, anonKey, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+    },
+  });
+
+  return cachedBrowserClient;
 }
+
+// Export común (si lo usás directo en componentes client)
+export const supabaseBrowser = createSupabaseBrowserClient();
