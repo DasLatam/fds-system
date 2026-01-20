@@ -1,4 +1,4 @@
-# Firma Digital Simple (FDS) — Release 1
+# Firma Electrónica Simple (FES) — Release 1
 
 Next.js 16 (App Router) + TypeScript + Tailwind CSS 4 + Supabase (Auth, Postgres, Storage) + Resend + Upstash Redis.
 
@@ -9,7 +9,7 @@ Next.js 16 (App Router) + TypeScript + Tailwind CSS 4 + Supabase (Auth, Postgres
 ## 1) Variables de entorno (Vercel / .env.local)
 
 ### App
-- `NEXT_PUBLIC_APP_URL` = `https://firmadigitalsimple.vercel.app`
+- `NEXT_PUBLIC_APP_URL` = `https://firmasimple.vercel.app`
 
 ### Supabase
 - `NEXT_PUBLIC_SUPABASE_URL`
@@ -18,7 +18,7 @@ Next.js 16 (App Router) + TypeScript + Tailwind CSS 4 + Supabase (Auth, Postgres
 
 ### Resend
 - `RESEND_API_KEY`
-- `RESEND_FROM` (ej: `FDS <noreply@tu-dominio.com>`)
+- `RESEND_FROM` (ej: `FES <noreply@tu-dominio.com>`)
 
 ### Upstash Redis (Rate limit)
 - `UPSTASH_REDIS_REST_URL`

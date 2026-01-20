@@ -143,7 +143,7 @@ export default function SignPage({ params }: { params: { token: string } }) {
       <div className="rounded-2xl border border-zinc-200 p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="text-sm text-zinc-600">Firma Digital Simple</p>
+            <p className="text-sm text-zinc-600">Firma Electrónica Simple</p>
             <h1 className="mt-1 text-2xl font-semibold">{preview.title}</h1>
             <p className="mt-2 text-sm text-zinc-600">Firmante: <span className="font-medium text-zinc-900">{preview.email}</span></p>
             {preview.signingMode === "sequential" && preview.position ? (

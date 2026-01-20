@@ -14,7 +14,7 @@ export async function sendMagicLinkEmail(opts: {
   await resend.emails.send({
     from,
     to: [opts.to],
-    subject: "Acceso seguro a Firma Digital Simple",
+    subject: "Acceso seguro a Firma Electrónica Simple",
     html: magicLinkEmailTemplate({
       loginUrl: opts.loginUrl,
       recipientEmail: opts.to,

@@ -8,7 +8,7 @@ export function magicLinkEmailTemplate(opts: {
   const body = `
     <p style="margin:0 0 12px 0;color:#18181b">Hola,</p>
     <p style="margin:0 0 14px 0;color:#18181b">
-      Recibimos una solicitud para ingresar a <b>Firma Digital Simple</b> con el correo <b>${opts.recipientEmail}</b>.
+      Recibimos una solicitud para ingresar a <b>Firma Electrónica Simple</b> con el correo <b>${opts.recipientEmail}</b>.
     </p>
     <p style="margin:0 0 14px 0;color:#18181b">
       Por seguridad, este enlace es de <b>un solo uso</b> y expira automáticamente.

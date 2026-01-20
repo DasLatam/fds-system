@@ -3,7 +3,7 @@ import Link from "next/link";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Firma Digital Simple",
+  title: "Firma Electrónica Simple",
   description: "Firma electrónica simple, segura y legal en Argentina (Ley 25.506).",
 };
 
@@ -22,7 +22,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <header className="sticky top-0 z-20 border-b border-zinc-200 bg-white/80 backdrop-blur">
           <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
             <Link href="/" className="font-semibold">
-              Firma Digital Simple
+              Firma Electrónica Simple
             </Link>
             <nav className="flex items-center gap-4">
               <NavLink href="/pricing">Planes</NavLink>
@@ -43,7 +43,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <footer className="border-t border-zinc-200">
           <div className="mx-auto max-w-5xl px-4 py-8 text-xs text-zinc-500">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>© {new Date().getFullYear()} Firma Digital Simple</div>
+              <div>© {new Date().getFullYear()} Firma Electrónica Simple</div>
               <div className="flex items-center gap-4">
                 <Link href="/terms" className="hover:text-zinc-800">
                   Términos

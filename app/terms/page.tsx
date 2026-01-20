@@ -17,7 +17,7 @@ export default function TermsPage() {
         <h1 className="text-3xl font-semibold">Términos y Condiciones</h1>
         <p className="text-sm text-zinc-600">Última actualización: {updated}.</p>
         <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-5 text-sm text-zinc-700">
-          <b>Resumen:</b> Firma Digital Simple ("FDS") ofrece una herramienta de <b>firma electrónica</b> (no firma digital certificada) para documentos PDF, con evidencia técnica: hash SHA-256, timestamp, IP, user-agent y auditoría por evento.
+          <b>Resumen:</b> Firma Electrónica Simple ("FES") ofrece una herramienta de <b>firma electrónica</b> (no firma digital certificada) para documentos PDF, con evidencia técnica: hash SHA-256, timestamp, IP, user-agent y auditoría por evento.
         </div>
       </div>
 
@@ -32,11 +32,11 @@ export default function TermsPage() {
 
         <h2>2. Marco legal aplicable</h2>
         <p>
-          FDS está diseñado para aportar <b>evidencia técnica</b> consistente con normativa argentina, principalmente:
+          FES está diseñado para aportar <b>evidencia técnica</b> consistente con normativa argentina, principalmente:
         </p>
         <ul>
           <li>
-            <b>Ley 25.506 (Firma Digital)</b>. FDS implementa un mecanismo de <b>firma electrónica</b> (no firma digital con certificado). Documento oficial:
+            <b>Ley 25.506 (Firma Digital)</b>. FES implementa un mecanismo de <b>firma electrónica</b> (no firma digital con certificado). Documento oficial:
             {" "}
             <ExternalLink href="https://www.argentina.gob.ar/normativa/nacional/ley-25506-70749">
               Argentina.gob.ar (InfoLEG)
@@ -74,10 +74,10 @@ export default function TermsPage() {
 
         <h2>3. Alcance del servicio</h2>
         <p>
-          El Creador sube un PDF, define firmantes (paralelo o secuencial) y el sistema envía invitaciones. El Firmante accede con un enlace único, visualiza el PDF y firma con trazo. FDS genera un PDF final con un sello de evidencia (hash SHA-256, timestamp e información forense).
+          El Creador sube un PDF, define firmantes (paralelo o secuencial) y el sistema envía invitaciones. El Firmante accede con un enlace único, visualiza el PDF y firma con trazo. FES genera un PDF final con un sello de evidencia (hash SHA-256, timestamp e información forense).
         </p>
         <p>
-          FDS no revisa el contenido del documento ni brinda asesoramiento legal. El Creador es responsable del contenido, de la pertinencia del acto jurídico y de las consecuencias de su uso.
+          FES no revisa el contenido del documento ni brinda asesoramiento legal. El Creador es responsable del contenido, de la pertinencia del acto jurídico y de las consecuencias de su uso.
         </p>
 
         <h2>4. Identidad y declaración del firmante</h2>
@@ -87,7 +87,7 @@ export default function TermsPage() {
 
         <h2>5. Seguridad y registro forense</h2>
         <p>
-          FDS registra auditoría por evento (por ejemplo: creación, carga, invitación, envío, apertura, vista previa, firma, emisión de timestamp y finalización). Además, el PDF final incorpora evidencia técnica.
+          FES registra auditoría por evento (por ejemplo: creación, carga, invitación, envío, apertura, vista previa, firma, emisión de timestamp y finalización). Además, el PDF final incorpora evidencia técnica.
         </p>
         <ul>
           <li><b>Hash SHA-256</b> del PDF original para detectar modificaciones.</li>
@@ -110,17 +110,17 @@ export default function TermsPage() {
 
         <h2>8. Retención y disponibilidad</h2>
         <p>
-          Por políticas de seguridad y trazabilidad, FDS puede conservar documentos y evidencias por hasta <b>10 años</b>. El acceso se limita a las partes autorizadas. La disponibilidad a terceros se realiza únicamente ante orden judicial o requerimiento legal aplicable.
+          Por políticas de seguridad y trazabilidad, FES puede conservar documentos y evidencias por hasta <b>10 años</b>. El acceso se limita a las partes autorizadas. La disponibilidad a terceros se realiza únicamente ante orden judicial o requerimiento legal aplicable.
         </p>
 
         <h2>9. Limitación de responsabilidad</h2>
         <p>
-          El servicio se brinda “tal cual”. FDS no garantiza que el documento sea admisible o suficiente como prueba en todos los casos: eso depende del acto jurídico, jurisdicción, pericia y demás circunstancias.
+          El servicio se brinda “tal cual”. FES no garantiza que el documento sea admisible o suficiente como prueba en todos los casos: eso depende del acto jurídico, jurisdicción, pericia y demás circunstancias.
         </p>
 
         <h2>10. Contacto</h2>
         <p>
-          Para consultas de soporte o solicitudes legales: <b>soporte@firmadigitalsimple.app</b> (a definir en producción).
+          Para consultas de soporte o solicitudes legales: <b>firmasimple@daslatam.org</b> (a definir en producción).
         </p>
       </div>
     </div>

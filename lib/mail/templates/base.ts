@@ -25,7 +25,7 @@ export function baseEmailTemplate(opts: {
   <div style="font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;line-height:1.5;background:#f4f4f5;padding:24px">
     <div style="max-width:560px;margin:0 auto;background:#ffffff;border:1px solid #e4e4e7;border-radius:16px;overflow:hidden">
       <div style="padding:20px 22px;border-bottom:1px solid #f4f4f5">
-        <div style="font-size:12px;color:#71717a">Firma Digital Simple</div>
+        <div style="font-size:12px;color:#71717a">Firma Electrónica Simple</div>
         <h1 style="margin:6px 0 0 0;font-size:18px;color:#09090b">${escapeHtml(
           opts.title
         )}</h1>

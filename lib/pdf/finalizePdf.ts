@@ -89,7 +89,7 @@ export async function buildFinalPdf(opts: {
 
   // Footer
   page.drawText(
-    "Generado por Firma Digital Simple - Evidencia técnica (hash, timestamps e IP) almacenada por 10 años.",
+    "Generado por Firma Electrónica Simple - Evidencia técnica (hash, timestamps e IP) almacenada por 10 años.",
     {
       x: margin,
       y: margin,
