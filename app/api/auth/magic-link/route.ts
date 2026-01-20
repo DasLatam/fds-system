@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { Resend } from "resend";
 import { createClient } from "@supabase/supabase-js";
+import { Resend } from "resend";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
 
@@ -29,36 +30,118 @@ export async function POST(req: Request) {
       process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
     );
 
+    // ✅ CLAVE: este callback es CLIENT y lee el #access_token
     const redirectTo = `${appUrl}/auth/callback-client?next=/dashboard`;
 
+    // ------------------------------------------------------------
+    // Envío "lindo" por Resend cuando es posible:
+    // Usamos generateLink para obtener action_link y enviarlo nosotros.
+    // Si Resend falla o generateLink falla, hacemos fallback a OTP de Supabase.
+    // ------------------------------------------------------------
 
-    // ✅ Este es el punto clave: OTP genera el flujo correcto para SSR/PKCE
-    // (y Supabase envía el link “real”; nosotros solo lo re-enviamos con Resend)
-    const supabaseUrl = requiredEnv("NEXT_PUBLIC_SUPABASE_URL");
-    const supabaseAnon = requiredEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY");
+    const admin = createAdminClient();
 
-    const supabase = createClient(supabaseUrl, supabaseAnon, {
-      auth: { persistSession: false },
-    });
-
-    // Pedimos OTP (Supabase generará el link con redirectTo)
-    const { error } = await supabase.auth.signInWithOtp({
+    // 1) Generar link (no envía mail)
+    const { data, error } = await admin.auth.admin.generateLink({
+      type: "magiclink",
       email,
-      options: { emailRedirectTo: redirectTo },
+      options: { redirectTo },
     });
 
-    if (error) {
-      return NextResponse.json(
-        { error: "No se pudo solicitar el acceso.", details: error.message },
-        { status: 500 }
+    const actionLink = data?.properties?.action_link;
+
+    if (!actionLink || error) {
+      // Fallback: OTP (mail default)
+      const supabase = createClient(
+        requiredEnv("NEXT_PUBLIC_SUPABASE_URL"),
+        requiredEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY"),
+        { auth: { persistSession: false } }
       );
+
+      const { error: otpErr } = await supabase.auth.signInWithOtp({
+        email,
+        options: { emailRedirectTo: redirectTo },
+      });
+
+      if (otpErr) {
+        return NextResponse.json(
+          {
+            error: "No se pudo generar ni enviar el link de acceso.",
+            details: otpErr.message,
+          },
+          { status: 500 }
+        );
+      }
+
+      return NextResponse.json({ ok: true, provider: "supabase_fallback" });
     }
 
-    // En este modo, Supabase manda el email por defecto.
-    // Si querés SI O SI Resend, la forma robusta es usar SMTP custom en Supabase
-    // o un proveedor de email integrado, porque Supabase no devuelve el action_link aquí.
+    // 2) Intentar enviar por Resend (mail lindo)
+    try {
+      const resend = new Resend(requiredEnv("RESEND_API_KEY"));
+      const from = requiredEnv("RESEND_FROM_EMAIL");
 
-    return NextResponse.json({ ok: true, provider: "supabase" });
+      await resend.emails.send({
+        from,
+        to: email,
+        subject: "Acceso seguro a Firma Electrónica Simple",
+        html: `
+          <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;max-width:560px;margin:0 auto;padding:24px">
+            <div style="border:1px solid #e5e7eb;border-radius:14px;padding:20px;background:#fff">
+              <h2 style="margin:0 0 10px 0;font-size:20px;color:#111">Ingresar a Firma Electrónica Simple</h2>
+              <p style="margin:0 0 12px 0;color:#333;line-height:1.4">
+                Usá este enlace para acceder a tu cuenta.
+              </p>
+              <ul style="margin:0 0 14px 18px;color:#333;line-height:1.4">
+                <li>🔐 Es un enlace <b>de un solo uso</b> por seguridad.</li>
+                <li>⏳ Expira automáticamente en pocos minutos.</li>
+              </ul>
+              <p style="margin:16px 0">
+                <a href="${actionLink}" style="display:inline-block;background:#111;color:#fff;text-decoration:none;padding:10px 14px;border-radius:10px;font-weight:600">
+                  Ingresar a mi cuenta
+                </a>
+              </p>
+              <p style="margin:14px 0 0 0;color:#6b7280;font-size:12px;line-height:1.4">
+                Si no solicitaste este acceso, podés ignorar este correo.
+              </p>
+            </div>
+            <p style="margin:12px 0 0 0;color:#9ca3af;font-size:11px">
+              Firma Electrónica Simple • Acceso seguro
+            </p>
+          </div>
+        `,
+      });
+
+      return NextResponse.json({ ok: true, provider: "resend" });
+    } catch (resendErr: any) {
+      // 3) Si Resend falla, fallback a OTP de Supabase (mail default)
+      const supabase = createClient(
+        requiredEnv("NEXT_PUBLIC_SUPABASE_URL"),
+        requiredEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY"),
+        { auth: { persistSession: false } }
+      );
+
+      const { error: otpErr } = await supabase.auth.signInWithOtp({
+        email,
+        options: { emailRedirectTo: redirectTo },
+      });
+
+      if (otpErr) {
+        return NextResponse.json(
+          {
+            error:
+              "No se pudo enviar el email de acceso (Resend y Supabase fallaron).",
+            details: {
+              resend: resendErr?.message || String(resendErr),
+              supabase: otpErr.message,
+            },
+          },
+          { status: 500 }
+        );
+      }
+
+      return NextResponse.json({ ok: true, provider: "supabase_fallback" });
+    }
   } catch (e: any) {
     return NextResponse.json(
       { error: e?.message || "Error enviando magic link" },
