@@ -1,0 +1,37 @@
+package.json (relevant):
+{
+  name: 'fds-system',
+  version: '0.2.0',
+  scripts: {
+    dev: 'next dev',
+    build: 'next build',
+    start: 'next start',
+    lint: 'next lint'
+  },
+  dependencies: [
+    '@supabase/ssr',
+    '@supabase/supabase-js',
+    '@upstash/ratelimit',
+    '@upstash/redis',
+    'clsx',
+    'next',
+    'pdf-lib',
+    'react',
+    'react-dom',
+    'react-signature-canvas',
+    'resend',
+    'zod'
+  ],
+  devDependencies: [
+    '@tailwindcss/postcss',
+    '@types/node',
+    '@types/react',
+    '@types/react-dom',
+    'autoprefixer',
+    'eslint',
+    'eslint-config-next',
+    'postcss',
+    'tailwindcss',
+    'typescript'
+  ]
+}
