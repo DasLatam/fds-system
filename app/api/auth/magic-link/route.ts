@@ -18,10 +18,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Email inválido" }, { status: 400 });
     }
 
-    const appUrl =
-      process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+    const rawAppUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+const appUrl = rawAppUrl.startsWith("http") ? rawAppUrl : `https://${rawAppUrl}`;
 
-    const redirectTo = `${appUrl}/auth/callback?next=/dashboard`;
+const redirectTo = `${appUrl}/auth/callback?next=/dashboard`;
+
 
     // 1) Generar link PKCE con admin (no envía mail)
     const admin = createAdminClient();
