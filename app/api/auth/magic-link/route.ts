@@ -29,7 +29,8 @@ export async function POST(req: Request) {
       process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
     );
 
-    const redirectTo = `${appUrl}/auth/callback?next=/dashboard`;
+    const redirectTo = `${appUrl}/auth/callback-client?next=/dashboard`;
+
 
     // ✅ Este es el punto clave: OTP genera el flujo correcto para SSR/PKCE
     // (y Supabase envía el link “real”; nosotros solo lo re-enviamos con Resend)
