@@ -31,7 +31,7 @@ export async function GET(
   }
 
   // Expiration (best-effort): if pending and expired, mark as expired
-  const now = new Date();
+  const nowDate = new Date();
   if (sr.status === "pending" && sr.expires_at) {
     const exp = new Date(sr.expires_at as any);
     if (exp.getTime() <= now.getTime()) {
@@ -41,7 +41,7 @@ export async function GET(
   }
 
   // Expiration (best-effort): if pending and expired, mark as expired
-  const now = new Date();
+  const nowDate = new Date();
   if (sr.status === "pending" && sr.expires_at) {
     const exp = new Date(sr.expires_at as any);
     if (exp.getTime() <= now.getTime()) {
