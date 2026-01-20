@@ -4,23 +4,21 @@ import { useMemo, useState } from "react";
 
 type SignerInput = {
   email: string;
-  fullName: string;
-  dni: string;
-  cuil: string;
-  address: string;
-  phone: string;
 };
 
-export default function InvitePanel({ documentId, currentMode }: { documentId: string; currentMode: "parallel" | "sequential" }) {
+export default function InvitePanel({
+  documentId,
+  currentMode,
+  currentUserEmail,
+}: {
+  documentId: string;
+  currentMode: "parallel" | "sequential";
+  currentUserEmail: string;
+}) {
   const [mode, setMode] = useState<"parallel" | "sequential">(currentMode);
-  const [signers, setSigners] = useState<SignerInput[]>([{
-    email: "",
-    fullName: "",
-    dni: "",
-    cuil: "",
-    address: "",
-    phone: "",
-  }]);
+  const [expiresInDays, setExpiresInDays] = useState(3);
+  const [includeMe, setIncludeMe] = useState(true);
+  const [signers, setSigners] = useState<SignerInput[]>([{ email: "" }]);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -37,7 +35,7 @@ export default function InvitePanel({ documentId, currentMode }: { documentId: s
   }
 
   function addRow() {
-    setSigners(prev => [...prev, { email: "", fullName: "", dni: "", cuil: "", address: "", phone: "" }]);
+    setSigners(prev => [...prev, { email: "" }]);
   }
 
   function removeRow(i: number) {
@@ -54,7 +52,11 @@ export default function InvitePanel({ documentId, currentMode }: { documentId: s
         body: JSON.stringify({
           documentId,
           signingMode: mode,
-          signers,
+          expiresInDays,
+          signers: [
+            ...(includeMe ? [{ email: currentUserEmail }] : []),
+            ...signers,
+          ].filter((s) => s.email.trim().includes("@")),
         }),
       });
       const data = await res.json();
@@ -88,6 +90,18 @@ export default function InvitePanel({ documentId, currentMode }: { documentId: s
             <option value="parallel">Paralelo</option>
             <option value="sequential">Secuencial</option>
           </select>
+          <select
+            value={expiresInDays}
+            onChange={(e) => setExpiresInDays(Number(e.target.value))}
+            className="rounded-md border border-zinc-200 px-2 py-1 text-sm"
+            title="Vencimiento"
+          >
+            <option value={3}>Vence en 3 días</option>
+            <option value={5}>5 días</option>
+            <option value={7}>7 días</option>
+            <option value={14}>14 días</option>
+            <option value={30}>30 días</option>
+          </select>
           <button
             onClick={sendInvites}
             disabled={!canSend || busy}
@@ -99,6 +113,10 @@ export default function InvitePanel({ documentId, currentMode }: { documentId: s
       </div>
 
       <div className="mt-4 space-y-3">
+        <label className="flex items-center gap-2 text-sm text-zinc-700">
+          <input type="checkbox" checked={includeMe} onChange={(e) => setIncludeMe(e.target.checked)} />
+          <span>Incluirme como firmante (<b>{currentUserEmail}</b>)</span>
+        </label>
         {signers.map((s, i) => (
           <div key={i} className="rounded-lg border border-zinc-200 p-3">
             <div className="flex items-center justify-between">
@@ -121,36 +139,9 @@ export default function InvitePanel({ documentId, currentMode }: { documentId: s
                 value={s.email}
                 onChange={(e) => update(i, "email", e.target.value)}
               />
-              <input
-                className="rounded-md border border-zinc-200 px-3 py-2 text-sm"
-                placeholder="Nombre completo"
-                value={s.fullName}
-                onChange={(e) => update(i, "fullName", e.target.value)}
-              />
-              <input
-                className="rounded-md border border-zinc-200 px-3 py-2 text-sm"
-                placeholder="DNI"
-                value={s.dni}
-                onChange={(e) => update(i, "dni", e.target.value)}
-              />
-              <input
-                className="rounded-md border border-zinc-200 px-3 py-2 text-sm"
-                placeholder="CUIL"
-                value={s.cuil}
-                onChange={(e) => update(i, "cuil", e.target.value)}
-              />
-              <input
-                className="rounded-md border border-zinc-200 px-3 py-2 text-sm md:col-span-2"
-                placeholder="Dirección postal"
-                value={s.address}
-                onChange={(e) => update(i, "address", e.target.value)}
-              />
-              <input
-                className="rounded-md border border-zinc-200 px-3 py-2 text-sm"
-                placeholder="Celular"
-                value={s.phone}
-                onChange={(e) => update(i, "phone", e.target.value)}
-              />
+              <div className="text-xs text-zinc-600 md:col-span-2">
+                Los datos del firmante (nombre, DNI, CUIL, domicilio y celular) se pedirán al momento de firmar.
+              </div>
             </div>
           </div>
         ))}

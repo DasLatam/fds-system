@@ -7,9 +7,10 @@ type Preview = {
   documentId: string;
   title: string;
   email: string;
-  status: "pending" | "signed";
+  status: "pending" | "signed" | "rejected" | "expired";
   signingMode: "parallel" | "sequential";
   position: number | null;
+  expiresAt: string | null;
   pdfUrl: string;
 };
 
@@ -21,6 +22,7 @@ export default function SignPage({ params }: { params: { token: string } }) {
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [ok, setOk] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
 
   const [consent, setConsent] = useState(false);
   const [signer, setSigner] = useState({
@@ -32,7 +34,7 @@ export default function SignPage({ params }: { params: { token: string } }) {
   });
 
   const canSign = useMemo(() => {
-    if (!preview || preview.status === "signed") return false;
+    if (!preview || preview.status !== "pending") return false;
     const filled = signer.fullName && signer.dni && signer.cuil && signer.address && signer.phone;
     return Boolean(filled) && consent;
   }, [preview, signer, consent]);
@@ -98,6 +100,34 @@ export default function SignPage({ params }: { params: { token: string } }) {
     }
   }
 
+  async function reject() {
+    setErr(null);
+    setOk(null);
+    if (!preview || preview.status !== "pending") return;
+    if (rejectReason.trim().length < 3) {
+      setErr("Indicá un motivo breve de rechazo.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/reject`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ token, reason: rejectReason.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || "No se pudo registrar el rechazo");
+      setOk("Rechazo registrado. Se notificará al creador.");
+      const p = await fetch(`/api/signing-request/${token}`);
+      const pdata = await p.json();
+      if (p.ok) setPreview(pdata as Preview);
+    } catch (e: any) {
+      setErr(e?.message || "Error inesperado");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (loading) {
     return <div className="mx-auto max-w-3xl p-6 text-sm text-zinc-600">Cargando…</div>;
   }
@@ -126,11 +156,19 @@ export default function SignPage({ params }: { params: { token: string } }) {
           <div>
             {preview.status === "signed" ? (
               <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">Ya firmado</span>
+            ) : preview.status === "rejected" ? (
+              <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-medium text-red-700">Rechazado</span>
+            ) : preview.status === "expired" ? (
+              <span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-700">Vencido</span>
             ) : (
               <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">Pendiente</span>
             )}
           </div>
         </div>
+
+        {preview.expiresAt ? (
+          <p className="mt-2 text-xs text-zinc-500">Vence: {new Date(preview.expiresAt).toLocaleString("es-AR")}</p>
+        ) : null}
 
         <div className="mt-6 grid gap-6 lg:grid-cols-2">
           <div className="rounded-xl border border-zinc-200 overflow-hidden">
@@ -177,14 +215,37 @@ export default function SignPage({ params }: { params: { token: string } }) {
                 <button
                   type="button"
                   onClick={submit}
-                  disabled={!canSign || preview.status === "signed" || busy}
+                  disabled={!canSign || busy}
                   className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
                 >
                   {busy ? "Enviando..." : "Firmar"}
                 </button>
+                {preview.status === "pending" ? (
+                  <button
+                    type="button"
+                    onClick={reject}
+                    disabled={busy}
+                    className="rounded-md border border-zinc-200 px-4 py-2 text-sm font-medium"
+                  >
+                    Rechazar
+                  </button>
+                ) : null}
                 {ok ? <span className="text-sm text-emerald-700">{ok}</span> : null}
                 {err ? <span className="text-sm text-red-600">{err}</span> : null}
               </div>
+
+              {preview.status === "pending" ? (
+                <div className="mt-3">
+                  <label className="text-xs text-zinc-600">Motivo de rechazo (opcional pero recomendado)</label>
+                  <textarea
+                    className="mt-1 w-full rounded-md border border-zinc-200 px-3 py-2 text-sm"
+                    rows={3}
+                    value={rejectReason}
+                    onChange={(e) => setRejectReason(e.target.value)}
+                    placeholder="Ej: documento incompleto, datos incorrectos, no corresponde..."
+                  />
+                </div>
+              ) : null}
             </div>
 
             <div className="rounded-xl border border-zinc-200 p-4 text-xs text-zinc-600">

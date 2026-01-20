@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { isProfileComplete } from "@/lib/security/profile";
+import { isOwnerEmail } from "@/lib/security/owner";
 
 export const dynamic = "force-dynamic";
 
@@ -8,6 +10,21 @@ export default async function DashboardPage() {
   const supabase = await createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("user_id,email,full_name,dni,cuil,address,phone,is_paused")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (profile?.is_paused) {
+    redirect("/profile?paused=1");
+  }
+  if (!isProfileComplete(profile as any)) {
+    redirect("/profile?next=/dashboard");
+  }
+
+  const showAdmin = isOwnerEmail(user.email);
 
   const { data: docs } = await supabase
     .from("documents")
@@ -22,6 +39,20 @@ export default async function DashboardPage() {
           <p className="mt-1 text-sm text-zinc-600">Subí un PDF, invitá firmantes y seguí el estado.</p>
         </div>
         <div className="flex items-center gap-3">
+          <Link
+            href="/profile?next=/dashboard"
+            className="rounded-md border border-zinc-200 px-4 py-2 text-sm font-medium"
+          >
+            Mis datos
+          </Link>
+          {showAdmin ? (
+            <Link
+              href="/admin"
+              className="rounded-md border border-zinc-200 px-4 py-2 text-sm font-medium"
+            >
+              Admin
+            </Link>
+          ) : null}
           <Link
             href="/dashboard/new"
             className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white"

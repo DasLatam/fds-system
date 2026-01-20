@@ -1,97 +1,93 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createHash } from "crypto";
+import { logEvent } from "@/lib/audit/logEvent";
 
 export const runtime = "nodejs";
 
-type Ctx = { params: Promise<{ token: string }> };
+function getIp(req: NextRequest) {
+  return (
+    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    req.headers.get("x-real-ip")?.trim() ||
+    "unknown"
+  );
+}
 
-export async function GET(req: NextRequest, ctx: Ctx) {
+export async function GET(
+  req: NextRequest,
+  ctx: { params: Promise<{ token: string }> }
+) {
   const { token } = await ctx.params;
-
   const admin = createAdminClient();
+  const ip = getIp(req);
+  const userAgent = req.headers.get("user-agent") || "";
 
-  // 1) Buscar signing_request por token
   const { data: sr, error: srErr } = await admin
     .from("signing_requests")
-    .select(
-      "id, document_id, email, status, position, opened_at, viewed_at, created_at"
-    )
+    .select("id, document_id, email, status, position, opened_at, expires_at")
     .eq("token", token)
-    .single();
-
+    .maybeSingle();
   if (srErr || !sr) {
-    return NextResponse.json({ error: "Invalid token" }, { status: 404 });
+    return NextResponse.json({ error: "Invalid or expired token" }, { status: 404 });
   }
 
-  // 2) Buscar documento
+  // Expiration (best-effort): if pending and expired, mark as expired
+  const now = new Date();
+  if (sr.status === "pending" && sr.expires_at) {
+    const exp = new Date(sr.expires_at as any);
+    if (exp.getTime() <= now.getTime()) {
+      await admin.from("signing_requests").update({ status: "expired" }).eq("id", sr.id);
+      (sr as any).status = "expired";
+    }
+  }
+
+  // Expiration (best-effort): if pending and expired, mark as expired
+  const now = new Date();
+  if (sr.status === "pending" && sr.expires_at) {
+    const exp = new Date(sr.expires_at as any);
+    if (exp.getTime() <= now.getTime()) {
+      await admin.from("signing_requests").update({ status: "expired" }).eq("id", sr.id);
+      (sr as any).status = "expired";
+    }
+  }
+
   const { data: doc, error: docErr } = await admin
     .from("documents")
-    .select("id, title, signing_mode, original_path, created_by")
+    .select("id, title, signing_mode, original_path")
     .eq("id", sr.document_id)
-    .single();
+    .maybeSingle();
 
   if (docErr || !doc) {
     return NextResponse.json({ error: "Document not found" }, { status: 404 });
   }
 
-  // 3) En modo secuencial, validar turno
-  if (doc.signing_mode === "sequential") {
-    const { data: pending, error: pendErr } = await admin
-      .from("signing_requests")
-      .select("id, position, status")
-      .eq("document_id", doc.id)
-      .order("position", { ascending: true });
-
-    if (pendErr || !pending) {
-      return NextResponse.json({ error: "Cannot validate order" }, { status: 500 });
-    }
-
-    const firstPending = pending.find((r) => r.status !== "signed");
-    if (firstPending && firstPending.id !== sr.id) {
-      return NextResponse.json(
-        { error: "Not your turn to sign yet" },
-        { status: 409 }
-      );
-    }
-  }
-
-  // 4) Generar signed URL del PDF original (bucket privado)
-  const { data: signed, error: signedErr } = await admin.storage
-    .from("fds")
-    .createSignedUrl(doc.original_path, 600); // 10 min
-
-  if (signedErr || !signed?.signedUrl) {
-    return NextResponse.json(
-      { error: "Could not create signed URL" },
-      { status: 500 }
-    );
-  }
-
-  // 5) Registrar auditoría "link_opened" (idempotente: solo si no estaba)
-  const ip =
-    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
-  const ua = req.headers.get("user-agent") || "unknown";
-
-  // marcar opened_at si no estaba
+  // Mark opened/viewed (best-effort)
+  const nowIso = new Date().toISOString();
   if (!sr.opened_at) {
-    await admin
-      .from("signing_requests")
-      .update({ opened_at: new Date().toISOString() })
-      .eq("id", sr.id);
+    await admin.from("signing_requests").update({ opened_at: nowIso }).eq("id", sr.id);
+    await logEvent({
+      documentId: doc.id,
+      signingRequestId: sr.id,
+      actorEmail: sr.email,
+      eventType: "link_opened",
+      ip,
+      userAgent,
+    });
   }
 
-  await admin.from("audit_events").insert({
-    document_id: doc.id,
-    signing_request_id: sr.id,
-    actor_email: sr.email,
-    event_type: "link_opened",
+  await logEvent({
+    documentId: doc.id,
+    signingRequestId: sr.id,
+    actorEmail: sr.email,
+    eventType: "pdf_viewed",
     ip,
-    user_agent: ua,
-    payload: {
-      token_hash: createHash("sha256").update(token).digest("hex"),
-    },
+    userAgent,
   });
+
+  // Signed URL for preview
+  const signed = await admin.storage.from("fds").createSignedUrl(doc.original_path, 60 * 10);
+  if (signed.error || !signed.data) {
+    return NextResponse.json({ error: signed.error?.message || "Failed to create signed url" }, { status: 500 });
+  }
 
   return NextResponse.json({
     documentId: doc.id,
@@ -100,6 +96,7 @@ export async function GET(req: NextRequest, ctx: Ctx) {
     status: sr.status,
     signingMode: doc.signing_mode,
     position: sr.position,
-    pdfUrl: signed.signedUrl,
+    expiresAt: sr.expires_at ?? null,
+    pdfUrl: signed.data.signedUrl,
   });
 }

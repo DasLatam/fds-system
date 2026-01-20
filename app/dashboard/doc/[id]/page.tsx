@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { isProfileComplete } from "@/lib/security/profile";
 
 export const dynamic = "force-dynamic";
 
@@ -16,11 +17,13 @@ function formatDate(iso?: string | null) {
 type SignerRow = {
   id: string;
   email: string;
-  status: "pending" | "signed";
+  status: "pending" | "signed" | "rejected" | "expired";
   position: number | null;
   email_sent_at: string | null;
   opened_at: string | null;
   signed_at: string | null;
+  expires_at: string | null;
+  rejection_reason: string | null;
 };
 
 type AuditRow = {
@@ -35,6 +38,25 @@ export default async function DocumentPage({ params }: { params: { id: string } 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("full_name,dni,cuil,address,phone,is_paused")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (!profile || profile.is_paused) redirect("/profile?next=/dashboard");
+  if (!isProfileComplete({
+    user_id: user.id,
+    email: user.email || null,
+    full_name: profile.full_name,
+    dni: profile.dni,
+    cuil: profile.cuil,
+    address: profile.address,
+    phone: profile.phone,
+    is_paused: profile.is_paused,
+  })) {
+    redirect("/profile?next=/dashboard");
+  }
+
   const { data: doc, error: docErr } = await supabase
     .from("documents")
     .select("id,title,status,signing_mode,total_signers,signed_count,created_at,completed_at")
@@ -45,7 +67,7 @@ export default async function DocumentPage({ params }: { params: { id: string } 
 
   const { data: signers } = await supabase
     .from("signing_requests")
-    .select("id,email,status,position,email_sent_at,opened_at,signed_at")
+    .select("id,email,status,position,email_sent_at,opened_at,signed_at,expires_at,rejection_reason")
     .eq("document_id", doc.id)
     .order("position", { ascending: true, nullsFirst: true });
 
@@ -97,7 +119,7 @@ export default async function DocumentPage({ params }: { params: { id: string } 
               <h2 className="text-sm font-medium">Firmantes</h2>
             </div>
             <div className="p-4">
-              <InvitePanel documentId={doc.id} currentMode={doc.signing_mode} />
+              <InvitePanel documentId={doc.id} currentMode={doc.signing_mode} currentUserEmail={user.email || ""} />
 
               <div className="mt-6 overflow-x-auto">
                 <table className="min-w-full text-sm">
@@ -106,9 +128,11 @@ export default async function DocumentPage({ params }: { params: { id: string } 
                       <th className="py-2 pr-4">Email</th>
                       <th className="py-2 pr-4">Orden</th>
                       <th className="py-2 pr-4">Estado</th>
+                      <th className="py-2 pr-4">Vence</th>
                       <th className="py-2 pr-4">Email</th>
                       <th className="py-2 pr-4">Abierto</th>
-                      <th className="py-2">Firmado</th>
+                      <th className="py-2 pr-4">Firmado</th>
+                      <th className="py-2">Acción</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-zinc-200">
@@ -119,17 +143,33 @@ export default async function DocumentPage({ params }: { params: { id: string } 
                         <td className="py-3 pr-4">
                           {s.status === "signed" ? (
                             <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">Firmado</span>
+                          ) : s.status === "rejected" ? (
+                            <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs text-red-700" title={s.rejection_reason || ""}>Rechazado</span>
+                          ) : s.status === "expired" ? (
+                            <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-700">Vencido</span>
                           ) : (
                             <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700">Pendiente</span>
                           )}
                         </td>
+                        <td className="py-3 pr-4 text-xs text-zinc-500">{s.expires_at ? formatDate(s.expires_at) : "—"}</td>
                         <td className="py-3 pr-4 text-xs text-zinc-500">{s.email_sent_at ? formatDate(s.email_sent_at) : "—"}</td>
                         <td className="py-3 pr-4 text-xs text-zinc-500">{s.opened_at ? formatDate(s.opened_at) : "—"}</td>
-                        <td className="py-3 text-xs text-zinc-500">{s.signed_at ? formatDate(s.signed_at) : "—"}</td>
+                        <td className="py-3 pr-4 text-xs text-zinc-500">{s.signed_at ? formatDate(s.signed_at) : "—"}</td>
+                        <td className="py-3">
+                          {s.status !== "signed" ? (
+                            <form action="/api/resend-invite" method="post">
+                              <input type="hidden" name="signingRequestId" value={s.id} />
+                              <input type="hidden" name="expiresInDays" value="3" />
+                              <button type="submit" className="rounded-md border border-zinc-200 px-3 py-1.5 text-xs">Re-enviar</button>
+                            </form>
+                          ) : (
+                            <span className="text-xs text-zinc-400">—</span>
+                          )}
+                        </td>
                       </tr>
                     ))}
                     {(!signers || (signers as any[]).length === 0) ? (
-                      <tr><td className="py-6 text-sm text-zinc-600" colSpan={6}>Todavía no agregaste firmantes.</td></tr>
+                      <tr><td className="py-6 text-sm text-zinc-600" colSpan={8}>Todavía no agregaste firmantes.</td></tr>
                     ) : null}
                   </tbody>
                 </table>

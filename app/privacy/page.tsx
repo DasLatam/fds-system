@@ -1,55 +1,90 @@
 import Link from "next/link";
 
+function ExternalLink({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <a href={href} target="_blank" rel="noreferrer" className="underline decoration-zinc-300 underline-offset-4 hover:text-zinc-900">
+      {children}
+    </a>
+  );
+}
+
 export default function PrivacyPage() {
+  const updated = new Date().toISOString().slice(0, 10);
+
   return (
     <div className="mx-auto max-w-5xl px-4 py-10">
-      <h1 className="text-3xl font-semibold">Política de Privacidad</h1>
-      <p className="mt-3 text-sm text-zinc-600">
-        Última actualización: {new Date().toISOString().slice(0, 10)}.
-      </p>
+      <div className="flex flex-col gap-3">
+        <h1 className="text-3xl font-semibold">Política de Privacidad</h1>
+        <p className="text-sm text-zinc-600">Última actualización: {updated}.</p>
+        <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-5 text-sm text-zinc-700">
+          Tratamos datos personales y evidencia de firma (incluye datos identificatorios y trazo manuscrito). Aplican principios de la Ley 25.326. Conservamos evidencia hasta 10 años por seguridad y trazabilidad.
+        </div>
+      </div>
 
       <div className="prose prose-zinc mt-8 max-w-none">
+        <h2>1. Normativa</h2>
         <p>
-          Esta Política describe cómo recolectamos, utilizamos y protegemos datos personales en el servicio “Firma Digital Simple” (el “Servicio”)
-          y se interpreta conforme a la normativa aplicable en Argentina, en particular la Ley 25.326 de Protección de Datos Personales y normas complementarias.
+          Esta política se interpreta principalmente conforme a la <b>Ley 25.326</b> (Protección de Datos Personales) y normativa complementaria.
+          Texto oficial: <ExternalLink href="https://www.argentina.gob.ar/normativa/nacional/ley-25326-64790">Argentina.gob.ar (InfoLEG)</ExternalLink>.
         </p>
-        <h2>Datos que recolectamos</h2>
+
+        <h2>2. Qué datos recolectamos</h2>
         <ul>
-          <li><strong>De firmantes:</strong> nombre completo, DNI, CUIL, domicilio, celular y firma manuscrita (trazo), además de metadatos técnicos (IP, user-agent, fecha y hora).</li>
-          <li><strong>De cuentas Empresa:</strong> razón social, CUIT, domicilio y datos del representante.</li>
-          <li><strong>De uso:</strong> registros de auditoría, eventos de acceso, y datos necesarios para prevención de abuso (rate limiting).</li>
+          <li><b>Cuenta:</b> email, identificador de usuario.</li>
+          <li><b>Identidad declarada:</b> nombre completo, DNI, CUIL, domicilio y celular (obligatorio antes del uso).</li>
+          <li><b>Empresas (si aplica):</b> CUIT, razón social y datos del representante.</li>
+          <li><b>Evidencia de firma:</b> trazo manuscrito (firma capturada), hash de documentos, timestamps y auditoría por evento.</li>
+          <li><b>Datos técnicos:</b> IP, user-agent, timestamps, identificadores de sesión y logs de seguridad.</li>
         </ul>
-        <h2>Finalidades</h2>
+
+        <h2>3. Finalidades</h2>
         <ul>
-          <li>Operar el Servicio (subida, invitación, firma y descarga de documentos).</li>
-          <li>Generar evidencia técnica (hash SHA-256, timestamps, IP) para mejorar la trazabilidad.</li>
-          <li>Seguridad, prevención de fraude y cumplimiento de obligaciones legales.</li>
+          <li>Prestar el servicio de firma y generar documentos finales con evidencia.</li>
+          <li>Seguridad, prevención de fraude y abuso (rate limiting, monitoreo).</li>
+          <li>Auditoría y trazabilidad (registro forense) asociada a cada documento.</li>
+          <li>Cumplimiento legal y respuesta a requerimientos válidos.</li>
         </ul>
-        <h2>Retención</h2>
+
+        <h2>4. Base legal y consentimiento</h2>
         <p>
-          Por motivos de seguridad y trazabilidad, conservamos documentos y registros asociados por un plazo de <strong>10 años</strong>.
-          Este plazo puede extenderse si existe obligación legal o necesidad de resguardo ante controversias.
+          El tratamiento se realiza con base en el consentimiento del usuario y/o la necesidad de ejecutar el servicio solicitado.
+          Para firmar, el firmante debe aceptar un consentimiento informado y declarar sus datos identificatorios.
         </p>
-        <h2>Acceso y divulgación</h2>
+
+        <h2>5. Retención: 10 años</h2>
         <p>
-          Solo el titular de la cuenta creadora y las partes firmantes podrán acceder a los documentos firmados y su evidencia.
-          La divulgación a terceros se realizará únicamente ante <strong>orden judicial</strong> o exigencia legal válida.
+          Por razones de seguridad, trazabilidad y potenciales controversias, conservamos documentos y evidencia por hasta <b>10 años</b>.
+          Luego de ese plazo, podremos anonimizar o eliminar datos según corresponda.
         </p>
-        <h2>Seguridad</h2>
+
+        <h2>6. Acceso y compartición</h2>
+        <p>
+          No vendemos datos personales. Compartimos datos únicamente con proveedores necesarios para operar el servicio (por ejemplo, almacenamiento y correo)
+          y bajo acuerdos de confidencialidad y seguridad.
+        </p>
+        <p>
+          Podemos disponibilizar información a terceros sólo ante <b>orden judicial</b> o requerimiento legal aplicable.
+        </p>
+
+        <h2>7. Seguridad</h2>
         <ul>
-          <li>Almacenamiento privado en Supabase Storage y acceso por URLs firmadas.</li>
-          <li>Uso de hash SHA-256 para integridad del documento.</li>
-          <li>Registro de auditoría por evento (apertura, visualización, firma, envío de correo).</li>
-          <li>Rate limiting con Upstash Redis para mitigar abuso.</li>
+          <li>Bucket de almacenamiento privado, acceso mediante credenciales server-side (admin client).</li>
+          <li>Hash SHA-256 y sello de evidencia incorporado al PDF final.</li>
+          <li>Auditoría por evento y logs para investigación forense.</li>
+          <li>Controles de abuso (rate limiting) y validaciones del lado servidor.</li>
         </ul>
-        <h2>Derechos del titular</h2>
+
+        <h2>8. Derechos del titular</h2>
         <p>
-          Podés solicitar acceso, rectificación o actualización de tus datos personales conforme a la Ley 25.326.
-          Para ejercer tus derechos, contactanos a través de los canales indicados en los Términos.
+          Podés solicitar acceso, rectificación o actualización de tus datos. Para ello, escribinos por los canales de soporte.
         </p>
-        <h2>Contacto</h2>
         <p>
-          Ver <Link href="/terms">Términos y Condiciones</Link> para canales de contacto.
+          También podés actualizar tu información desde la sección <Link href="/profile">Perfil</Link>.
+        </p>
+
+        <h2>9. Cambios</h2>
+        <p>
+          Podemos actualizar esta política. La fecha de última actualización se muestra al inicio.
         </p>
       </div>
     </div>

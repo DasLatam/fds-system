@@ -11,16 +11,14 @@ export const runtime = "nodejs";
 const BodySchema = z.object({
   documentId: z.string().uuid(),
   signingMode: z.enum(["parallel", "sequential"]),
-  signers: z.array(
-    z.object({
-      email: z.string().email(),
-      fullName: z.string().min(2),
-      dni: z.string().min(4),
-      cuil: z.string().min(6),
-      address: z.string().min(4),
-      phone: z.string().min(6),
-    })
-  ).min(1),
+  expiresInDays: z.number().int().min(3).max(30).default(3),
+  signers: z
+    .array(
+      z.object({
+        email: z.string().email(),
+      })
+    )
+    .min(1),
 });
 
 function appUrl() {
@@ -68,17 +66,14 @@ export async function POST(req: Request) {
 
     // Clear previous pending invites (optional): keep simple, we won't delete automatically.
     // Create signing requests
+    const expiresAt = new Date(Date.now() + body.expiresInDays * 24 * 60 * 60 * 1000);
     const rows = body.signers.map((s, idx) => ({
       token: randomUUID(),
       document_id: body.documentId,
       email: s.email,
-      signer_full_name: s.fullName,
-      signer_dni: s.dni,
-      signer_cuil: s.cuil,
-      signer_address: s.address,
-      signer_phone: s.phone,
       position: body.signingMode === "sequential" ? baseCount + idx + 1 : null,
       invited_at: new Date().toISOString(),
+      expires_at: expiresAt.toISOString(),
     }));
 
     const { data: created, error: insErr } = await admin
@@ -101,7 +96,13 @@ export async function POST(req: Request) {
     const base = appUrl();
     for (const r of created) {
       const signUrl = `${base}/s/${r.token}`;
-      await sendInviteEmail({ to: r.email, documentTitle: doc.title, signUrl });
+      await sendInviteEmail({
+        to: r.email,
+        documentTitle: doc.title,
+        signUrl,
+        expiresAtIso: expiresAt.toISOString(),
+        inviterEmail: user.email ?? undefined,
+      });
       await admin
         .from("signing_requests")
         .update({ email_sent_at: new Date().toISOString() })
