@@ -24,12 +24,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "missing_tokens" }, { status: 400 });
     }
 
-    // Creamos la response ahora y seteamos cookies sobre ella (determinístico)
-    const res = NextResponse.json({ ok: true }, { status: 200 });
-    res.headers.set("cache-control", "no-store");
-
     const cookieStore = await cookies();
-    type CookieOptions = Parameters<typeof res.cookies.set>[2];
+    type CookieOptions = Parameters<typeof cookieStore.set>[2];
     type CookieToSet = { name: string; value: string; options?: CookieOptions };
 
     const supabase = createServerClient(
@@ -42,7 +38,7 @@ export async function POST(req: Request) {
           },
           setAll(cookiesToSet: CookieToSet[]) {
             for (const { name, value, options } of cookiesToSet) {
-              res.cookies.set(name, value, options);
+              cookieStore.set(name, value, options);
             }
           },
         },
@@ -58,7 +54,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: error.message }, { status: 401 });
     }
 
-    return res;
+    return NextResponse.json({ ok: true });
   } catch (e: any) {
     return NextResponse.json(
       { error: e?.message || "set_session_error" },

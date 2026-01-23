@@ -1,0 +1,13 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  @apply bg-white text-zinc-900;
+}
+
+.container {
+  @apply mx-auto max-w-6xl px-4;
+}
