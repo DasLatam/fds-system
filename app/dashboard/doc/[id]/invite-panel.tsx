@@ -2,9 +2,7 @@
 
 import { useMemo, useState } from "react";
 
-type SignerInput = {
-  email: string;
-};
+type SignerInput = { email: string };
 
 export default function InvitePanel({
   documentId,
@@ -23,11 +21,11 @@ export default function InvitePanel({
   const [msg, setMsg] = useState<string | null>(null);
 
   const canSend = useMemo(() => {
-    return signers.every(s => s.email.trim().includes("@")) && signers.length > 0;
+    return signers.every((s) => s.email.trim().includes("@")) && signers.length > 0;
   }, [signers]);
 
   function update(i: number, field: keyof SignerInput, value: string) {
-    setSigners(prev => {
+    setSigners((prev) => {
       const copy = [...prev];
       copy[i] = { ...copy[i], [field]: value };
       return copy;
@@ -35,11 +33,11 @@ export default function InvitePanel({
   }
 
   function addRow() {
-    setSigners(prev => [...prev, { email: "" }]);
+    setSigners((prev) => [...prev, { email: "" }]);
   }
 
   function removeRow(i: number) {
-    setSigners(prev => prev.filter((_, idx) => idx !== i));
+    setSigners((prev) => prev.filter((_, idx) => idx !== i));
   }
 
   async function sendInvites() {
@@ -59,13 +57,20 @@ export default function InvitePanel({
           ].filter((s) => s.email.trim().includes("@")),
         }),
       });
-      const data = await res.json();
+
+      // ✅ Si no existe todavía, mensaje claro
+      if (res.status === 404) {
+        setMsg("La asignación de firmantes todavía no está implementada (próximamente).");
+        return;
+      }
+
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setMsg(data?.error || "Error enviando invitaciones.");
         return;
       }
+
       setMsg(`Invitaciones enviadas: ${data.invited ?? data.sent ?? 0}`);
-      // refresh
       window.location.reload();
     } catch (e: any) {
       setMsg(e?.message || "Error inesperado.");
@@ -81,6 +86,7 @@ export default function InvitePanel({
           <div className="font-medium">Invitar firmantes</div>
           <div className="text-sm text-zinc-600">Modo: paralelo o secuencial (con orden).</div>
         </div>
+
         <div className="flex items-center gap-2">
           <select
             value={mode}
@@ -90,6 +96,7 @@ export default function InvitePanel({
             <option value="parallel">Paralelo</option>
             <option value="sequential">Secuencial</option>
           </select>
+
           <select
             value={expiresInDays}
             onChange={(e) => setExpiresInDays(Number(e.target.value))}
@@ -102,6 +109,7 @@ export default function InvitePanel({
             <option value={14}>14 días</option>
             <option value={30}>30 días</option>
           </select>
+
           <button
             onClick={sendInvites}
             disabled={!canSend || busy}
@@ -115,12 +123,18 @@ export default function InvitePanel({
       <div className="mt-4 space-y-3">
         <label className="flex items-center gap-2 text-sm text-zinc-700">
           <input type="checkbox" checked={includeMe} onChange={(e) => setIncludeMe(e.target.checked)} />
-          <span>Incluirme como firmante (<b>{currentUserEmail}</b>)</span>
+          <span>
+            Incluirme como firmante (<b>{currentUserEmail}</b>)
+          </span>
         </label>
+
         {signers.map((s, i) => (
           <div key={i} className="rounded-lg border border-zinc-200 p-3">
             <div className="flex items-center justify-between">
-              <div className="text-sm font-medium">Firmante {i + 1}{mode === "sequential" ? ` (orden ${i + 1})` : ""}</div>
+              <div className="text-sm font-medium">
+                Firmante {i + 1}
+                {mode === "sequential" ? ` (orden ${i + 1})` : ""}
+              </div>
               {signers.length > 1 ? (
                 <button
                   type="button"
@@ -135,12 +149,12 @@ export default function InvitePanel({
             <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2">
               <input
                 className="rounded-md border border-zinc-200 px-3 py-2 text-sm"
-                placeholder="Email"
+                placeholder="Email (ej: firmante@empresa.com)"
                 value={s.email}
                 onChange={(e) => update(i, "email", e.target.value)}
               />
               <div className="text-xs text-zinc-600 md:col-span-2">
-                Los datos del firmante (nombre, DNI, CUIL, domicilio y celular) se pedirán al momento de firmar.
+                Los datos del firmante se pedirán al momento de firmar.
               </div>
             </div>
           </div>

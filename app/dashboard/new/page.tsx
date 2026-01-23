@@ -1,102 +1,160 @@
-"use client";
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { isProfileComplete } from "@/lib/security/profile";
+import { isOwnerEmail } from "@/lib/security/owner";
 
-import { useEffect, useState } from "react";
+export const dynamic = "force-dynamic";
 
-export default function NewDocumentPage() {
-  const [title, setTitle] = useState("");
-  const [file, setFile] = useState<File | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
+function canDelete(doc: any) {
+  const status = String(doc.status || "");
+  const total = Number(doc.total_signers || 0);
+  const signed = Number(doc.signed_count || 0);
+  // Regla mínima: si no está firmado y no tiene firmantes ni firmas
+  return status !== "signed" && total === 0 && signed === 0;
+}
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await fetch("/api/profile", { cache: "no-store" });
-        if (res.ok) {
-          const data = await res.json();
-          if (!data?.profile) {
-            window.location.href = "/profile?next=%2Fdashboard%2Fnew";
-          }
-        }
-      } catch {
-        // ignore
-      }
-    })();
-  }, []);
+export default async function DashboardPage() {
+  const supabase = await createSupabaseServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setMsg(null);
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("user_id,email,full_name,dni,cuil,address,phone,is_paused")
+    .eq("user_id", user.id)
+    .maybeSingle();
 
-    if (!file) {
-      setMsg("Seleccioná un PDF antes de subir.");
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const fd = new FormData();
-      fd.append("title", title || file.name);
-      fd.append("file", file);
-
-      const res = await fetch("/api/upload", { method: "POST", body: fd });
-      const data = await res.json();
-
-      if (!res.ok) {
-        setMsg(data?.error || "Error subiendo el PDF.");
-        return;
-      }
-
-      const id = data?.documentId as string;
-      window.location.href = `/dashboard/doc/${id}`;
-    } catch (err: any) {
-      setMsg(err?.message || "Error inesperado.");
-    } finally {
-      setLoading(false);
-    }
+  if (profile?.is_paused) {
+    redirect("/profile?paused=1");
+  }
+  if (!isProfileComplete(profile as any)) {
+    redirect("/profile?next=/dashboard");
   }
 
+  const showAdmin = isOwnerEmail(user.email);
+
+  const { data: docs } = await supabase
+    .from("documents")
+    .select("id,title,status,signing_mode,total_signers,signed_count,created_at")
+    .order("created_at", { ascending: false });
+
   return (
-    <div className="mx-auto max-w-2xl p-6">
-      <h1 className="text-2xl font-semibold">Subir PDF</h1>
-      <p className="mt-2 text-sm text-zinc-600">Subí el documento original. El sistema calculará su hash SHA-256.</p>
-
-      <form onSubmit={onSubmit} className="mt-6 space-y-4">
+    <div className="mx-auto max-w-5xl px-4 py-10">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <label className="mb-1 block text-sm font-medium">Título</label>
-          <input
-            className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Contrato alquiler - Enero 2026"
-          />
+          <h1 className="text-2xl font-semibold">Dashboard</h1>
+          <p className="mt-1 text-sm text-zinc-600">Subí un PDF, invitá firmantes y seguí el estado.</p>
         </div>
-
-        <div>
-          <label className="mb-1 block text-sm font-medium">PDF</label>
-          <input
-            type="file"
-            accept="application/pdf"
-            className="block w-full text-sm"
-            onChange={(e) => setFile(e.target.files?.[0] || null)}
-          />
-          {file ? (
-            <p className="mt-2 text-xs text-zinc-600">
-              Seleccionado: {file.name} ({Math.round(file.size / 1024)} KB)
-            </p>
+        <div className="flex items-center gap-3">
+          <Link
+            href="/profile?next=/dashboard"
+            className="rounded-md border border-zinc-200 px-4 py-2 text-sm font-medium"
+          >
+            Mis datos
+          </Link>
+          {showAdmin ? (
+            <Link
+              href="/admin"
+              className="rounded-md border border-zinc-200 px-4 py-2 text-sm font-medium"
+            >
+              Admin
+            </Link>
           ) : null}
+          <Link
+            href="/dashboard/new"
+            className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white"
+          >
+            Subir PDF
+          </Link>
+          <form action="/api/logout" method="post">
+            <button className="rounded-md border border-zinc-200 px-4 py-2 text-sm font-medium">
+              Salir
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <div className="mt-8 rounded-xl border border-zinc-200">
+        <div className="border-b border-zinc-200 px-4 py-3">
+          <h2 className="text-sm font-medium">Tus documentos</h2>
+          <p className="mt-1 text-xs text-zinc-500">
+            Tip: podés eliminar documentos “vacíos” (sin firmantes ni firmas).
+          </p>
         </div>
 
-        <button
-          type="submit"
-          disabled={loading}
-          className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
-        >
-          {loading ? "Subiendo..." : "Subir"}
-        </button>
+        <div className="divide-y divide-zinc-200">
+          {!docs || docs.length === 0 ? (
+            <div className="p-6">
+              <p className="text-sm text-zinc-600">Todavía no subiste documentos.</p>
+            </div>
+          ) : (
+            docs.map((d) => (
+              <div key={d.id} className="flex flex-wrap items-center justify-between gap-4 px-4 py-4">
+                <div>
+                  <div className="font-medium">{d.title}</div>
+                  <div className="mt-1 text-xs text-zinc-600">
+                    Estado: <span className="font-medium text-zinc-800">{d.status}</span> · Firma: {d.signing_mode} · {d.signed_count}/{d.total_signers} firmantes
+                  </div>
+                </div>
 
-        {msg ? <p className="text-sm text-zinc-700">{msg}</p> : null}
-      </form>
+                <div className="flex items-center gap-2">
+                  <Link
+                    href={`/dashboard/doc/${d.id}`}
+                    className="rounded-md border border-zinc-200 px-3 py-1.5 text-sm"
+                  >
+                    Ver
+                  </Link>
+
+                  {d.status === "signed" ? (
+                    <Link
+                      href={`/api/download?documentId=${d.id}&kind=final`}
+                      className="rounded-md bg-black px-3 py-1.5 text-sm font-medium text-white"
+                    >
+                      Descargar
+                    </Link>
+                  ) : null}
+
+                  {canDelete(d) ? (
+                    <form
+                      action={async () => {
+                        "use server";
+                      }}
+                    >
+                      <DeleteButton documentId={d.id} />
+                    </form>
+                  ) : null}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
     </div>
+  );
+}
+
+// Client button (inline, sin tocar arquitectura)
+function DeleteButton({ documentId }: { documentId: string }) {
+  return (
+    <button
+      type="button"
+      className="rounded-md border border-red-200 px-3 py-1.5 text-sm text-red-700 hover:border-red-300 hover:bg-red-50"
+      onClick={async () => {
+        const ok = window.confirm("¿Eliminar este documento? Esto no se puede deshacer.");
+        if (!ok) return;
+
+        const r = await fetch(`/api/documents/${documentId}`, { method: "DELETE" });
+        const j = await r.json().catch(() => ({}));
+
+        if (!r.ok) {
+          alert(j?.error || "No se pudo eliminar.");
+          return;
+        }
+        window.location.reload();
+      }}
+    >
+      Eliminar
+    </button>
   );
 }

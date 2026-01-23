@@ -9,6 +9,7 @@ const Schema = z.object({
   documentId: z.string().uuid(),
   kind: z.enum(["original", "final"]).default("final"),
   token: z.string().optional(),
+  json: z.string().optional(), // "1" => responde JSON (modo anterior)
 });
 
 export async function GET(req: Request) {
@@ -17,16 +18,14 @@ export async function GET(req: Request) {
     documentId: url.searchParams.get("documentId"),
     kind: url.searchParams.get("kind") || "final",
     token: url.searchParams.get("token") || undefined,
+    json: url.searchParams.get("json") || undefined,
   });
   if (!parsed.success) {
     return NextResponse.json({ error: "Bad request" }, { status: 400 });
   }
 
-  const { documentId, kind, token } = parsed.data;
+  const { documentId, kind, token, json } = parsed.data;
 
-  // AuthZ options:
-  // 1) Logged-in creator (dashboard)
-  // 2) Signer with valid signing token (email link)
   const supabase = await createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -40,9 +39,8 @@ export async function GET(req: Request) {
   if (docErr || !doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   let allowed = false;
-  if (user && doc.created_by === user.id) {
-    allowed = true;
-  }
+  if (user && doc.created_by === user.id) allowed = true;
+
   if (!allowed && token) {
     const { data: sr } = await admin
       .from("signing_requests")
@@ -53,6 +51,7 @@ export async function GET(req: Request) {
       allowed = true;
     }
   }
+
   if (!allowed) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const path = kind === "original" ? doc.original_path : doc.final_path;
@@ -63,5 +62,10 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: error?.message || "signed url failed" }, { status: 500 });
   }
 
-  return NextResponse.json({ url: data.signedUrl, title: doc.title });
+  // ✅ Nuevo: por defecto redirige al PDF (mejor UX)
+  if (json === "1") {
+    return NextResponse.json({ url: data.signedUrl, title: doc.title });
+  }
+
+  return NextResponse.redirect(data.signedUrl, { status: 302 });
 }

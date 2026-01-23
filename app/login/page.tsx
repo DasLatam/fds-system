@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+
 async function requestMagicLink(email: string) {
   const res = await fetch("/api/auth/magic-link", {
     method: "POST",
@@ -17,19 +18,22 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   async function sendLink(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setErrorMsg(null);
     setSent(false);
+    setLoading(true);
 
     try {
       await requestMagicLink(email);
+      setSent(true);
     } catch (err: any) {
       setErrorMsg(err?.message || "No se pudo enviar el enlace");
-      return;
+    } finally {
+      setLoading(false);
     }
-    setSent(true);
   }
 
   return (
@@ -45,13 +49,17 @@ export default function LoginPage() {
           onChange={(e) => setEmail(e.target.value)}
           required
           type="email"
+          autoComplete="email"
         />
 
         <button
           type="submit"
-          className="w-full rounded-md bg-black px-4 py-2 text-sm font-medium text-white"
+          disabled={loading}
+          className={`w-full rounded-md bg-black px-4 py-2 text-sm font-medium text-white ${
+            loading ? "opacity-70 cursor-not-allowed" : "cursor-pointer"
+          }`}
         >
-          Enviar link
+          {loading ? "Enviando…" : "Enviar link"}
         </button>
 
         {sent && <p className="text-sm text-emerald-700">Te enviamos un link de acceso a tu email.</p>}

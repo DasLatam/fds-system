@@ -11,6 +11,10 @@ type ProfilePayload = {
   phone: string;
 };
 
+function onlyDigits(s: string) {
+  return s.replace(/\D/g, "");
+}
+
 export default function ProfileClient() {
   const router = useRouter();
   const search = useSearchParams();
@@ -62,13 +66,31 @@ export default function ProfileClient() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setErr(null);
+
+    const payload: ProfilePayload = {
+      full_name: form.full_name.trim(),
+      dni: onlyDigits(form.dni),
+      cuil: onlyDigits(form.cuil),
+      address: form.address.trim(),
+      phone: onlyDigits(form.phone),
+    };
+
+    if (payload.cuil && payload.cuil.length !== 11) {
+      setErr("CUIL inválido: debe tener 11 dígitos (sin guiones).");
+      return;
+    }
+    if (payload.dni && payload.dni.length < 6) {
+      setErr("DNI inválido.");
+      return;
+    }
+
     setSaving(true);
 
     try {
       const res = await fetch("/api/profile", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify(payload),
       });
 
       const data = await res.json().catch(() => ({}));
@@ -91,10 +113,7 @@ export default function ProfileClient() {
   }
 
   return (
-    <form
-      onSubmit={onSubmit}
-      className="rounded-lg border border-zinc-200 bg-white p-6"
-    >
+    <form onSubmit={onSubmit} className="rounded-lg border border-zinc-200 bg-white p-6">
       {err && (
         <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
           {err}
@@ -104,41 +123,50 @@ export default function ProfileClient() {
       <div className="grid gap-4">
         <Field
           label="Nombre completo"
+          placeholder="Ej: Ariel Baudry"
           value={form.full_name}
           onChange={(v) => setForm((p) => ({ ...p, full_name: v }))}
           required
         />
+
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <Field
             label="DNI"
+            placeholder="Ej: 24589462"
+            inputMode="numeric"
             value={form.dni}
-            onChange={(v) => setForm((p) => ({ ...p, dni: v }))}
+            onChange={(v) => setForm((p) => ({ ...p, dni: onlyDigits(v) }))}
             required
           />
           <Field
             label="CUIL"
+            placeholder="Ej: 20245894628 (sin guiones)"
+            inputMode="numeric"
             value={form.cuil}
-            onChange={(v) => setForm((p) => ({ ...p, cuil: v }))}
+            onChange={(v) => setForm((p) => ({ ...p, cuil: onlyDigits(v) }))}
             required
           />
         </div>
+
         <Field
           label="Dirección postal"
+          placeholder="Ej: Calle 129 7304, Quilmes, Buenos Aires"
           value={form.address}
           onChange={(v) => setForm((p) => ({ ...p, address: v }))}
           required
         />
+
         <Field
           label="Celular"
+          placeholder="Ej: 1139009550 (solo números)"
+          inputMode="tel"
           value={form.phone}
-          onChange={(v) => setForm((p) => ({ ...p, phone: v }))}
+          onChange={(v) => setForm((p) => ({ ...p, phone: onlyDigits(v) }))}
           required
         />
 
         <div className="mt-2 flex items-center justify-between">
-          <p className="text-xs text-zinc-500">
-            Estos datos se usan para trazabilidad y evidencia de firma.
-          </p>
+          <p className="text-xs text-zinc-500">Estos datos se usan para trazabilidad y evidencia de firma.</p>
           <button
             disabled={saving}
             className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
@@ -156,11 +184,15 @@ function Field({
   value,
   onChange,
   required,
+  placeholder,
+  inputMode,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   required?: boolean;
+  placeholder?: string;
+  inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
 }) {
   return (
     <label className="grid gap-1">
@@ -170,6 +202,8 @@ function Field({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         required={required}
+        placeholder={placeholder}
+        inputMode={inputMode}
       />
     </label>
   );
