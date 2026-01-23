@@ -58,12 +58,27 @@ export default async function DocumentPage({ params }: { params: { id: string } 
   }
 
   const { data: doc, error: docErr } = await supabase
-    .from("documents")
-    .select("id,title,status,signing_mode,total_signers,signed_count,created_at,completed_at")
-    .eq("id", params.id)
-    .single();
+  .from("documents")
+  .select("id,title,status,signing_mode,total_signers,signed_count,created_at,completed_at")
+  .eq("id", params.id)
+  .maybeSingle();
 
-  if (docErr || !doc) redirect("/dashboard");
+if (docErr || !doc) {
+  return (
+    <div className="mx-auto max-w-3xl px-4 py-10">
+      <h1 className="text-2xl font-semibold">No se pudo abrir el documento</h1>
+      <p className="mt-2 text-sm text-zinc-700">
+        {docErr?.message ? `Detalle: ${docErr.message}` : "No existe o no tenés permisos para verlo."}
+      </p>
+      <div className="mt-6">
+        <Link href="/dashboard" className="rounded-md border border-zinc-200 px-4 py-2 text-sm">
+          Volver al dashboard
+        </Link>
+      </div>
+    </div>
+  );
+}
+
 
   const { data: signers } = await supabase
     .from("signing_requests")
