@@ -20,20 +20,25 @@ function appUrl() {
 export async function POST(req: Request) {
   const supabase = await createSupabaseServerClient();
   const admin = createAdminClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
   const ct = req.headers.get("content-type") || "";
   const payload = ct.includes("application/json")
     ? await req.json().catch(() => null)
     : Object.fromEntries((await req.formData()).entries());
+
   const parsed = BodySchema.safeParse({
-    signingRequestId: String((payload as any).signingRequestId || (payload as any).signing_request_id || ""),
-    expiresInDays: Number((payload as any).expiresInDays || (payload as any).expires_in_days || 3),
+    signingRequestId: String((payload as any)?.signingRequestId || (payload as any)?.signing_request_id || ""),
+    expiresInDays: Number((payload as any)?.expiresInDays || (payload as any)?.expires_in_days || 3),
   });
+
   if (!parsed.success) return NextResponse.json({ error: "invalid_body" }, { status: 400 });
 
   const { signingRequestId, expiresInDays } = parsed.data;
+
   const { data: sr } = await admin
     .from("signing_requests")
     .select("id,document_id,email,status,token")
@@ -54,13 +59,13 @@ export async function POST(req: Request) {
   const expiresAt = new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000);
   const newToken = randomUUID();
 
+  // 1) Actualizamos token/estado/vencimiento (pero NO email_sent_at todavía)
   await admin
     .from("signing_requests")
     .update({
       token: newToken,
       status: "pending",
       invited_at: new Date().toISOString(),
-      email_sent_at: new Date().toISOString(),
       expires_at: expiresAt.toISOString(),
       rejected_at: null,
       rejection_reason: null,
@@ -68,22 +73,45 @@ export async function POST(req: Request) {
     .eq("id", sr.id);
 
   const signUrl = `${appUrl()}/s/${newToken}`;
-  await sendInviteEmail({
-    to: sr.email,
-    documentTitle: doc.title,
-    signUrl,
-    expiresAtIso: expiresAt.toISOString(),
-    inviterEmail: user.email ?? undefined,
-  });
 
-  await logEvent({
-    documentId: doc.id,
-    signingRequestId: sr.id,
-    actorUserId: user.id,
-    actorEmail: sr.email,
-    eventType: "email_sent",
-    payload: { signUrl, resend: true },
-  });
+  // 2) Enviamos con retry (implementado en lib/mail/send.ts)
+  try {
+    await sendInviteEmail({
+      to: sr.email,
+      documentTitle: doc.title,
+      signUrl,
+      expiresAtIso: expiresAt.toISOString(),
+      inviterEmail: user.email ?? undefined,
+    });
 
-  return NextResponse.json({ ok: true });
+    // ✅ solo si se envió
+    await admin
+      .from("signing_requests")
+      .update({ email_sent_at: new Date().toISOString() })
+      .eq("id", sr.id);
+
+    await logEvent({
+      documentId: doc.id,
+      signingRequestId: sr.id,
+      actorUserId: user.id,
+      actorEmail: sr.email,
+      eventType: "email_sent",
+      payload: { signUrl, resend: true },
+    });
+
+    return NextResponse.json({ ok: true });
+  } catch (e: any) {
+    const msg = e?.message || "send_failed";
+
+    await logEvent({
+      documentId: doc.id,
+      signingRequestId: sr.id,
+      actorUserId: user.id,
+      actorEmail: sr.email,
+      eventType: "email_failed",
+      payload: { signUrl, resend: true, error: msg },
+    });
+
+    return NextResponse.json({ error: "email_failed", details: msg }, { status: 429 });
+  }
 }
