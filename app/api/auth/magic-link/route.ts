@@ -17,6 +17,25 @@ function normalizeAppUrl(raw: string) {
   return `https://${raw}`;
 }
 
+function formatBuenosAiresTimestamp(d: Date) {
+  // YYYY/MM/DD HH:mm:ss
+  const parts = new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "America/Argentina/Buenos_Aires",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(d);
+
+  const map: Record<string, string> = {};
+  for (const p of parts) if (p.type !== "literal") map[p.type] = p.value;
+
+  return `${map.year}/${map.month}/${map.day} ${map.hour}:${map.minute}:${map.second}`;
+}
+
 export async function POST(req: Request) {
   try {
     const body = (await req.json().catch(() => ({}))) as { email?: string };
@@ -30,14 +49,8 @@ export async function POST(req: Request) {
       process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
     );
 
-    // ✅ CLAVE: este callback es CLIENT y lee el #access_token
+    // ✅ callback client (lee #access_token)
     const redirectTo = `${appUrl}/auth/callback-client?next=/dashboard`;
-
-    // ------------------------------------------------------------
-    // Envío "lindo" por Resend cuando es posible:
-    // Usamos generateLink para obtener action_link y enviarlo nosotros.
-    // Si Resend falla o generateLink falla, hacemos fallback a OTP de Supabase.
-    // ------------------------------------------------------------
 
     const admin = createAdminClient();
 
@@ -76,7 +89,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, provider: "supabase_fallback" });
     }
 
-    // 2) Intentar enviar por Resend (mail lindo)
+    // ✅ Subject único para evitar threads en Gmail
+    const ts = formatBuenosAiresTimestamp(new Date());
+    const subject = `Acceso seguro a Firma Electrónica Simple ${ts}`;
+
+    // 2) Intentar enviar por Resend
     try {
       const resend = new Resend(requiredEnv("RESEND_API_KEY"));
       const from = requiredEnv("RESEND_FROM_EMAIL");
@@ -84,7 +101,7 @@ export async function POST(req: Request) {
       await resend.emails.send({
         from,
         to: email,
-        subject: "Acceso seguro a Firma Electrónica Simple",
+        subject,
         html: `
           <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;max-width:560px;margin:0 auto;padding:24px">
             <div style="border:1px solid #e5e7eb;border-radius:14px;padding:20px;background:#fff">
@@ -102,6 +119,9 @@ export async function POST(req: Request) {
                 </a>
               </p>
               <p style="margin:14px 0 0 0;color:#6b7280;font-size:12px;line-height:1.4">
+                Solicitud: <b>${ts}</b> (Argentina)
+              </p>
+              <p style="margin:10px 0 0 0;color:#6b7280;font-size:12px;line-height:1.4">
                 Si no solicitaste este acceso, podés ignorar este correo.
               </p>
             </div>
@@ -114,7 +134,7 @@ export async function POST(req: Request) {
 
       return NextResponse.json({ ok: true, provider: "resend" });
     } catch (resendErr: any) {
-      // 3) Si Resend falla, fallback a OTP de Supabase (mail default)
+      // 3) Si Resend falla, fallback a OTP de Supabase
       const supabase = createClient(
         requiredEnv("NEXT_PUBLIC_SUPABASE_URL"),
         requiredEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY"),
@@ -129,8 +149,7 @@ export async function POST(req: Request) {
       if (otpErr) {
         return NextResponse.json(
           {
-            error:
-              "No se pudo enviar el email de acceso (Resend y Supabase fallaron).",
+            error: "No se pudo enviar el email de acceso (Resend y Supabase fallaron).",
             details: {
               resend: resendErr?.message || String(resendErr),
               supabase: otpErr.message,
