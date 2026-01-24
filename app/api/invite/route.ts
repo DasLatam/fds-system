@@ -140,8 +140,8 @@ export async function POST(req: Request) {
           signingRequestId: r.id,
           actorUserId: user.id,
           actorEmail: r.email,
-          eventType: "email_failed",
-          payload: { error: msg },
+          eventType: "email_sent",
+          payload: { ... , ok: false, error: msg }
         });
 
         // No cortamos el loop
