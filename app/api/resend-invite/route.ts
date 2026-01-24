@@ -108,8 +108,8 @@ export async function POST(req: Request) {
       signingRequestId: sr.id,
       actorUserId: user.id,
       actorEmail: sr.email,
-      eventType: "email_failed",
-      payload: { signUrl, resend: true, error: msg },
+      eventType: "email_sent",
+      payload: { ... , ok: false, error: msg }
     });
 
     return NextResponse.json({ error: "email_failed", details: msg }, { status: 429 });
