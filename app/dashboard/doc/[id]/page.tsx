@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isProfileComplete } from "@/lib/security/profile";
+import InvitePanel from "./invite-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +34,13 @@ type AuditRow = {
   created_at: string;
 };
 
-export default async function DocumentPage({ params }: { params: { id: string } }) {
+export default async function DocumentPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+
   const supabase = await createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
@@ -43,42 +50,45 @@ export default async function DocumentPage({ params }: { params: { id: string } 
     .select("full_name,dni,cuil,address,phone,is_paused")
     .eq("user_id", user.id)
     .maybeSingle();
+
   if (!profile || profile.is_paused) redirect("/profile?next=/dashboard");
-  if (!isProfileComplete({
-    user_id: user.id,
-    email: user.email || null,
-    full_name: profile.full_name,
-    dni: profile.dni,
-    cuil: profile.cuil,
-    address: profile.address,
-    phone: profile.phone,
-    is_paused: profile.is_paused,
-  })) {
+
+  if (
+    !isProfileComplete({
+      user_id: user.id,
+      email: user.email || null,
+      full_name: profile.full_name,
+      dni: profile.dni,
+      cuil: profile.cuil,
+      address: profile.address,
+      phone: profile.phone,
+      is_paused: profile.is_paused,
+    })
+  ) {
     redirect("/profile?next=/dashboard");
   }
 
   const { data: doc, error: docErr } = await supabase
-  .from("documents")
-  .select("id,title,status,signing_mode,total_signers,signed_count,created_at,completed_at")
-  .eq("id", params.id)
-  .maybeSingle();
+    .from("documents")
+    .select("id,title,status,signing_mode,total_signers,signed_count,created_at,completed_at")
+    .eq("id", id)
+    .maybeSingle();
 
-if (docErr || !doc) {
-  return (
-    <div className="mx-auto max-w-3xl px-4 py-10">
-      <h1 className="text-2xl font-semibold">No se pudo abrir el documento</h1>
-      <p className="mt-2 text-sm text-zinc-700">
-        {docErr?.message ? `Detalle: ${docErr.message}` : "No existe o no tenés permisos para verlo."}
-      </p>
-      <div className="mt-6">
-        <Link href="/dashboard" className="rounded-md border border-zinc-200 px-4 py-2 text-sm">
-          Volver al dashboard
-        </Link>
+  if (docErr || !doc) {
+    return (
+      <div className="mx-auto max-w-3xl px-4 py-10">
+        <h1 className="text-2xl font-semibold">No se pudo abrir el documento</h1>
+        <p className="mt-2 text-sm text-zinc-700">
+          {docErr?.message ? `Detalle: ${docErr.message}` : "No existe o no tenés permisos para verlo."}
+        </p>
+        <div className="mt-6">
+          <Link href="/dashboard" className="rounded-md border border-zinc-200 px-4 py-2 text-sm">
+            Volver al dashboard
+          </Link>
+        </div>
       </div>
-    </div>
-  );
-}
-
+    );
+  }
 
   const { data: signers } = await supabase
     .from("signing_requests")
@@ -97,7 +107,9 @@ if (docErr || !doc) {
     <div className="mx-auto max-w-5xl px-4 py-10">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <Link href="/dashboard" className="text-sm text-zinc-600 hover:text-zinc-900">← Volver</Link>
+          <Link href="/dashboard" className="text-sm text-zinc-600 hover:text-zinc-900">
+            ← Volver
+          </Link>
           <h1 className="mt-2 text-2xl font-semibold">{doc.title}</h1>
           <div className="mt-2 text-sm text-zinc-600">
             Estado: <span className="font-medium text-zinc-900">{doc.status}</span>
@@ -106,7 +118,10 @@ if (docErr || !doc) {
             <span className="mx-2">·</span>
             {doc.signed_count}/{doc.total_signers} firmantes
           </div>
-          <div className="mt-1 text-xs text-zinc-500">Creado: {formatDate(doc.created_at)}{doc.completed_at ? ` · Completado: ${formatDate(doc.completed_at)}` : ""}</div>
+          <div className="mt-1 text-xs text-zinc-500">
+            Creado: {formatDate(doc.created_at)}
+            {doc.completed_at ? ` · Completado: ${formatDate(doc.completed_at)}` : ""}
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -159,7 +174,9 @@ if (docErr || !doc) {
                           {s.status === "signed" ? (
                             <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">Firmado</span>
                           ) : s.status === "rejected" ? (
-                            <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs text-red-700" title={s.rejection_reason || ""}>Rechazado</span>
+                            <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs text-red-700" title={s.rejection_reason || ""}>
+                              Rechazado
+                            </span>
                           ) : s.status === "expired" ? (
                             <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-700">Vencido</span>
                           ) : (
@@ -175,7 +192,9 @@ if (docErr || !doc) {
                             <form action="/api/resend-invite" method="post">
                               <input type="hidden" name="signingRequestId" value={s.id} />
                               <input type="hidden" name="expiresInDays" value="3" />
-                              <button type="submit" className="rounded-md border border-zinc-200 px-3 py-1.5 text-xs">Re-enviar</button>
+                              <button type="submit" className="rounded-md border border-zinc-200 px-3 py-1.5 text-xs">
+                                Re-enviar
+                              </button>
                             </form>
                           ) : (
                             <span className="text-xs text-zinc-400">—</span>
@@ -184,7 +203,11 @@ if (docErr || !doc) {
                       </tr>
                     ))}
                     {(!signers || (signers as any[]).length === 0) ? (
-                      <tr><td className="py-6 text-sm text-zinc-600" colSpan={8}>Todavía no agregaste firmantes.</td></tr>
+                      <tr>
+                        <td className="py-6 text-sm text-zinc-600" colSpan={8}>
+                          Todavía no agregaste firmantes.
+                        </td>
+                      </tr>
                     ) : null}
                   </tbody>
                 </table>
@@ -226,7 +249,7 @@ if (docErr || !doc) {
           <div className="rounded-xl border border-zinc-200 p-4">
             <h2 className="text-sm font-medium">Legal</h2>
             <p className="mt-2 text-sm text-zinc-600">
-              Esta plataforma implementa <b>firma electrónica</b> (Ley 25.506, art. 5) con evidencia técnica. No es firma digital certificada (Ley 25.506, art. 2).
+              Esta plataforma implementa <b>firma electrónica</b> (Ley 25.506, art. 5) con evidencia técnica. No es firma digital certificada.
             </p>
             <div className="mt-4 flex flex-wrap gap-3">
               <Link href="/terms" className="text-sm text-zinc-700 hover:text-zinc-900">Términos</Link>
@@ -238,5 +261,3 @@ if (docErr || !doc) {
     </div>
   );
 }
-
-import InvitePanel from "./invite-panel";
