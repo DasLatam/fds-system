@@ -141,7 +141,7 @@ export async function POST(req: Request) {
           actorUserId: user.id,
           actorEmail: r.email,
           eventType: "email_sent",
-          payload: { ... , ok: false, error: msg }
+          payload: { ok: false, error: msg, action: "invite_send" }
         });
 
         // No cortamos el loop
