@@ -109,7 +109,7 @@ export async function POST(req: Request) {
       actorUserId: user.id,
       actorEmail: sr.email,
       eventType: "email_sent",
-      payload: { ... , ok: false, error: msg }
+      payload: { ok: false, error: msg, action: "resend_invite" }
     });
 
     return NextResponse.json({ error: "email_failed", details: msg }, { status: 429 });
