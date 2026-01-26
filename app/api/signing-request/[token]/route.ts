@@ -1,123 +1,81 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createHash } from "crypto";
 
 export const runtime = "nodejs";
 
-type Ctx = { params: Promise<{ token: string }> };
+function appUrl() {
+  const raw = process.env.NEXT_PUBLIC_APP_URL || "https://firmasimple.vercel.app";
+  return raw.startsWith("http") ? raw.replace(/\/$/, "") : `https://${raw.replace(/\/$/, "")}`;
+}
 
-export async function GET(req: NextRequest, ctx: Ctx) {
-  const { token } = await ctx.params;
-  const admin = createAdminClient();
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: Promise<{ token: string }> }
+) {
+  const { token } = await params;
 
-  // 1) Get signing request
-  const { data: sr, error: srErr } = await admin
-    .from("signing_requests")
-    .select(
-      "id, document_id, email, status, position, opened_at, viewed_at, created_at, expires_at"
-    )
-    .eq("token", token)
-    .single();
-
-  if (srErr || !sr) {
-    return NextResponse.json({ error: "Invalid token" }, { status: 404 });
+  if (!token || token.length < 10) {
+    return NextResponse.json({ error: "Invalid token" }, { status: 400 });
   }
 
-  // 2) Expiration check (best-effort)
-  if (sr.status === "pending" && sr.expires_at) {
-    const exp = new Date(sr.expires_at as any);
-    const nowDate = new Date();
+  const admin = createAdminClient();
+  const now = Date.now();
 
-    if (exp.getTime() <= nowDate.getTime()) {
-      // mark expired
-      await admin
-        .from("signing_requests")
-        .update({ status: "expired" })
-        .eq("id", sr.id);
+  const { data: sr, error: srErr } = await admin
+    .from("signing_requests")
+    .select("id, document_id, email, status, position, expires_at, opened_at")
+    .eq("token", token)
+    .maybeSingle();
 
-      await admin.from("audit_events").insert({
-        document_id: sr.document_id,
-        signing_request_id: sr.id,
-        actor_email: sr.email,
-        event_type: "link_opened",
-        ip: req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown",
-        user_agent: req.headers.get("user-agent") || "unknown",
-        payload: {
-          token_hash: createHash("sha256").update(token).digest("hex"),
-          note: "request expired on open",
-        },
-      });
+  if (srErr || !sr) {
+    return NextResponse.json({ error: "Invalid or expired token" }, { status: 404 });
+  }
 
-      return NextResponse.json({ error: "Link expired" }, { status: 410 });
+  // Expiración
+  if (sr.expires_at) {
+    const exp = new Date(sr.expires_at as string).getTime();
+    if (!Number.isNaN(exp) && exp < now && sr.status === "pending") {
+      await admin.from("signing_requests").update({ status: "expired" }).eq("id", sr.id);
+      return NextResponse.json({ error: "Invalid or expired token" }, { status: 404 });
     }
   }
 
-  // 3) Load document
+  if (sr.status === "expired") {
+    return NextResponse.json({ error: "Invalid or expired token" }, { status: 404 });
+  }
+
+  // Marcar opened_at la primera vez
+  if (!sr.opened_at && sr.status === "pending") {
+    await admin.from("signing_requests").update({ opened_at: new Date().toISOString() }).eq("id", sr.id);
+  }
+
   const { data: doc, error: docErr } = await admin
     .from("documents")
-    .select("id, title, signing_mode, original_path, created_by")
+    .select("id, title, signing_mode, original_path")
     .eq("id", sr.document_id)
-    .single();
+    .maybeSingle();
 
   if (docErr || !doc) {
     return NextResponse.json({ error: "Document not found" }, { status: 404 });
   }
 
-  // 4) Sequential order check
-  if (doc.signing_mode === "sequential") {
-    const { data: list, error: listErr } = await admin
-      .from("signing_requests")
-      .select("id, status, position")
-      .eq("document_id", doc.id)
-      .order("position", { ascending: true });
-
-    if (listErr || !list) {
-      return NextResponse.json({ error: "Cannot validate order" }, { status: 500 });
-    }
-
-    const firstPending = list.find((r) => r.status !== "signed");
-    if (firstPending && firstPending.id !== sr.id) {
-      return NextResponse.json({ error: "Not your turn yet" }, { status: 409 });
-    }
+  // Signed URL del PDF original para el iframe
+  const signed = await admin.storage.from("fds").createSignedUrl(doc.original_path, 60 * 10);
+  if (signed.error || !signed.data) {
+    return NextResponse.json({ error: "Failed to load PDF preview" }, { status: 500 });
   }
 
-  // 5) Signed URL for private bucket
-  const { data: signed, error: signedErr } = await admin.storage
-    .from("fds")
-    .createSignedUrl(doc.original_path, 600);
-
-  if (signedErr || !signed?.signedUrl) {
-    return NextResponse.json({ error: "Could not create signed URL" }, { status: 500 });
-  }
-
-  // 6) Audit + opened_at (idempotent)
-  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
-  const ua = req.headers.get("user-agent") || "unknown";
-
-  if (!sr.opened_at) {
-    await admin
-      .from("signing_requests")
-      .update({ opened_at: new Date().toISOString() })
-      .eq("id", sr.id);
-  }
-
-  await admin.from("audit_events").insert({
-    document_id: doc.id,
-    signing_request_id: sr.id,
-    actor_email: sr.email,
-    event_type: "link_opened",
-    ip,
-    user_agent: ua,
-    payload: { token_hash: createHash("sha256").update(token).digest("hex") },
-  });
-
-  return NextResponse.json({
-    documentId: doc.id,
-    title: doc.title,
-    email: sr.email,
-    status: sr.status,
-    signingMode: doc.signing_mode,
-    position: sr.position,
-    pdfUrl: signed.signedUrl,
-  });
+  return NextResponse.json(
+    {
+      documentId: doc.id,
+      title: doc.title,
+      email: sr.email,
+      status: sr.status,
+      signingMode: doc.signing_mode,
+      position: sr.position,
+      expiresAt: sr.expires_at,
+      pdfUrl: signed.data.signedUrl,
+    },
+    { headers: { "cache-control": "no-store" } }
+  );
 }
