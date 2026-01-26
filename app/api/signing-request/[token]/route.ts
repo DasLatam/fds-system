@@ -20,20 +20,48 @@ export async function GET(
 
   const admin = createAdminClient();
 
-  // ✅ IMPORTANTE: service role para que RLS NO bloquee a firmantes no logueados
-  const { data: sr, error: srErr } = await admin
+  // 1) Intento normal (con expires_at)
+  let sr:
+    | {
+        id: string;
+        document_id: string;
+        email: string;
+        status: "pending" | "signed" | "rejected" | "expired";
+        position: number | null;
+        expires_at?: string | null;
+        opened_at?: string | null;
+      }
+    | null = null;
+
+  const first = await admin
     .from("signing_requests")
     .select("id, document_id, email, status, position, expires_at, opened_at")
     .eq("token", token)
     .maybeSingle();
 
-  if (srErr || !sr) {
-    return NextResponse.json({ error: "Invalid or expired token" }, { status: 404 });
+  // 2) Si falla por columna inexistente, reintento sin expires_at
+  if (first.error && String(first.error.message || "").includes("expires_at")) {
+    const second = await admin
+      .from("signing_requests")
+      .select("id, document_id, email, status, position, opened_at")
+      .eq("token", token)
+      .maybeSingle();
+
+    if (second.error || !second.data) {
+      return NextResponse.json({ error: "Invalid or expired token" }, { status: 404 });
+    }
+
+    sr = { ...second.data, expires_at: null };
+  } else {
+    if (first.error || !first.data) {
+      return NextResponse.json({ error: "Invalid or expired token" }, { status: 404 });
+    }
+    sr = first.data as any;
   }
 
   // Expiración (si aplica)
   if (sr.expires_at) {
-    const exp = new Date(sr.expires_at as string).getTime();
+    const exp = new Date(sr.expires_at).getTime();
     if (!Number.isNaN(exp) && exp < Date.now() && sr.status === "pending") {
       await admin.from("signing_requests").update({ status: "expired" }).eq("id", sr.id);
       return NextResponse.json({ error: "Invalid or expired token" }, { status: 404 });
@@ -72,7 +100,7 @@ export async function GET(
       status: sr.status,
       signingMode: doc.signing_mode,
       position: sr.position,
-      expiresAt: sr.expires_at,
+      expiresAt: sr.expires_at ?? null,
       pdfUrl: signed.data.signedUrl,
     },
     { headers: { "cache-control": "no-store" } }
