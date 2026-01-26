@@ -2,6 +2,7 @@
 
 import SignatureCanvas from "react-signature-canvas";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useParams } from "next/navigation";
 
 type Preview = {
   documentId: string;
@@ -14,8 +15,10 @@ type Preview = {
   pdfUrl: string;
 };
 
-export default function SignPage({ params }: { params: { token: string } }) {
-  const token = params.token;
+export default function SignPage() {
+  const params = useParams<{ token: string }>();
+  const token = params?.token || "";
+
   const sigRef = useRef<SignatureCanvas | null>(null);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [loading, setLoading] = useState(true);
@@ -40,14 +43,18 @@ export default function SignPage({ params }: { params: { token: string } }) {
   }, [preview, signer, consent]);
 
   useEffect(() => {
+    if (!token) return;
+
     let mounted = true;
     (async () => {
       try {
-        const res = await fetch(`/api/signing-request/${token}`);
-        const data = await res.json();
-        if (!res.ok) {
-          throw new Error(data?.error || "No se pudo cargar el documento.");
-        }
+        setLoading(true);
+        setErr(null);
+
+        const res = await fetch(`/api/signing-request/${token}`, { cache: "no-store" });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data?.error || "No se pudo cargar el documento.");
+
         if (mounted) setPreview(data as Preview);
       } catch (e: any) {
         if (mounted) setErr(e?.message || "Error inesperado");
@@ -55,6 +62,7 @@ export default function SignPage({ params }: { params: { token: string } }) {
         if (mounted) setLoading(false);
       }
     })();
+
     return () => {
       mounted = false;
     };
@@ -67,6 +75,7 @@ export default function SignPage({ params }: { params: { token: string } }) {
   async function submit() {
     setErr(null);
     setOk(null);
+
     if (!sigRef.current || sigRef.current.isEmpty()) {
       setErr("Dibujá tu firma antes de enviar.");
       return;
@@ -84,15 +93,13 @@ export default function SignPage({ params }: { params: { token: string } }) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ token, signatureDataUrl, consent, signer }),
       });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data?.error || "No se pudo registrar la firma.");
-      }
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || "No se pudo registrar la firma.");
+
       setOk("Firma registrada. ¡Gracias!");
-      // refresh preview
-      const p = await fetch(`/api/signing-request/${token}`);
-      const pdata = await p.json();
-      if (p.ok) setPreview(pdata as Preview);
+      const p = await fetch(`/api/signing-request/${token}`, { cache: "no-store" });
+      const pdata = await p.json().catch(() => null);
+      if (p.ok && pdata) setPreview(pdata as Preview);
     } catch (e: any) {
       setErr(e?.message || "Error inesperado");
     } finally {
@@ -104,10 +111,12 @@ export default function SignPage({ params }: { params: { token: string } }) {
     setErr(null);
     setOk(null);
     if (!preview || preview.status !== "pending") return;
+
     if (rejectReason.trim().length < 3) {
       setErr("Indicá un motivo breve de rechazo.");
       return;
     }
+
     setBusy(true);
     try {
       const res = await fetch(`/api/reject`, {
@@ -117,10 +126,11 @@ export default function SignPage({ params }: { params: { token: string } }) {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error || "No se pudo registrar el rechazo");
+
       setOk("Rechazo registrado. Se notificará al creador.");
-      const p = await fetch(`/api/signing-request/${token}`);
-      const pdata = await p.json();
-      if (p.ok) setPreview(pdata as Preview);
+      const p = await fetch(`/api/signing-request/${token}`, { cache: "no-store" });
+      const pdata = await p.json().catch(() => null);
+      if (p.ok && pdata) setPreview(pdata as Preview);
     } catch (e: any) {
       setErr(e?.message || "Error inesperado");
     } finally {
@@ -131,9 +141,28 @@ export default function SignPage({ params }: { params: { token: string } }) {
   if (loading) {
     return <div className="mx-auto max-w-3xl p-6 text-sm text-zinc-600">Cargando…</div>;
   }
+
+  // ✅ Mejor UX cuando es inválido/expirado
   if (err) {
-    return <div className="mx-auto max-w-3xl p-6 text-sm text-red-600">{err}</div>;
+    return (
+      <div className="mx-auto max-w-3xl p-6">
+        <div className="rounded-xl border border-zinc-200 p-6">
+          <h1 className="text-xl font-semibold">No se pudo abrir el enlace</h1>
+          <p className="mt-2 text-sm text-zinc-700">{err}</p>
+          <p className="mt-3 text-sm text-zinc-600">
+            Este enlace puede haber vencido o haber sido reemplazado por un reenvío. Pedile al creador del documento que
+            te reenvíe la invitación.
+          </p>
+          <div className="mt-6">
+            <a href="/" className="rounded-md border border-zinc-200 px-4 py-2 text-sm inline-block">
+              Ir al inicio
+            </a>
+          </div>
+        </div>
+      </div>
+    );
   }
+
   if (!preview) {
     return <div className="mx-auto max-w-3xl p-6 text-sm text-zinc-600">Link inválido.</div>;
   }
@@ -145,7 +174,9 @@ export default function SignPage({ params }: { params: { token: string } }) {
           <div>
             <p className="text-sm text-zinc-600">Firma Electrónica Simple</p>
             <h1 className="mt-1 text-2xl font-semibold">{preview.title}</h1>
-            <p className="mt-2 text-sm text-zinc-600">Firmante: <span className="font-medium text-zinc-900">{preview.email}</span></p>
+            <p className="mt-2 text-sm text-zinc-600">
+              Firmante: <span className="font-medium text-zinc-900">{preview.email}</span>
+            </p>
             {preview.signingMode === "sequential" && preview.position ? (
               <p className="mt-1 text-xs text-zinc-500">Modo secuencial · Orden: {preview.position}</p>
             ) : (
@@ -203,13 +234,8 @@ export default function SignPage({ params }: { params: { token: string } }) {
                 <button type="button" onClick={clearSig} className="text-xs text-zinc-600 hover:text-zinc-900">Limpiar</button>
               </div>
               <div className="mt-3 rounded-lg border border-zinc-200 bg-white">
-                <SignatureCanvas
-                  ref={(r) => { sigRef.current = r; }}
-                  canvasProps={{ className: "w-full h-[220px]" }}
-                  backgroundColor="#ffffff"
-                />
+                <SignatureCanvas ref={(r) => { sigRef.current = r; }} canvasProps={{ className: "w-full h-[220px]" }} backgroundColor="#ffffff" />
               </div>
-              <p className="mt-2 text-xs text-zinc-600">Usá mouse o dedo. Luego presioná “Firmar”.</p>
 
               <div className="mt-4 flex flex-wrap items-center gap-2">
                 <button
@@ -220,37 +246,23 @@ export default function SignPage({ params }: { params: { token: string } }) {
                 >
                   {busy ? "Enviando..." : "Firmar"}
                 </button>
+
                 {preview.status === "pending" ? (
-                  <button
-                    type="button"
-                    onClick={reject}
-                    disabled={busy}
-                    className="rounded-md border border-zinc-200 px-4 py-2 text-sm font-medium"
-                  >
+                  <button type="button" onClick={reject} disabled={busy} className="rounded-md border border-zinc-200 px-4 py-2 text-sm font-medium">
                     Rechazar
                   </button>
                 ) : null}
+
                 {ok ? <span className="text-sm text-emerald-700">{ok}</span> : null}
                 {err ? <span className="text-sm text-red-600">{err}</span> : null}
               </div>
 
               {preview.status === "pending" ? (
                 <div className="mt-3">
-                  <label className="text-xs text-zinc-600">Motivo de rechazo (opcional pero recomendado)</label>
-                  <textarea
-                    className="mt-1 w-full rounded-md border border-zinc-200 px-3 py-2 text-sm"
-                    rows={3}
-                    value={rejectReason}
-                    onChange={(e) => setRejectReason(e.target.value)}
-                    placeholder="Ej: documento incompleto, datos incorrectos, no corresponde..."
-                  />
+                  <label className="text-xs text-zinc-600">Motivo de rechazo</label>
+                  <textarea className="mt-1 w-full rounded-md border border-zinc-200 px-3 py-2 text-sm" rows={3} value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} />
                 </div>
               ) : null}
-            </div>
-
-            <div className="rounded-xl border border-zinc-200 p-4 text-xs text-zinc-600">
-              <div className="font-medium text-zinc-900">Privacidad</div>
-              <p className="mt-1">La evidencia se almacena hasta 10 años con acceso restringido. Para terceros, solo por orden judicial.</p>
             </div>
           </div>
         </div>
