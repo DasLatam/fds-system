@@ -19,8 +19,8 @@ export async function GET(
   }
 
   const admin = createAdminClient();
-  const now = Date.now();
 
+  // ✅ IMPORTANTE: service role para que RLS NO bloquee a firmantes no logueados
   const { data: sr, error: srErr } = await admin
     .from("signing_requests")
     .select("id, document_id, email, status, position, expires_at, opened_at")
@@ -31,10 +31,10 @@ export async function GET(
     return NextResponse.json({ error: "Invalid or expired token" }, { status: 404 });
   }
 
-  // Expiración
+  // Expiración (si aplica)
   if (sr.expires_at) {
     const exp = new Date(sr.expires_at as string).getTime();
-    if (!Number.isNaN(exp) && exp < now && sr.status === "pending") {
+    if (!Number.isNaN(exp) && exp < Date.now() && sr.status === "pending") {
       await admin.from("signing_requests").update({ status: "expired" }).eq("id", sr.id);
       return NextResponse.json({ error: "Invalid or expired token" }, { status: 404 });
     }
@@ -44,7 +44,7 @@ export async function GET(
     return NextResponse.json({ error: "Invalid or expired token" }, { status: 404 });
   }
 
-  // Marcar opened_at la primera vez
+  // Marcar apertura
   if (!sr.opened_at && sr.status === "pending") {
     await admin.from("signing_requests").update({ opened_at: new Date().toISOString() }).eq("id", sr.id);
   }
@@ -59,7 +59,6 @@ export async function GET(
     return NextResponse.json({ error: "Document not found" }, { status: 404 });
   }
 
-  // Signed URL del PDF original para el iframe
   const signed = await admin.storage.from("fds").createSignedUrl(doc.original_path, 60 * 10);
   if (signed.error || !signed.data) {
     return NextResponse.json({ error: "Failed to load PDF preview" }, { status: 500 });
