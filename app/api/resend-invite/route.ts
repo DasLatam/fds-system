@@ -99,7 +99,10 @@ export async function POST(req: Request) {
       payload: { signUrl, resend: true },
     });
 
-    return NextResponse.json({ ok: true });
+    const redirectUrl = new URL(`/dashboard/doc/${doc.id}`, process.env.NEXT_PUBLIC_APP_URL || "https://firmasimple.vercel.app");
+    redirectUrl.searchParams.set("toast", "resent");
+    return NextResponse.redirect(redirectUrl, 303);
+    
   } catch (e: any) {
     const msg = e?.message || "send_failed";
 
