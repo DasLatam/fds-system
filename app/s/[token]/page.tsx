@@ -20,27 +20,21 @@ export default function SignPage() {
   const token = params?.token || "";
 
   const sigRef = useRef<SignatureCanvas | null>(null);
+
+  // ✅ refs para evitar bug de autofill (React no ve cambios)
+  const fullNameRef = useRef<HTMLInputElement | null>(null);
+  const dniRef = useRef<HTMLInputElement | null>(null);
+  const cuilRef = useRef<HTMLInputElement | null>(null);
+  const addressRef = useRef<HTMLInputElement | null>(null);
+  const phoneRef = useRef<HTMLInputElement | null>(null);
+
   const [preview, setPreview] = useState<Preview | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [ok, setOk] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
-
   const [consent, setConsent] = useState(false);
-  const [signer, setSigner] = useState({
-    fullName: "",
-    dni: "",
-    cuil: "",
-    address: "",
-    phone: "",
-  });
-
-  const canSign = useMemo(() => {
-    if (!preview || preview.status !== "pending") return false;
-    const filled = signer.fullName && signer.dni && signer.cuil && signer.address && signer.phone;
-    return Boolean(filled) && consent;
-  }, [preview, signer, consent]);
 
   useEffect(() => {
     if (!token) return;
@@ -72,6 +66,22 @@ export default function SignPage() {
     sigRef.current?.clear();
   }
 
+  function readSigner() {
+    const fullName = (fullNameRef.current?.value || "").trim();
+    const dni = (dniRef.current?.value || "").trim();
+    const cuil = (cuilRef.current?.value || "").trim();
+    const address = (addressRef.current?.value || "").trim();
+    const phone = (phoneRef.current?.value || "").trim();
+    return { fullName, dni, cuil, address, phone };
+  }
+
+  const canSign = useMemo(() => {
+    if (!preview || preview.status !== "pending") return false;
+    const s = readSigner();
+    const filled = s.fullName && s.dni && s.cuil && s.address && s.phone;
+    return Boolean(filled) && consent;
+  }, [preview, consent]); // 👈 no dependemos de onChange de inputs
+
   async function submit() {
     setErr(null);
     setOk(null);
@@ -80,8 +90,18 @@ export default function SignPage() {
       setErr("Dibujá tu firma antes de enviar.");
       return;
     }
-    if (!canSign) {
-      setErr("Completá tus datos y aceptá el consentimiento.");
+    if (!preview || preview.status !== "pending") {
+      setErr("Este enlace no está en estado pendiente.");
+      return;
+    }
+    if (!consent) {
+      setErr("Tenés que aceptar el consentimiento.");
+      return;
+    }
+
+    const signer = readSigner();
+    if (!signer.fullName || !signer.dni || !signer.cuil || !signer.address || !signer.phone) {
+      setErr("Completá todos los datos del firmante.");
       return;
     }
 
@@ -97,6 +117,7 @@ export default function SignPage() {
       if (!res.ok) throw new Error(data?.error || "No se pudo registrar la firma.");
 
       setOk("Firma registrada. ¡Gracias!");
+
       const p = await fetch(`/api/signing-request/${token}`, { cache: "no-store" });
       const pdata = await p.json().catch(() => null);
       if (p.ok && pdata) setPreview(pdata as Preview);
@@ -110,6 +131,7 @@ export default function SignPage() {
   async function reject() {
     setErr(null);
     setOk(null);
+
     if (!preview || preview.status !== "pending") return;
 
     if (rejectReason.trim().length < 3) {
@@ -128,6 +150,7 @@ export default function SignPage() {
       if (!res.ok) throw new Error(data?.error || "No se pudo registrar el rechazo");
 
       setOk("Rechazo registrado. Se notificará al creador.");
+
       const p = await fetch(`/api/signing-request/${token}`, { cache: "no-store" });
       const pdata = await p.json().catch(() => null);
       if (p.ok && pdata) setPreview(pdata as Preview);
@@ -138,11 +161,8 @@ export default function SignPage() {
     }
   }
 
-  if (loading) {
-    return <div className="mx-auto max-w-3xl p-6 text-sm text-zinc-600">Cargando…</div>;
-  }
+  if (loading) return <div className="mx-auto max-w-3xl p-6 text-sm text-zinc-600">Cargando…</div>;
 
-  // ✅ Mejor UX cuando es inválido/expirado
   if (err) {
     return (
       <div className="mx-auto max-w-3xl p-6">
@@ -163,9 +183,7 @@ export default function SignPage() {
     );
   }
 
-  if (!preview) {
-    return <div className="mx-auto max-w-3xl p-6 text-sm text-zinc-600">Link inválido.</div>;
-  }
+  if (!preview) return <div className="mx-auto max-w-3xl p-6 text-sm text-zinc-600">Link inválido.</div>;
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10">
@@ -177,11 +195,7 @@ export default function SignPage() {
             <p className="mt-2 text-sm text-zinc-600">
               Firmante: <span className="font-medium text-zinc-900">{preview.email}</span>
             </p>
-            {preview.signingMode === "sequential" && preview.position ? (
-              <p className="mt-1 text-xs text-zinc-500">Modo secuencial · Orden: {preview.position}</p>
-            ) : (
-              <p className="mt-1 text-xs text-zinc-500">Modo: {preview.signingMode}</p>
-            )}
+            <p className="mt-1 text-xs text-zinc-500">Modo: {preview.signingMode}{preview.position ? ` · Orden ${preview.position}` : ""}</p>
           </div>
 
           <div>
@@ -197,10 +211,6 @@ export default function SignPage() {
           </div>
         </div>
 
-        {preview.expiresAt ? (
-          <p className="mt-2 text-xs text-zinc-500">Vence: {new Date(preview.expiresAt).toLocaleString("es-AR")}</p>
-        ) : null}
-
         <div className="mt-6 grid gap-6 lg:grid-cols-2">
           <div className="rounded-xl border border-zinc-200 overflow-hidden">
             <div className="border-b border-zinc-200 px-4 py-2 text-sm font-medium">Vista previa</div>
@@ -213,11 +223,11 @@ export default function SignPage() {
               <p className="mt-1 text-xs text-zinc-600">Se usan como evidencia y registro (Ley 25.506 art. 5).</p>
 
               <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
-                <input className="rounded-md border border-zinc-200 px-3 py-2 text-sm" placeholder="Nombre completo" value={signer.fullName} onChange={(e) => setSigner({ ...signer, fullName: e.target.value })} />
-                <input className="rounded-md border border-zinc-200 px-3 py-2 text-sm" placeholder="DNI" value={signer.dni} onChange={(e) => setSigner({ ...signer, dni: e.target.value })} />
-                <input className="rounded-md border border-zinc-200 px-3 py-2 text-sm" placeholder="CUIL" value={signer.cuil} onChange={(e) => setSigner({ ...signer, cuil: e.target.value })} />
-                <input className="rounded-md border border-zinc-200 px-3 py-2 text-sm" placeholder="Celular" value={signer.phone} onChange={(e) => setSigner({ ...signer, phone: e.target.value })} />
-                <input className="rounded-md border border-zinc-200 px-3 py-2 text-sm md:col-span-2" placeholder="Dirección postal" value={signer.address} onChange={(e) => setSigner({ ...signer, address: e.target.value })} />
+                <input ref={fullNameRef} className="rounded-md border border-zinc-200 px-3 py-2 text-sm" placeholder="Nombre completo" autoComplete="name" />
+                <input ref={dniRef} className="rounded-md border border-zinc-200 px-3 py-2 text-sm" placeholder="DNI" inputMode="numeric" />
+                <input ref={cuilRef} className="rounded-md border border-zinc-200 px-3 py-2 text-sm" placeholder="CUIL" inputMode="numeric" />
+                <input ref={phoneRef} className="rounded-md border border-zinc-200 px-3 py-2 text-sm" placeholder="Celular" inputMode="tel" autoComplete="tel" />
+                <input ref={addressRef} className="rounded-md border border-zinc-200 px-3 py-2 text-sm md:col-span-2" placeholder="Dirección postal" autoComplete="street-address" />
               </div>
 
               <label className="mt-3 flex items-start gap-2 text-xs text-zinc-600">
@@ -233,8 +243,13 @@ export default function SignPage() {
                 <div className="text-sm font-medium">Firma manuscrita</div>
                 <button type="button" onClick={clearSig} className="text-xs text-zinc-600 hover:text-zinc-900">Limpiar</button>
               </div>
+
               <div className="mt-3 rounded-lg border border-zinc-200 bg-white">
-                <SignatureCanvas ref={(r) => { sigRef.current = r; }} canvasProps={{ className: "w-full h-[220px]" }} backgroundColor="#ffffff" />
+                <SignatureCanvas
+                  ref={(r) => { sigRef.current = r; }}
+                  canvasProps={{ className: "w-full h-[220px]" }}
+                  backgroundColor="#ffffff"
+                />
               </div>
 
               <div className="mt-4 flex flex-wrap items-center gap-2">
