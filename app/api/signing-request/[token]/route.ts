@@ -21,23 +21,9 @@ export async function GET(
     .eq("token", token)
     .maybeSingle();
 
-  if (srErr || !sr) {
-    return NextResponse.json({ error: "Invalid or expired token" }, { status: 404 });
-  }
+  if (srErr || !sr) return NextResponse.json({ error: "Invalid or expired token" }, { status: 404 });
 
-  // Expiración
-  if (sr.expires_at) {
-    const exp = new Date(sr.expires_at as string).getTime();
-    if (!Number.isNaN(exp) && exp < Date.now() && sr.status === "pending") {
-      await admin.from("signing_requests").update({ status: "expired" }).eq("id", sr.id);
-      return NextResponse.json({ error: "Invalid or expired token" }, { status: 404 });
-    }
-  }
-  if (sr.status === "expired") {
-    return NextResponse.json({ error: "Invalid or expired token" }, { status: 404 });
-  }
-
-  // Marcar apertura
+  // marca opened_at (solo si pendiente)
   if (!sr.opened_at && sr.status === "pending") {
     await admin.from("signing_requests").update({ opened_at: new Date().toISOString() }).eq("id", sr.id);
   }
@@ -48,23 +34,18 @@ export async function GET(
     .eq("id", sr.document_id)
     .maybeSingle();
 
-  if (docErr || !doc) {
-    return NextResponse.json({ error: "Document not found" }, { status: 404 });
-  }
-
-  // ✅ preview same-origin
-  const pdfUrl = `/api/preview?token=${encodeURIComponent(token)}`;
+  if (docErr || !doc) return NextResponse.json({ error: "Document not found" }, { status: 404 });
 
   return NextResponse.json(
     {
       documentId: doc.id,
-      title: doc.title,
-      email: sr.email,
+      title: doc.title ?? "Documento",
+      email: sr.email ?? "",
       status: sr.status,
-      signingMode: doc.signing_mode,
-      position: sr.position,
+      signingMode: doc.signing_mode ?? "parallel",
+      position: sr.position ?? null,
       expiresAt: sr.expires_at ?? null,
-      pdfUrl,
+      pdfUrl: `/api/preview?token=${encodeURIComponent(token)}`,
     },
     { headers: { "cache-control": "no-store" } }
   );
