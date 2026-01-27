@@ -19,7 +19,11 @@ export async function GET(req: NextRequest) {
     .eq("token", token)
     .maybeSingle();
 
-  if (srErr || !sr) return NextResponse.json({ error: "invalid_or_expired" }, { status: 404 });
+  if (srErr) {
+    console.error("preview sr query failed:", srErr);
+    return NextResponse.json({ error: "sr_query_failed" }, { status: 500 });
+  }
+  if (!sr) return NextResponse.json({ error: "invalid_or_expired" }, { status: 404 });
 
   if (sr.expires_at) {
     const exp = new Date(sr.expires_at as string).getTime();
@@ -32,15 +36,20 @@ export async function GET(req: NextRequest) {
 
   const { data: doc, error: docErr } = await admin
     .from("documents")
-    .select("id, original_path")
+    .select("original_path")
     .eq("id", sr.document_id)
     .maybeSingle();
 
-  if (docErr || !doc?.original_path) return NextResponse.json({ error: "doc_not_found" }, { status: 404 });
+  if (docErr) {
+    console.error("preview doc query failed:", docErr);
+    return NextResponse.json({ error: "doc_query_failed" }, { status: 500 });
+  }
+  if (!doc?.original_path) return NextResponse.json({ error: "doc_not_found" }, { status: 404 });
 
   const dl = await admin.storage.from("fds").download(doc.original_path);
   if (dl.error) {
-    return NextResponse.json({ error: dl.error.message }, { status: 500 });
+    console.error("preview download failed:", dl.error);
+    return NextResponse.json({ error: "download_failed" }, { status: 500 });
   }
 
   const bytes = new Uint8Array(await dl.data.arrayBuffer());
