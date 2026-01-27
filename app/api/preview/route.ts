@@ -5,26 +5,42 @@ export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
-  const token = url.searchParams.get("token") || "";
+  const value = (url.searchParams.get("token") || "").trim();
 
-  if (!token || token.length < 10) {
+  if (!value || value.length < 10) {
     return NextResponse.json({ error: "invalid_token" }, { status: 400 });
   }
 
   const admin = createAdminClient();
 
-  const { data: sr, error: srErr } = await admin
+  // 1) Buscar por token
+  let srRes = await admin
     .from("signing_requests")
     .select("id, document_id, status, expires_at")
-    .eq("token", token)
+    .eq("token", value)
     .maybeSingle();
 
-  if (srErr) {
-    console.error("preview sr query failed:", srErr);
-    return NextResponse.json({ error: "sr_query_failed" }, { status: 500 });
+  // 2) Fallback: buscar por id (por si el link trae el id)
+  if (!srRes.data && !srRes.error) {
+    srRes = await admin
+      .from("signing_requests")
+      .select("id, document_id, status, expires_at")
+      .eq("id", value)
+      .maybeSingle();
   }
+
+  if (srRes.error) {
+    console.error("preview signing_requests error:", srRes.error);
+    return NextResponse.json(
+      { error: "sr_query_failed", details: srRes.error.message },
+      { status: 500 }
+    );
+  }
+
+  const sr = srRes.data;
   if (!sr) return NextResponse.json({ error: "invalid_or_expired" }, { status: 404 });
 
+  // Expiración
   if (sr.expires_at) {
     const exp = new Date(sr.expires_at as string).getTime();
     if (!Number.isNaN(exp) && exp < Date.now() && sr.status === "pending") {
@@ -34,22 +50,30 @@ export async function GET(req: NextRequest) {
   }
   if (sr.status === "expired") return NextResponse.json({ error: "invalid_or_expired" }, { status: 404 });
 
-  const { data: doc, error: docErr } = await admin
+  const docRes = await admin
     .from("documents")
     .select("original_path")
     .eq("id", sr.document_id)
     .maybeSingle();
 
-  if (docErr) {
-    console.error("preview doc query failed:", docErr);
-    return NextResponse.json({ error: "doc_query_failed" }, { status: 500 });
+  if (docRes.error) {
+    console.error("preview documents error:", docRes.error);
+    return NextResponse.json(
+      { error: "doc_query_failed", details: docRes.error.message },
+      { status: 500 }
+    );
   }
-  if (!doc?.original_path) return NextResponse.json({ error: "doc_not_found" }, { status: 404 });
 
-  const dl = await admin.storage.from("fds").download(doc.original_path);
+  const originalPath = docRes.data?.original_path;
+  if (!originalPath) return NextResponse.json({ error: "doc_not_found" }, { status: 404 });
+
+  const dl = await admin.storage.from("fds").download(originalPath);
   if (dl.error) {
-    console.error("preview download failed:", dl.error);
-    return NextResponse.json({ error: "download_failed" }, { status: 500 });
+    console.error("preview storage download error:", dl.error);
+    return NextResponse.json(
+      { error: "download_failed", details: dl.error.message },
+      { status: 500 }
+    );
   }
 
   const bytes = new Uint8Array(await dl.data.arrayBuffer());
