@@ -32,6 +32,7 @@ function getIp(req: NextRequest) {
 
 // Rutas públicas (NO requieren sesión)
 function isPublicPath(pathname: string) {
+  // Pages públicas
   if (pathname === "/") return true;
   if (pathname.startsWith("/login")) return true;
   if (pathname.startsWith("/pricing")) return true;
@@ -45,26 +46,34 @@ function isPublicPath(pathname: string) {
   // firmantes (link público)
   if (pathname.startsWith("/s/")) return true;
 
-  // endpoints auth públicos (CLAVE)
+  // auth endpoints públicos
   if (pathname.startsWith("/api/auth/magic-link")) return true;
   if (pathname.startsWith("/api/auth/set-session")) return true;
+
+  // ✅ endpoints públicos por token (NO sesión)
+  if (pathname.startsWith("/api/signing-request")) return true; // /api/signing-request/[token]
+  if (pathname.startsWith("/api/sign")) return true;            // POST firma por token
+  if (pathname.startsWith("/api/reject")) return true;          // POST rechazo por token
+  if (pathname.startsWith("/api/download")) return true;        // links desde email
+  if (pathname.startsWith("/api/preview")) return true;         // si existe y se usa
 
   return false;
 }
 
 // Rutas que SÍ requieren sesión
 function isProtectedPath(pathname: string) {
+  // pages privadas
   if (pathname.startsWith("/dashboard")) return true;
   if (pathname.startsWith("/admin")) return true;
 
+  // api privadas (requieren sesión)
   if (pathname.startsWith("/api/admin")) return true;
   if (pathname.startsWith("/api/upload")) return true;
   if (pathname.startsWith("/api/invite")) return true;
-  if (pathname.startsWith("/api/sign")) return true;
-  if (pathname.startsWith("/api/download")) return true;
   if (pathname.startsWith("/api/audit")) return true;
-  if (pathname.startsWith("/api/reject")) return true;
   if (pathname.startsWith("/api/resend-invite")) return true;
+  if (pathname.startsWith("/api/profile")) return true;
+  if (pathname.startsWith("/api/logout")) return true;
 
   return false;
 }
@@ -130,6 +139,11 @@ export async function middleware(req: NextRequest) {
   } = await supabase.auth.getUser();
 
   if (!user) {
+    // ✅ Para /api/* devolvemos 401 JSON (NO redirect) para evitar POST->/login 405
+    if (pathname.startsWith("/api")) {
+      return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    }
+
     const loginUrl = req.nextUrl.clone();
     loginUrl.pathname = "/login";
     loginUrl.searchParams.set("next", pathname);
