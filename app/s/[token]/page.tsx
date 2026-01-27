@@ -15,34 +15,13 @@ type Preview = {
   pdfUrl: string;
 };
 
-function normalizePreview(raw: any, token: string): Preview {
-  const documentId = raw?.documentId || raw?.document_id || "";
-  const title = raw?.title || "Documento";
-  const email = raw?.email || "";
-  const statusRaw = (raw?.status || "pending").toString().toLowerCase();
-  const status =
-    statusRaw === "signed" || statusRaw === "rejected" || statusRaw === "expired"
-      ? statusRaw
-      : "pending";
-
-  const signingModeRaw = (raw?.signingMode || raw?.signing_mode || "parallel").toString().toLowerCase();
-  const signingMode = signingModeRaw === "sequential" ? "sequential" : "parallel";
-
-  const position = raw?.position ?? null;
-  const expiresAt = raw?.expiresAt ?? raw?.expires_at ?? null;
-
-  // ✅ si el backend no manda pdfUrl, usamos el preview interno
-  const pdfUrl = raw?.pdfUrl || raw?.pdf_url || `/api/preview?token=${encodeURIComponent(token)}`;
-
-  return { documentId, title, email, status, signingMode, position, expiresAt, pdfUrl };
-}
-
 export default function SignPage() {
   const params = useParams<{ token: string }>();
   const token = params?.token || "";
 
   const sigRef = useRef<SignatureCanvas | null>(null);
 
+  // Refs (autofill-friendly)
   const fullNameRef = useRef<HTMLInputElement | null>(null);
   const dniRef = useRef<HTMLInputElement | null>(null);
   const cuilRef = useRef<HTMLInputElement | null>(null);
@@ -57,6 +36,7 @@ export default function SignPage() {
   const [rejectReason, setRejectReason] = useState("");
   const [consent, setConsent] = useState(false);
 
+  // Para recalcular canSign cuando el usuario escribe o firma
   const [tick, setTick] = useState(0);
   const [sigDirty, setSigDirty] = useState(false);
 
@@ -92,7 +72,8 @@ export default function SignPage() {
         if (!res.ok) throw new Error(data?.error || "No se pudo cargar el documento.");
 
         if (mounted) {
-          setPreview(normalizePreview(data, token));
+          setPreview(data as Preview);
+          // tick para autofill
           setTimeout(() => bump(), 50);
         }
       } catch (e: any) {
@@ -107,18 +88,19 @@ export default function SignPage() {
     };
   }, [token]);
 
-  const reason = useMemo(() => {
-    if (!preview) return "Cargando...";
-    if (preview.status !== "pending") return "Este enlace no está pendiente.";
-    if (!consent) return "Tenés que aceptar el consentimiento.";
-    if (!sigDirty) return "Tenés que dibujar la firma.";
-    const s = readSigner();
-    if (!s.fullName || !s.dni || !s.cuil || !s.address || !s.phone) return "Completá todos los datos.";
-    if (s.cuil.length !== 11) return "CUIL inválido: debe tener 11 dígitos (sin guiones).";
-    return null;
-  }, [preview, consent, sigDirty, tick]);
+  const canSign = useMemo(() => {
+    if (!preview || preview.status !== "pending") return false;
+    if (!consent) return false;
+    if (!sigDirty) return false;
 
-  const canSign = useMemo(() => reason === null, [reason]);
+    const s = readSigner();
+    const filled = s.fullName && s.dni && s.cuil && s.address && s.phone;
+    if (!filled) return false;
+
+    // Validación mínima
+    if (s.cuil && s.cuil.length !== 11) return false;
+    return true;
+  }, [preview, consent, sigDirty, tick]);
 
   function clearSig() {
     sigRef.current?.clear();
@@ -132,26 +114,32 @@ export default function SignPage() {
     bump();
   }
 
-  function openPdfSameTab() {
-    if (!preview?.pdfUrl) return;
-    window.location.href = preview.pdfUrl; // ✅ no depende de target=_blank
-  }
-
   async function submit() {
     setErr(null);
     setOk(null);
 
-    if (!canSign) {
-      setErr(reason || "No se puede firmar todavía.");
+    if (!preview || preview.status !== "pending") {
+      setErr("Este enlace no está en estado pendiente.");
       return;
     }
-
+    if (!consent) {
+      setErr("Tenés que aceptar el consentimiento.");
+      return;
+    }
     if (!sigRef.current || sigRef.current.isEmpty()) {
       setErr("Dibujá tu firma antes de enviar.");
       return;
     }
 
     const signer = readSigner();
+    if (!signer.fullName || !signer.dni || !signer.cuil || !signer.address || !signer.phone) {
+      setErr("Completá todos los datos del firmante.");
+      return;
+    }
+    if (signer.cuil.length !== 11) {
+      setErr("CUIL inválido: debe tener 11 dígitos (sin guiones).");
+      return;
+    }
 
     setBusy(true);
     try {
@@ -168,7 +156,7 @@ export default function SignPage() {
 
       const p = await fetch(`/api/signing-request/${token}`, { cache: "no-store" });
       const pdata = await p.json().catch(() => null);
-      if (p.ok && pdata) setPreview(normalizePreview(pdata, token));
+      if (p.ok && pdata) setPreview(pdata as Preview);
     } catch (e: any) {
       setErr(e?.message || "Error inesperado");
     } finally {
@@ -179,6 +167,7 @@ export default function SignPage() {
   async function reject() {
     setErr(null);
     setOk(null);
+
     if (!preview || preview.status !== "pending") return;
 
     if (rejectReason.trim().length < 3) {
@@ -200,7 +189,7 @@ export default function SignPage() {
 
       const p = await fetch(`/api/signing-request/${token}`, { cache: "no-store" });
       const pdata = await p.json().catch(() => null);
-      if (p.ok && pdata) setPreview(normalizePreview(pdata, token));
+      if (p.ok && pdata) setPreview(pdata as Preview);
     } catch (e: any) {
       setErr(e?.message || "Error inesperado");
     } finally {
@@ -216,6 +205,10 @@ export default function SignPage() {
         <div className="rounded-xl border border-zinc-200 p-6">
           <h1 className="text-xl font-semibold">No se pudo abrir el enlace</h1>
           <p className="mt-2 text-sm text-zinc-700">{err}</p>
+          <p className="mt-3 text-sm text-zinc-600">
+            Este enlace puede haber vencido o haber sido reemplazado por un reenvío. Pedile al creador del documento que
+            te reenvíe la invitación.
+          </p>
           <div className="mt-6">
             <a href="/" className="rounded-md border border-zinc-200 px-4 py-2 text-sm inline-block">
               Ir al inicio
@@ -227,6 +220,8 @@ export default function SignPage() {
   }
 
   if (!preview) return <div className="mx-auto max-w-3xl p-6 text-sm text-zinc-600">Link inválido.</div>;
+
+  const pdfOk = Boolean(preview.pdfUrl && preview.pdfUrl.startsWith("http"));
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10">
@@ -264,25 +259,27 @@ export default function SignPage() {
             <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-2">
               <div className="text-sm font-medium">Vista previa</div>
 
-              {/* ✅ Botón real, no depende de target=_blank */}
-              <button
-                type="button"
-                onClick={openPdfSameTab}
-                className="text-xs text-zinc-600 hover:text-zinc-900"
-              >
-                Abrir PDF
-              </button>
+              {pdfOk ? (
+                <a
+                  href={preview.pdfUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-md border border-zinc-200 px-3 py-1.5 text-xs font-medium hover:bg-zinc-50"
+                >
+                  Abrir PDF
+                </a>
+              ) : (
+                <span className="text-xs text-red-600">Sin PDF disponible</span>
+              )}
             </div>
 
-            {/* ✅ object suele renderizar mejor PDFs que iframe en algunos navegadores */}
-            <object data={preview.pdfUrl} type="application/pdf" className="h-[640px] w-full">
+            {pdfOk ? (
+              <iframe title="PDF" src={preview.pdfUrl} className="h-[640px] w-full" />
+            ) : (
               <div className="p-4 text-sm text-zinc-600">
-                No se pudo mostrar la vista previa.{" "}
-                <button type="button" onClick={openPdfSameTab} className="underline">
-                  Abrir PDF
-                </button>
+                No se pudo mostrar la vista previa. Pedile al creador del documento que reenvíe la invitación.
               </div>
-            </object>
+            )}
           </div>
 
           <div className="space-y-4">
@@ -291,11 +288,42 @@ export default function SignPage() {
               <p className="mt-1 text-xs text-zinc-600">Se usan como evidencia y registro (Ley 25.506 art. 5).</p>
 
               <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
-                <input ref={fullNameRef} className="rounded-md border border-zinc-200 px-3 py-2 text-sm" placeholder="Nombre completo" onInput={bump} />
-                <input ref={dniRef} className="rounded-md border border-zinc-200 px-3 py-2 text-sm" placeholder="DNI" inputMode="numeric" onInput={bump} />
-                <input ref={cuilRef} className="rounded-md border border-zinc-200 px-3 py-2 text-sm" placeholder="CUIL (11 dígitos)" inputMode="numeric" onInput={bump} />
-                <input ref={phoneRef} className="rounded-md border border-zinc-200 px-3 py-2 text-sm" placeholder="Celular" inputMode="tel" onInput={bump} />
-                <input ref={addressRef} className="rounded-md border border-zinc-200 px-3 py-2 text-sm md:col-span-2" placeholder="Dirección postal" onInput={bump} />
+                <input
+                  ref={fullNameRef}
+                  className="rounded-md border border-zinc-200 px-3 py-2 text-sm"
+                  placeholder="Ej: Juan Pérez"
+                  autoComplete="name"
+                  onInput={bump}
+                />
+                <input
+                  ref={dniRef}
+                  className="rounded-md border border-zinc-200 px-3 py-2 text-sm"
+                  placeholder="Ej: 30123456"
+                  inputMode="numeric"
+                  onInput={bump}
+                />
+                <input
+                  ref={cuilRef}
+                  className="rounded-md border border-zinc-200 px-3 py-2 text-sm"
+                  placeholder="Ej: 20301234567"
+                  inputMode="numeric"
+                  onInput={bump}
+                />
+                <input
+                  ref={phoneRef}
+                  className="rounded-md border border-zinc-200 px-3 py-2 text-sm"
+                  placeholder="Ej: 1139009550"
+                  inputMode="tel"
+                  autoComplete="tel"
+                  onInput={bump}
+                />
+                <input
+                  ref={addressRef}
+                  className="rounded-md border border-zinc-200 px-3 py-2 text-sm md:col-span-2"
+                  placeholder="Ej: Calle 123 456, CABA"
+                  autoComplete="street-address"
+                  onInput={bump}
+                />
               </div>
 
               <label className="mt-3 flex items-start gap-2 text-xs text-zinc-600">
@@ -349,9 +377,15 @@ export default function SignPage() {
                 <button
                   type="button"
                   onClick={submit}
-                  disabled={!canSign || busy}
+                  disabled={!canSign || busy || !pdfOk}
                   className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
-                  title={reason ?? "Listo para firmar"}
+                  title={
+                    !pdfOk
+                      ? "No hay PDF disponible para firmar"
+                      : canSign
+                        ? "Listo para firmar"
+                        : "Completá datos, aceptá el consentimiento y capturá la firma"
+                  }
                 >
                   {busy ? "Enviando..." : "Firmar"}
                 </button>
@@ -367,7 +401,6 @@ export default function SignPage() {
                   </button>
                 ) : null}
 
-                {reason ? <span className="text-xs text-zinc-600">{reason}</span> : null}
                 {ok ? <span className="text-sm text-emerald-700">{ok}</span> : null}
                 {err ? <span className="text-sm text-red-600">{err}</span> : null}
               </div>
