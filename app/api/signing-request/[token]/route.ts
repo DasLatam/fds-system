@@ -3,11 +3,6 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
 
-function appUrl() {
-  const raw = process.env.NEXT_PUBLIC_APP_URL || "https://firmasimple.vercel.app";
-  return raw.startsWith("http") ? raw.replace(/\/$/, "") : `https://${raw.replace(/\/$/, "")}`;
-}
-
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ token: string }> }
@@ -20,54 +15,24 @@ export async function GET(
 
   const admin = createAdminClient();
 
-  // 1) Intento normal (con expires_at)
-  let sr:
-    | {
-        id: string;
-        document_id: string;
-        email: string;
-        status: "pending" | "signed" | "rejected" | "expired";
-        position: number | null;
-        expires_at?: string | null;
-        opened_at?: string | null;
-      }
-    | null = null;
-
-  const first = await admin
+  const { data: sr, error: srErr } = await admin
     .from("signing_requests")
     .select("id, document_id, email, status, position, expires_at, opened_at")
     .eq("token", token)
     .maybeSingle();
 
-  // 2) Si falla por columna inexistente, reintento sin expires_at
-  if (first.error && String(first.error.message || "").includes("expires_at")) {
-    const second = await admin
-      .from("signing_requests")
-      .select("id, document_id, email, status, position, opened_at")
-      .eq("token", token)
-      .maybeSingle();
-
-    if (second.error || !second.data) {
-      return NextResponse.json({ error: "Invalid or expired token" }, { status: 404 });
-    }
-
-    sr = { ...second.data, expires_at: null };
-  } else {
-    if (first.error || !first.data) {
-      return NextResponse.json({ error: "Invalid or expired token" }, { status: 404 });
-    }
-    sr = first.data as any;
+  if (srErr || !sr) {
+    return NextResponse.json({ error: "Invalid or expired token" }, { status: 404 });
   }
 
-  // Expiración (si aplica)
+  // Expiración
   if (sr.expires_at) {
-    const exp = new Date(sr.expires_at).getTime();
+    const exp = new Date(sr.expires_at as string).getTime();
     if (!Number.isNaN(exp) && exp < Date.now() && sr.status === "pending") {
       await admin.from("signing_requests").update({ status: "expired" }).eq("id", sr.id);
       return NextResponse.json({ error: "Invalid or expired token" }, { status: 404 });
     }
   }
-
   if (sr.status === "expired") {
     return NextResponse.json({ error: "Invalid or expired token" }, { status: 404 });
   }
@@ -79,7 +44,7 @@ export async function GET(
 
   const { data: doc, error: docErr } = await admin
     .from("documents")
-    .select("id, title, signing_mode, original_path")
+    .select("id, title, signing_mode")
     .eq("id", sr.document_id)
     .maybeSingle();
 
@@ -87,10 +52,8 @@ export async function GET(
     return NextResponse.json({ error: "Document not found" }, { status: 404 });
   }
 
-  const signed = await admin.storage.from("fds").createSignedUrl(doc.original_path, 60 * 10);
-  if (signed.error || !signed.data) {
-    return NextResponse.json({ error: "Failed to load PDF preview" }, { status: 500 });
-  }
+  // ✅ preview same-origin
+  const pdfUrl = `/api/preview?token=${encodeURIComponent(token)}`;
 
   return NextResponse.json(
     {
@@ -101,7 +64,7 @@ export async function GET(
       signingMode: doc.signing_mode,
       position: sr.position,
       expiresAt: sr.expires_at ?? null,
-      pdfUrl: signed.data.signedUrl,
+      pdfUrl,
     },
     { headers: { "cache-control": "no-store" } }
   );
