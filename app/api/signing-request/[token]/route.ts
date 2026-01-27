@@ -10,7 +10,7 @@ export async function GET(
   const { token } = await params;
 
   if (!token || token.length < 10) {
-    return NextResponse.json({ error: "invalid_token" }, { status: 400 });
+    return NextResponse.json({ error: "invalid_token" }, { status: 400, headers: { "cache-control": "no-store" } });
   }
 
   const admin = createAdminClient();
@@ -21,29 +21,26 @@ export async function GET(
     .eq("token", token)
     .maybeSingle();
 
-  // ⚠️ Si hay error real, no lo escondas como “token inválido”
   if (srErr) {
     console.error("signing-request query failed:", srErr);
-    return NextResponse.json({ error: "signing_request_query_failed" }, { status: 500 });
+    return NextResponse.json({ error: "signing_request_query_failed" }, { status: 500, headers: { "cache-control": "no-store" } });
   }
 
   if (!sr) {
-    return NextResponse.json({ error: "invalid_or_expired" }, { status: 404 });
+    return NextResponse.json({ error: "invalid_or_expired" }, { status: 404, headers: { "cache-control": "no-store" } });
   }
 
-  // Expiración (si aplica)
   if (sr.expires_at) {
     const exp = new Date(sr.expires_at as string).getTime();
     if (!Number.isNaN(exp) && exp < Date.now() && sr.status === "pending") {
       await admin.from("signing_requests").update({ status: "expired" }).eq("id", sr.id);
-      return NextResponse.json({ error: "invalid_or_expired" }, { status: 404 });
+      return NextResponse.json({ error: "invalid_or_expired" }, { status: 404, headers: { "cache-control": "no-store" } });
     }
   }
   if (sr.status === "expired") {
-    return NextResponse.json({ error: "invalid_or_expired" }, { status: 404 });
+    return NextResponse.json({ error: "invalid_or_expired" }, { status: 404, headers: { "cache-control": "no-store" } });
   }
 
-  // Marcar apertura
   if (!sr.opened_at && sr.status === "pending") {
     await admin.from("signing_requests").update({ opened_at: new Date().toISOString() }).eq("id", sr.id);
   }
@@ -56,21 +53,20 @@ export async function GET(
 
   if (docErr) {
     console.error("documents query failed:", docErr);
-    return NextResponse.json({ error: "document_query_failed" }, { status: 500 });
+    return NextResponse.json({ error: "document_query_failed" }, { status: 500, headers: { "cache-control": "no-store" } });
   }
   if (!doc) {
-    return NextResponse.json({ error: "document_not_found" }, { status: 404 });
+    return NextResponse.json({ error: "document_not_found" }, { status: 404, headers: { "cache-control": "no-store" } });
   }
 
-  // ✅ Siempre same-origin y estable
   const pdfUrl = `/api/preview?token=${encodeURIComponent(token)}`;
 
   return NextResponse.json(
     {
       documentId: doc.id,
       title: doc.title ?? "Documento",
-      email: sr.email ?? "",            // <- SI esto está vacío, es problema al crear la invitación
-      status: sr.status ?? "pending",   // <- SI esto viene distinto, el front lo va a respetar
+      email: sr.email ?? "",
+      status: sr.status ?? "pending",
       signingMode: doc.signing_mode ?? "parallel",
       position: sr.position ?? null,
       expiresAt: sr.expires_at ?? null,
