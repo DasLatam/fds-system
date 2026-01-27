@@ -1,10 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { sha256HexFromString } from "@/lib/utils/crypto";
-import { buildFinalPdf, type EvidenceSigner } from "@/lib/pdf/finalizePdf";
-import { logEvent } from "@/lib/audit/logEvent";
-import { sendFinalEmail } from "@/lib/mail/send";
 
 export const runtime = "nodejs";
 
@@ -22,7 +18,11 @@ const BodySchema = z.object({
 });
 
 function getIp(req: NextRequest) {
-  return req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip")?.trim() || "unknown";
+  return (
+    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    req.headers.get("x-real-ip")?.trim() ||
+    "unknown"
+  );
 }
 
 function dataUrlToPngBytes(dataUrl: string): Uint8Array {
@@ -34,22 +34,42 @@ function dataUrlToPngBytes(dataUrl: string): Uint8Array {
 export async function POST(req: NextRequest) {
   try {
     const body = BodySchema.parse(await req.json());
-    if (!body.consent) return NextResponse.json({ error: "Consent is required" }, { status: 400 });
+    if (!body.consent) {
+      return NextResponse.json({ error: "Consent is required" }, { status: 400 });
+    }
 
     const admin = createAdminClient();
     const ip = getIp(req);
     const userAgent = req.headers.get("user-agent") || "";
 
-    // Load signing request (✅ incluye expires_at)
-    const { data: sr, error: srErr } = await admin
+    // 1) Buscar signing request por token
+    let srRes = await admin
       .from("signing_requests")
-      .select("id, document_id, email, status, position, expires_at, signer_full_name, signer_dni, signer_cuil, signer_address, signer_phone")
+      .select("id, document_id, email, status, position, expires_at")
       .eq("token", body.token)
       .maybeSingle();
 
-    if (srErr || !sr) return NextResponse.json({ error: "Invalid or expired token" }, { status: 404 });
+    // 2) Fallback: por id
+    if (!srRes.data && !srRes.error) {
+      srRes = await admin
+        .from("signing_requests")
+        .select("id, document_id, email, status, position, expires_at")
+        .eq("id", body.token)
+        .maybeSingle();
+    }
 
-    // ✅ expiración
+    if (srRes.error) {
+      console.error("signing_requests query error:", srRes.error);
+      return NextResponse.json(
+        { error: "Signing request query failed", details: srRes.error.message },
+        { status: 500 }
+      );
+    }
+
+    const sr = srRes.data;
+    if (!sr) return NextResponse.json({ error: "Invalid or expired token" }, { status: 404 });
+
+    // Expiración
     if (sr.expires_at) {
       const exp = new Date(sr.expires_at as string).getTime();
       if (!Number.isNaN(exp) && exp < Date.now() && sr.status === "pending") {
@@ -57,134 +77,63 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Invalid or expired token" }, { status: 404 });
       }
     }
-
     if (sr.status === "expired") return NextResponse.json({ error: "Invalid or expired token" }, { status: 404 });
     if (sr.status === "signed") return NextResponse.json({ error: "Already signed" }, { status: 400 });
 
-    const { data: doc, error: docErr } = await admin
+    // Documento
+    const docRes = await admin
       .from("documents")
-      .select("id, title, created_by, signing_mode, original_path, original_hash, total_signers, signed_count")
+      .select("id, title, created_by, signing_mode, original_path")
       .eq("id", sr.document_id)
       .maybeSingle();
 
-    if (docErr || !doc) return NextResponse.json({ error: "Document not found" }, { status: 404 });
-
-    // Sequential enforcement
-    if (doc.signing_mode === "sequential" && sr.position != null) {
-      const { data: prev } = await admin
-        .from("signing_requests")
-        .select("id")
-        .eq("document_id", doc.id)
-        .lt("position", sr.position)
-        .neq("status", "signed")
-        .limit(1);
-
-      if (prev && prev.length > 0) return NextResponse.json({ error: "Not your turn yet" }, { status: 409 });
+    if (docRes.error) {
+      console.error("documents query error:", docRes.error);
+      return NextResponse.json(
+        { error: "Document query failed", details: docRes.error.message },
+        { status: 500 }
+      );
     }
+    const doc = docRes.data;
+    if (!doc) return NextResponse.json({ error: "Document not found" }, { status: 404 });
 
-    // Store signature image
+    // Guardar firma en Storage
     const signatureBytes = dataUrlToPngBytes(body.signatureDataUrl);
-    const signatureHash = sha256HexFromString(body.signatureDataUrl);
     const signaturePath = `${doc.created_by}/${doc.id}/signatures/${sr.id}.png`;
 
-    const upRes = await admin.storage.from("fds").upload(signaturePath, signatureBytes, { contentType: "image/png", upsert: true });
-    if (upRes.error) return NextResponse.json({ error: `Signature upload failed: ${upRes.error.message}` }, { status: 500 });
+    const upSig = await admin.storage.from("fds").upload(signaturePath, signatureBytes, {
+      contentType: "image/png",
+      upsert: true,
+    });
 
-    // Update signer info + status
-    const nowIso = new Date().toISOString();
-    const { error: updErr } = await admin
-      .from("signing_requests")
-      .update({
-        status: "signed",
-        signed_at: nowIso,
-        signer_ip: ip,
-        signature_hash: signatureHash,
-        signature_path: signaturePath,
-        signer_full_name: body.signer.fullName,
-        signer_dni: body.signer.dni,
-        signer_cuil: body.signer.cuil,
-        signer_address: body.signer.address,
-        signer_phone: body.signer.phone,
-      })
-      .eq("id", sr.id);
+    if (upSig.error) {
+      console.error("signature upload failed:", upSig.error);
+      return NextResponse.json(
+        { error: "Signature upload failed", details: upSig.error.message },
+        { status: 500 }
+      );
+    }
 
-    if (updErr) return NextResponse.json({ error: `Failed to update signing request: ${updErr.message}` }, { status: 500 });
+    // Update signing request (si alguna columna no existe, lo vas a ver en details)
+    const upd = await admin.from("signing_requests").update({
+      status: "signed",
+      signed_at: new Date().toISOString(),
+      signer_ip: ip,
+      signer_user_agent: userAgent,
+      signature_path: signaturePath,
+      signer_full_name: body.signer.fullName,
+      signer_dni: body.signer.dni,
+      signer_cuil: body.signer.cuil,
+      signer_address: body.signer.address,
+      signer_phone: body.signer.phone,
+    }).eq("id", sr.id);
 
-    await logEvent({ documentId: doc.id, signingRequestId: sr.id, actorEmail: sr.email, eventType: "signature_submitted", ip, userAgent });
-
-    // Recount signed/total
-    const { count: signedCount } = await admin
-      .from("signing_requests")
-      .select("id", { count: "exact", head: true })
-      .eq("document_id", doc.id)
-      .eq("status", "signed");
-
-    const signed = signedCount || 0;
-
-    const { count: totalCount } = await admin
-      .from("signing_requests")
-      .select("id", { count: "exact", head: true })
-      .eq("document_id", doc.id);
-
-    const total = totalCount || 0;
-
-    await admin.from("documents").update({ signed_count: signed, total_signers: total }).eq("id", doc.id);
-
-    // Finalize if all signed
-    if (total > 0 && signed >= total) {
-      const dl = await admin.storage.from("fds").download(doc.original_path);
-      if (dl.error) return NextResponse.json({ error: `Failed to download original: ${dl.error.message}` }, { status: 500 });
-      const originalBytes = new Uint8Array(await dl.data.arrayBuffer());
-
-      const { data: reqs, error: reqsErr } = await admin
-        .from("signing_requests")
-        .select("email, token, signer_full_name, signer_dni, signer_cuil, signer_address, signer_phone, signed_at, signer_ip, signature_path")
-        .eq("document_id", doc.id)
-        .eq("status", "signed")
-        .order("position", { ascending: true });
-
-      if (reqsErr || !reqs) return NextResponse.json({ error: "Failed to load signers" }, { status: 500 });
-
-      const signers: EvidenceSigner[] = [];
-      for (const r of reqs as any[]) {
-        const sigDl = await admin.storage.from("fds").download(r.signature_path);
-        if (sigDl.error) return NextResponse.json({ error: "Failed to load signature image" }, { status: 500 });
-
-        const sigBytes = new Uint8Array(await sigDl.data.arrayBuffer());
-        signers.push({
-          email: r.email,
-          fullName: r.signer_full_name || "",
-          dni: r.signer_dni || "",
-          cuil: r.signer_cuil || "",
-          address: r.signer_address || "",
-          phone: r.signer_phone || "",
-          signedAt: r.signed_at || "",
-          ip: r.signer_ip || "",
-          signaturePngBytes: sigBytes,
-        });
-      }
-
-      const completedAtIso = new Date().toISOString();
-      const finalBytes = await buildFinalPdf({
-        originalPdfBytes: originalBytes,
-        originalHashSha256: doc.original_hash || "",
-        documentTitle: doc.title,
-        completedAtIso,
-        signers,
-      });
-
-      const finalPath = `${doc.created_by}/${doc.id}/final/final.pdf`;
-      const upFinal = await admin.storage.from("fds").upload(finalPath, finalBytes, { contentType: "application/pdf", upsert: true });
-      if (upFinal.error) return NextResponse.json({ error: `Final upload failed: ${upFinal.error.message}` }, { status: 500 });
-
-      await admin.from("documents").update({ status: "signed", final_path: finalPath, completed_at: completedAtIso }).eq("id", doc.id);
-      await logEvent({ documentId: doc.id, eventType: "pdf_finalized", ip, userAgent });
-
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-      for (const r of reqs as any[]) {
-        const downloadUrl = `${appUrl}/api/download?documentId=${doc.id}&kind=final&token=${r.token}`;
-        await sendFinalEmail({ to: r.email, documentTitle: doc.title, downloadUrl }).catch(() => {});
-      }
+    if (upd.error) {
+      console.error("signing_requests update failed:", upd.error);
+      return NextResponse.json(
+        { error: "Failed to update signing request", details: upd.error.message },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({ ok: true });
