@@ -21,7 +21,7 @@ export async function GET(
   // 1) Buscar por token (normal)
   let { data: sr, error: srErr } = await admin
     .from("signing_requests")
-    .select("id, document_id, email, status, position, expires_at, opened_at, replaced_by")
+    .select("id, document_id, email, status, position, expires_at, opened_at")
     .eq("token", token)
     .maybeSingle();
 
@@ -37,7 +37,7 @@ export async function GET(
   if (!sr) {
     const byId = await admin
       .from("signing_requests")
-      .select("id, document_id, email, status, position, expires_at, opened_at, replaced_by, token")
+      .select("id, document_id, email, status, position, expires_at, opened_at, token")
       .eq("id", token)
       .maybeSingle();
 
@@ -55,14 +55,6 @@ export async function GET(
   }
 
   if (!sr) {
-    return NextResponse.json(
-      { error: "invalid_or_expired" },
-      { status: 404, headers: { "cache-control": "no-store" } }
-    );
-  }
-
-  // Reemplazado por resend => inválido
-  if ((sr as any).replaced_by) {
     return NextResponse.json(
       { error: "invalid_or_expired" },
       { status: 404, headers: { "cache-control": "no-store" } }
@@ -90,7 +82,10 @@ export async function GET(
 
   // opened_at best effort
   if (!sr.opened_at && sr.status === "pending") {
-    await admin.from("signing_requests").update({ opened_at: new Date().toISOString() }).eq("id", sr.id);
+    await admin
+      .from("signing_requests")
+      .update({ opened_at: new Date().toISOString() })
+      .eq("id", sr.id);
   }
 
   const { data: doc, error: docErr } = await admin

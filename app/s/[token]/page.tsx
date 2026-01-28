@@ -12,28 +12,8 @@ type Preview = {
   signingMode: "parallel" | "sequential";
   position: number | null;
   expiresAt: string | null;
-  pdfUrl: string;
+  pdfUrl: string; // suele ser "/api/preview?token=..."
 };
-
-function humanizeError(code: string) {
-  const c = (code || "").trim();
-
-  if (!c) return "No se pudo cargar el documento.";
-  if (c === "invalid_or_expired") return "Este enlace es inválido, venció o fue reemplazado por un reenvío.";
-  if (c === "invalid_token") return "El enlace es inválido.";
-  if (c === "document_not_found") return "No se encontró el documento asociado a este enlace.";
-  if (c === "signing_request_query_failed" || c === "document_query_failed")
-    return "Ocurrió un error al cargar el documento. Intentá nuevamente en unos segundos.";
-  return "No se pudo cargar el documento.";
-}
-
-function formatDateTime(iso: string | null) {
-  if (!iso) return null;
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return null;
-  // formato simple local
-  return d.toLocaleString();
-}
 
 export default function SignPage() {
   const params = useParams<{ token: string }>();
@@ -89,8 +69,7 @@ export default function SignPage() {
 
         const res = await fetch(`/api/signing-request/${token}`, { cache: "no-store" });
         const data = await res.json().catch(() => ({}));
-
-        if (!res.ok) throw new Error(data?.error || "");
+        if (!res.ok) throw new Error(data?.error || "No se pudo cargar el documento.");
 
         if (mounted) {
           setPreview(data as Preview);
@@ -98,7 +77,7 @@ export default function SignPage() {
           setTimeout(() => bump(), 50);
         }
       } catch (e: any) {
-        if (mounted) setErr(humanizeError(e?.message || ""));
+        if (mounted) setErr(e?.message || "Error inesperado");
       } finally {
         if (mounted) setLoading(false);
       }
@@ -133,6 +112,12 @@ export default function SignPage() {
     const empty = sigRef.current?.isEmpty() ?? true;
     setSigDirty(!empty);
     bump();
+  }
+
+  async function refreshPreview() {
+    const p = await fetch(`/api/signing-request/${token}`, { cache: "no-store" });
+    const pdata = await p.json().catch(() => null);
+    if (p.ok && pdata) setPreview(pdata as Preview);
   }
 
   async function submit() {
@@ -174,12 +159,9 @@ export default function SignPage() {
       if (!res.ok) throw new Error(data?.error || "No se pudo registrar la firma.");
 
       setOk("Firma registrada. ¡Gracias!");
-
-      const p = await fetch(`/api/signing-request/${token}`, { cache: "no-store" });
-      const pdata = await p.json().catch(() => null);
-      if (p.ok && pdata) setPreview(pdata as Preview);
+      await refreshPreview();
     } catch (e: any) {
-      setErr(humanizeError(e?.message || "") || "Error inesperado");
+      setErr(e?.message || "Error inesperado");
     } finally {
       setBusy(false);
     }
@@ -207,12 +189,9 @@ export default function SignPage() {
       if (!res.ok) throw new Error(data?.error || "No se pudo registrar el rechazo");
 
       setOk("Rechazo registrado. Se notificará al creador.");
-
-      const p = await fetch(`/api/signing-request/${token}`, { cache: "no-store" });
-      const pdata = await p.json().catch(() => null);
-      if (p.ok && pdata) setPreview(pdata as Preview);
+      await refreshPreview();
     } catch (e: any) {
-      setErr(humanizeError(e?.message || "") || "Error inesperado");
+      setErr(e?.message || "Error inesperado");
     } finally {
       setBusy(false);
     }
@@ -231,7 +210,7 @@ export default function SignPage() {
             te reenvíe la invitación.
           </p>
           <div className="mt-6">
-            <a href="/" className="inline-block rounded-md border border-zinc-200 px-4 py-2 text-sm">
+            <a href="/" className="rounded-md border border-zinc-200 px-4 py-2 text-sm inline-block">
               Ir al inicio
             </a>
           </div>
@@ -242,10 +221,7 @@ export default function SignPage() {
 
   if (!preview) return <div className="mx-auto max-w-3xl p-6 text-sm text-zinc-600">Link inválido.</div>;
 
-  // ✅ Acepta URL relativa (/api/preview?token=...)
-  const pdfOk = Boolean(preview.pdfUrl);
-
-  const expiresLabel = formatDateTime(preview.expiresAt);
+  const pdfOk = Boolean(preview.pdfUrl); // acepta relativo
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10">
@@ -262,7 +238,6 @@ export default function SignPage() {
             <p className="mt-1 text-xs text-zinc-500">
               Modo: <span className="font-medium text-zinc-700">{preview.signingMode || "—"}</span>
               {preview.signingMode === "sequential" && preview.position ? ` · Orden ${preview.position}` : ""}
-              {expiresLabel ? ` · Vence: ${expiresLabel}` : ""}
             </p>
           </div>
 
@@ -280,193 +255,161 @@ export default function SignPage() {
         </div>
 
         <div className="mt-6 grid gap-6 lg:grid-cols-2">
-          {/* Preview */}
-          <div className="overflow-hidden rounded-xl border border-zinc-200">
+          {/* Vista previa */}
+          <div className="rounded-xl border border-zinc-200 overflow-hidden">
             <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-2">
               <div className="text-sm font-medium">Vista previa</div>
-
               {pdfOk ? (
                 <a
+                  className="text-xs underline text-zinc-700"
                   href={preview.pdfUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="rounded-md border border-zinc-200 px-3 py-1 text-xs"
                 >
                   Abrir PDF
                 </a>
-              ) : null}
-            </div>
-
-            <div className="bg-white">
-              {pdfOk ? (
-                <iframe title="PDF" src={preview.pdfUrl} className="h-[560px] w-full" />
               ) : (
-                <div className="p-4 text-sm text-zinc-600">No se pudo cargar la vista previa.</div>
+                <span className="text-xs text-zinc-500">No disponible</span>
               )}
             </div>
+
+            {pdfOk ? (
+              <iframe className="h-[560px] w-full" src={preview.pdfUrl} title="Vista previa PDF" />
+            ) : (
+              <div className="p-4 text-sm text-zinc-600">No se pudo cargar la vista previa.</div>
+            )}
           </div>
 
-          {/* Form + firma */}
+          {/* Formulario + firma */}
           <div className="rounded-xl border border-zinc-200 p-4">
-            <h2 className="text-sm font-semibold text-zinc-900">Datos del firmante</h2>
+            <h2 className="text-sm font-semibold">Datos del firmante</h2>
             <p className="mt-1 text-xs text-zinc-600">
-              Estos datos se usan para trazabilidad y evidencia de firma.
+              Estos datos se usan para trazabilidad y evidencia de firma (Ley 25.506, art. 5).
             </p>
 
             <div className="mt-4 grid gap-3">
-              <label className="grid gap-1 text-xs">
-                <span className="text-zinc-700">Nombre completo</span>
-                <input
-                  ref={fullNameRef}
-                  onChange={bump}
-                  className="rounded-md border border-zinc-200 px-3 py-2 text-sm"
-                  placeholder="Juan Pérez"
-                  autoComplete="name"
-                  disabled={busy || preview.status !== "pending"}
-                />
-              </label>
-
+              <input
+                ref={fullNameRef}
+                onChange={bump}
+                placeholder="Nombre completo (ej: Juan Pérez)"
+                className="w-full rounded-md border border-zinc-200 px-3 py-2 text-sm"
+                disabled={busy || preview.status !== "pending"}
+              />
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <label className="grid gap-1 text-xs">
-                  <span className="text-zinc-700">DNI</span>
-                  <input
-                    ref={dniRef}
-                    onChange={bump}
-                    className="rounded-md border border-zinc-200 px-3 py-2 text-sm"
-                    placeholder="30123456"
-                    inputMode="numeric"
-                    disabled={busy || preview.status !== "pending"}
-                  />
-                </label>
-
-                <label className="grid gap-1 text-xs">
-                  <span className="text-zinc-700">CUIT/CUIL</span>
-                  <input
-                    ref={cuilRef}
-                    onChange={bump}
-                    className="rounded-md border border-zinc-200 px-3 py-2 text-sm"
-                    placeholder="20301234567"
-                    inputMode="numeric"
-                    disabled={busy || preview.status !== "pending"}
-                  />
-                </label>
-              </div>
-
-              <label className="grid gap-1 text-xs">
-                <span className="text-zinc-700">Dirección postal completa</span>
                 <input
-                  ref={addressRef}
+                  ref={dniRef}
                   onChange={bump}
-                  className="rounded-md border border-zinc-200 px-3 py-2 text-sm"
-                  placeholder="Calle 123, Piso 4, Depto A, Localidad, Provincia"
-                  autoComplete="street-address"
+                  placeholder="DNI (ej: 30123456)"
+                  className="w-full rounded-md border border-zinc-200 px-3 py-2 text-sm"
                   disabled={busy || preview.status !== "pending"}
+                  inputMode="numeric"
                 />
-              </label>
-
-              <label className="grid gap-1 text-xs">
-                <span className="text-zinc-700">Celular</span>
                 <input
-                  ref={phoneRef}
+                  ref={cuilRef}
                   onChange={bump}
-                  className="rounded-md border border-zinc-200 px-3 py-2 text-sm"
-                  placeholder="1134567890"
-                  inputMode="tel"
-                  autoComplete="tel"
+                  placeholder="CUIL (11 dígitos, sin guiones)"
+                  className="w-full rounded-md border border-zinc-200 px-3 py-2 text-sm"
                   disabled={busy || preview.status !== "pending"}
+                  inputMode="numeric"
                 />
-              </label>
-
-              <label className="mt-2 flex items-start gap-2 text-xs text-zinc-700">
-                <input
-                  type="checkbox"
-                  checked={consent}
-                  onChange={(e) => setConsent(e.target.checked)}
-                  disabled={busy || preview.status !== "pending"}
-                  className="mt-1"
-                />
-                <span>
-                  Declaro que acepto firmar electrónicamente este documento conforme a la Ley 25.506 (art. 5) y que los
-                  datos ingresados son verídicos.
-                </span>
-              </label>
-
-              <div className="mt-2 rounded-lg border border-zinc-200 p-3">
-                <div className="flex items-center justify-between">
-                  <div className="text-xs font-medium text-zinc-900">Firma manuscrita</div>
-                  <button
-                    type="button"
-                    onClick={clearSig}
-                    className="rounded-md border border-zinc-200 px-2 py-1 text-xs"
-                    disabled={busy || preview.status !== "pending"}
-                  >
-                    Limpiar
-                  </button>
-                </div>
-
-                <div className="mt-2 overflow-hidden rounded-md border border-zinc-200 bg-white">
-                  <SignatureCanvas
-  ref={sigRef}
-  penColor="black"
-  canvasProps={{
-    className: "h-[160px] w-full",
-    onMouseUp: onSigEnd,
-    onTouchEnd: onSigEnd,
-  }}
-/>
-
-                </div>
-
-                <p className="mt-2 text-[11px] text-zinc-600">
-                  Tip: firmá con el dedo (móvil) o con el mouse/trackpad.
-                </p>
               </div>
+              <input
+                ref={phoneRef}
+                onChange={bump}
+                placeholder="Celular (ej: 11 5555 5555)"
+                className="w-full rounded-md border border-zinc-200 px-3 py-2 text-sm"
+                disabled={busy || preview.status !== "pending"}
+                inputMode="tel"
+              />
+              <input
+                ref={addressRef}
+                onChange={bump}
+                placeholder="Dirección postal completa (ej: Calle 123, Piso, Depto, Localidad, Provincia)"
+                className="w-full rounded-md border border-zinc-200 px-3 py-2 text-sm"
+                disabled={busy || preview.status !== "pending"}
+              />
+            </div>
 
-              {ok ? (
-                <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
-                  {ok}
-                </div>
-              ) : null}
+            <div className="mt-4 flex items-start gap-2">
+              <input
+                type="checkbox"
+                checked={consent}
+                onChange={(e) => setConsent(e.target.checked)}
+                disabled={busy || preview.status !== "pending"}
+                className="mt-1"
+              />
+              <label className="text-xs text-zinc-700">
+                Acepto firmar electrónicamente este documento. Entiendo que este servicio implementa firma electrónica
+                conforme a la Ley 25.506 (República Argentina) y no constituye firma digital certificada.
+              </label>
+            </div>
 
-              {err ? (
-                <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{err}</div>
-              ) : null}
-
-              <div className="mt-1 flex flex-wrap gap-2">
+            <div className="mt-4">
+              <div className="flex items-center justify-between">
+                <div className="text-sm font-semibold">Firma manuscrita</div>
                 <button
                   type="button"
-                  onClick={submit}
-                  disabled={!canSign || busy}
-                  className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-                >
-                  {busy ? "Enviando…" : "Firmar"}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={reject}
+                  onClick={clearSig}
+                  className="text-xs underline text-zinc-700"
                   disabled={busy || preview.status !== "pending"}
-                  className="rounded-md border border-zinc-200 px-4 py-2 text-sm"
                 >
-                  {busy ? "Enviando…" : "Rechazar"}
+                  Limpiar
                 </button>
+              </div>
 
-                <input
-                  value={rejectReason}
-                  onChange={(e) => setRejectReason(e.target.value)}
-                  placeholder="Motivo (mín. 3 caracteres)"
-                  className="flex-1 min-w-[220px] rounded-md border border-zinc-200 px-3 py-2 text-sm"
-                  disabled={busy || preview.status !== "pending"}
+              <div className="mt-2 rounded-md border border-zinc-200 overflow-hidden">
+                {/* Nota: los types de react-signature-canvas a veces no incluyen "onEnd".
+                   Lo pasamos como any para no romper el build en Vercel. */}
+                <SignatureCanvas
+                  ref={sigRef}
+                  penColor="black"
+                  onEnd={onSigEnd as any}
+                  canvasProps={{ className: "h-[160px] w-full bg-white" }}
                 />
               </div>
+
+              <div className="mt-2 text-xs text-zinc-600">
+                {sigDirty ? "✅ Firma capturada" : "Dibujá tu firma en el recuadro."}
+              </div>
+            </div>
+
+            {ok ? (
+              <div className="mt-4 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+                {ok}
+              </div>
+            ) : null}
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={submit}
+                disabled={!canSign || busy}
+                className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
+              >
+                {busy ? "Enviando…" : "Firmar"}
+              </button>
+
+              <button
+                type="button"
+                onClick={reject}
+                disabled={busy || preview.status !== "pending"}
+                className="rounded-md border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-900 disabled:opacity-40"
+              >
+                Rechazar
+              </button>
+            </div>
+
+            <div className="mt-3">
+              <input
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                placeholder="Motivo de rechazo (mín. 3 caracteres)"
+                className="w-full rounded-md border border-zinc-200 px-3 py-2 text-sm"
+                disabled={busy || preview.status !== "pending"}
+              />
             </div>
           </div>
         </div>
-
-        <p className="mt-6 text-xs text-zinc-500">
-          Este servicio implementa firma electrónica conforme a la Ley 25.506 (República Argentina). No constituye firma
-          digital certificada.
-        </p>
       </div>
     </div>
   );
