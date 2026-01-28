@@ -19,7 +19,15 @@ function maskEmail(email?: string) {
 }
 
 export default function VerifyPage({ params }: { params: { code: string } }) {
-  const auditCode = useMemo(() => decodeURIComponent(params.code || "").trim(), [params.code]);
+  // code debería venir como "C985A44FD298CC70"
+  const rawCode = params?.code ?? "";
+  const auditCode = useMemo(() => {
+    try {
+      return decodeURIComponent(rawCode).trim();
+    } catch {
+      return String(rawCode).trim();
+    }
+  }, [rawCode]);
 
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
@@ -30,6 +38,11 @@ export default function VerifyPage({ params }: { params: { code: string } }) {
     setError(null);
     setResult(null);
 
+    if (!auditCode) {
+      setError("No se detectó el código de auditoría en la URL. Probá recargar la página.");
+      return;
+    }
+
     if (!file) {
       setError("Seleccioná un PDF para verificar.");
       return;
@@ -38,6 +51,9 @@ export default function VerifyPage({ params }: { params: { code: string } }) {
     setBusy(true);
     try {
       const hash = await sha256Hex(file);
+
+      // Debug útil
+      console.log("VERIFY payload =>", { audit_code: auditCode, sha256: hash });
 
       const res = await fetch("/api/verify", {
         method: "POST",
@@ -60,8 +76,15 @@ export default function VerifyPage({ params }: { params: { code: string } }) {
     <div style={{ maxWidth: 820, margin: "0 auto", padding: 24 }}>
       <h1 style={{ fontSize: 26, fontWeight: 700 }}>Validación pública del documento</h1>
 
-      <p style={{ marginTop: 8, opacity: 0.85 }}>
-        Código de auditoría: <b>{auditCode}</b>
+      <div style={{ marginTop: 10, padding: 10, border: "1px dashed rgba(0,0,0,0.25)", borderRadius: 10 }}>
+        <div style={{ fontSize: 13, opacity: 0.85 }}>
+          <b>Debug URL code:</b> {rawCode || "(vacío)"}<br />
+          <b>Debug auditCode:</b> {auditCode || "(vacío)"}
+        </div>
+      </div>
+
+      <p style={{ marginTop: 12, opacity: 0.85 }}>
+        Código de auditoría: <b>{auditCode || "—"}</b>
       </p>
 
       <p style={{ marginTop: 8, opacity: 0.85 }}>
@@ -70,7 +93,6 @@ export default function VerifyPage({ params }: { params: { code: string } }) {
       </p>
 
       <div style={{ marginTop: 20, padding: 16, border: "1px solid rgba(0,0,0,0.12)", borderRadius: 12 }}>
-        {/* Input oculto */}
         <input
           id="pdf-file"
           type="file"
@@ -79,7 +101,6 @@ export default function VerifyPage({ params }: { params: { code: string } }) {
           style={{ display: "none" }}
         />
 
-        {/* Botón visible real */}
         <label
           htmlFor="pdf-file"
           style={{
@@ -104,14 +125,14 @@ export default function VerifyPage({ params }: { params: { code: string } }) {
         <div style={{ marginTop: 12 }}>
           <button
             onClick={onVerify}
-            disabled={busy || !file}
+            disabled={busy || !file || !auditCode}
             style={{
               padding: "10px 14px",
               borderRadius: 10,
               border: "1px solid rgba(0,0,0,0.18)",
-              cursor: busy || !file ? "not-allowed" : "pointer",
+              cursor: busy || !file || !auditCode ? "not-allowed" : "pointer",
               fontWeight: 700,
-              opacity: busy || !file ? 0.6 : 1,
+              opacity: busy || !file || !auditCode ? 0.6 : 1,
             }}
           >
             {busy ? "Verificando…" : "Verificar PDF"}
@@ -133,7 +154,6 @@ export default function VerifyPage({ params }: { params: { code: string } }) {
               <div style={{ fontSize: 18, fontWeight: 700 }}>
                 {result.match ? "✅ VÁLIDO" : "❌ NO VÁLIDO"}
               </div>
-              {!result.match && result.reason && <div style={{ marginTop: 6 }}>{result.reason}</div>}
 
               <div style={{ marginTop: 10, fontFamily: "monospace", fontSize: 12, opacity: 0.85 }}>
                 SHA-256 verificado: {result.provided_sha256}
@@ -144,16 +164,12 @@ export default function VerifyPage({ params }: { params: { code: string } }) {
               <div style={{ marginTop: 16 }}>
                 <h2 style={{ fontSize: 18, fontWeight: 700 }}>Detalle del documento</h2>
                 <div style={{ marginTop: 8, lineHeight: 1.6 }}>
-                  <div>
-                    <b>Título:</b> {result.document.title}
-                  </div>
+                  <div><b>Título:</b> {result.document.title}</div>
                   <div>
                     <b>Fecha de firma:</b>{" "}
                     {result.document.completed_at ? new Date(result.document.completed_at).toLocaleString() : "-"}
                   </div>
-                  <div>
-                    <b>Código de auditoría:</b> {result.document.audit_code}
-                  </div>
+                  <div><b>Código de auditoría:</b> {result.document.audit_code}</div>
                 </div>
               </div>
             )}
@@ -172,9 +188,7 @@ export default function VerifyPage({ params }: { params: { code: string } }) {
                         marginBottom: 8,
                       }}
                     >
-                      <div>
-                        <b>{s.full_name || "Firmante"}</b>
-                      </div>
+                      <div><b>{s.full_name || "Firmante"}</b></div>
                       <div style={{ opacity: 0.85 }}>{maskEmail(s.email)}</div>
                       <div style={{ opacity: 0.85 }}>
                         {s.signed_at ? `Firmó: ${new Date(s.signed_at).toLocaleString()}` : `Estado: ${s.status}`}
@@ -187,10 +201,6 @@ export default function VerifyPage({ params }: { params: { code: string } }) {
           </div>
         )}
       </div>
-
-      <p style={{ marginTop: 16, fontSize: 13, opacity: 0.75 }}>
-        Nota: si el PDF fue modificado (aunque sea 1 byte), el resultado será “No válido”.
-      </p>
     </div>
   );
 }
