@@ -360,12 +360,18 @@ export default function SignPage() {
               <div className="mt-2 rounded-md border border-zinc-200 overflow-hidden">
                 {/* Nota: los types de react-signature-canvas a veces no incluyen "onEnd".
                    Lo pasamos como any para no romper el build en Vercel. */}
-                <SignatureCanvas
-                  ref={sigRef}
-                  penColor="black"
-                  onEnd={onSigEnd as any}
-                  canvasProps={{ className: "h-[160px] w-full bg-white" }}
-                />
+                
+<SignatureCanvas
+  ref={sigRef}
+  penColor="black"
+  canvasProps={{
+    className: "h-[160px] w-full bg-white",
+    onMouseUp: onSigEnd,
+    onTouchEnd: onSigEnd,
+    onPointerUp: onSigEnd,
+  }}
+/>
+
               </div>
 
               <div className="mt-2 text-xs text-zinc-600">
