@@ -9,8 +9,18 @@ const Schema = z.object({
   documentId: z.string().uuid(),
   kind: z.enum(["original", "final"]).default("final"),
   token: z.string().optional(),
-  json: z.string().optional(), // "1" => responde JSON (modo anterior)
+  json: z.string().optional(), // "1" => responde JSON
 });
+
+function safeFilename(name: string) {
+  const base = String(name || "documento")
+    .trim()
+    .replace(/[\\/:*?"<>|]/g, "") // inválidos en Windows/Chrome
+    .replace(/\s+/g, " ")
+    .slice(0, 80);
+
+  return base.length ? base : "documento";
+}
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
@@ -20,6 +30,7 @@ export async function GET(req: Request) {
     token: url.searchParams.get("token") || undefined,
     json: url.searchParams.get("json") || undefined,
   });
+
   if (!parsed.success) {
     return NextResponse.json({ error: "Bad request" }, { status: 400 });
   }
@@ -39,14 +50,18 @@ export async function GET(req: Request) {
   if (docErr || !doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   let allowed = false;
+
+  // Owner
   if (user && doc.created_by === user.id) allowed = true;
 
+  // Firmante con token (solo final)
   if (!allowed && token) {
     const { data: sr } = await admin
       .from("signing_requests")
       .select("id,status,document_id")
       .eq("token", token)
       .maybeSingle();
+
     if (sr && sr.document_id === doc.id && sr.status === "signed" && kind === "final") {
       allowed = true;
     }
@@ -62,10 +77,14 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: error?.message || "signed url failed" }, { status: 500 });
   }
 
-  // ✅ Nuevo: por defecto redirige al PDF (mejor UX)
   if (json === "1") {
     return NextResponse.json({ url: data.signedUrl, title: doc.title });
   }
 
-  return NextResponse.redirect(data.signedUrl, { status: 302 });
+  // ✅ Forzar descarga (evita “cargando…” en visor inline)
+  const signed = new URL(data.signedUrl);
+  const filename = `Firma Simple - ${safeFilename(doc.title)}.pdf`;
+  signed.searchParams.set("download", filename);
+
+  return NextResponse.redirect(signed.toString(), 303);
 }
