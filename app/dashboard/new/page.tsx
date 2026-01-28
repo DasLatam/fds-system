@@ -6,17 +6,11 @@ import { isOwnerEmail } from "@/lib/security/owner";
 
 export const dynamic = "force-dynamic";
 
-function canDelete(doc: any) {
-  const status = String(doc.status || "");
-  const total = Number(doc.total_signers || 0);
-  const signed = Number(doc.signed_count || 0);
-  // Regla mínima: si no está firmado y no tiene firmantes ni firmas
-  return status !== "signed" && total === 0 && signed === 0;
-}
-
-export default async function DashboardPage() {
+export default async function DashboardNewPage() {
   const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
   const { data: profile } = await supabase
@@ -25,136 +19,125 @@ export default async function DashboardPage() {
     .eq("user_id", user.id)
     .maybeSingle();
 
-  if (profile?.is_paused) {
-    redirect("/profile?paused=1");
-  }
-  if (!isProfileComplete(profile as any)) {
-    redirect("/profile?next=/dashboard");
-  }
+  if (profile?.is_paused) redirect("/profile?paused=1");
+  if (!isProfileComplete(profile as any)) redirect("/profile?next=/dashboard/new");
 
   const showAdmin = isOwnerEmail(user.email);
 
-  const { data: docs } = await supabase
-    .from("documents")
-    .select("id,title,status,signing_mode,total_signers,signed_count,created_at")
-    .order("created_at", { ascending: false });
-
   return (
-    <div className="mx-auto max-w-5xl px-4 py-10">
+    <div className="mx-auto max-w-3xl px-4 py-10">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold">Dashboard</h1>
-          <p className="mt-1 text-sm text-zinc-600">Subí un PDF, invitá firmantes y seguí el estado.</p>
+          <h1 className="text-2xl font-semibold">Subir PDF</h1>
+          <p className="mt-1 text-sm text-zinc-600">
+            Elegí un PDF, asignale un título y crearemos el documento para invitar firmantes.
+          </p>
         </div>
+
         <div className="flex items-center gap-3">
-          <Link
-            href="/profile?next=/dashboard"
-            className="rounded-md border border-zinc-200 px-4 py-2 text-sm font-medium"
-          >
+          <Link href="/dashboard" className="rounded-md border border-zinc-200 px-4 py-2 text-sm font-medium">
+            Volver
+          </Link>
+          <Link href="/profile?next=/dashboard/new" className="rounded-md border border-zinc-200 px-4 py-2 text-sm font-medium">
             Mis datos
           </Link>
           {showAdmin ? (
-            <Link
-              href="/admin"
-              className="rounded-md border border-zinc-200 px-4 py-2 text-sm font-medium"
-            >
+            <Link href="/admin" className="rounded-md border border-zinc-200 px-4 py-2 text-sm font-medium">
               Admin
             </Link>
           ) : null}
-          <Link
-            href="/dashboard/new"
-            className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white"
-          >
-            Subir PDF
-          </Link>
           <form action="/api/logout" method="post">
-            <button className="rounded-md border border-zinc-200 px-4 py-2 text-sm font-medium">
-              Salir
-            </button>
+            <button className="rounded-md border border-zinc-200 px-4 py-2 text-sm font-medium">Salir</button>
           </form>
         </div>
       </div>
 
-      <div className="mt-8 rounded-xl border border-zinc-200">
-        <div className="border-b border-zinc-200 px-4 py-3">
-          <h2 className="text-sm font-medium">Tus documentos</h2>
-          <p className="mt-1 text-xs text-zinc-500">
-            Tip: podés eliminar documentos “vacíos” (sin firmantes ni firmas).
-          </p>
-        </div>
+      <div className="mt-8 rounded-xl border border-zinc-200 p-5">
+        <form id="uploadForm" className="space-y-4">
+          <div>
+            <label className="mb-1 block text-sm font-medium">Título del documento</label>
+            <input
+              name="title"
+              type="text"
+              required
+              placeholder="Ej: DNI Ariel"
+              className="w-full rounded-md border border-zinc-200 px-3 py-2 text-sm"
+            />
+            <p className="mt-1 text-xs text-zinc-500">Este título se mostrará en el dashboard y en la página de firma.</p>
+          </div>
 
-        <div className="divide-y divide-zinc-200">
-          {!docs || docs.length === 0 ? (
-            <div className="p-6">
-              <p className="text-sm text-zinc-600">Todavía no subiste documentos.</p>
-            </div>
-          ) : (
-            docs.map((d) => (
-              <div key={d.id} className="flex flex-wrap items-center justify-between gap-4 px-4 py-4">
-                <div>
-                  <div className="font-medium">{d.title}</div>
-                  <div className="mt-1 text-xs text-zinc-600">
-                    Estado: <span className="font-medium text-zinc-800">{d.status}</span> · Firma: {d.signing_mode} · {d.signed_count}/{d.total_signers} firmantes
-                  </div>
-                </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium">Archivo PDF</label>
+            <input
+              name="file"
+              type="file"
+              accept="application/pdf"
+              required
+              className="block w-full text-sm"
+            />
+            <p className="mt-1 text-xs text-zinc-500">Solo PDF. Tamaño recomendado: hasta 10–20 MB.</p>
+          </div>
 
-                <div className="flex items-center gap-2">
-                  <Link
-                    href={`/dashboard/doc/${d.id}`}
-                    className="rounded-md border border-zinc-200 px-3 py-1.5 text-sm"
-                  >
-                    Ver
-                  </Link>
-
-                  {d.status === "signed" ? (
-                    <Link
-                      href={`/api/download?documentId=${d.id}&kind=final`}
-                      className="rounded-md bg-black px-3 py-1.5 text-sm font-medium text-white"
-                    >
-                      Descargar
-                    </Link>
-                  ) : null}
-
-                  {canDelete(d) ? (
-                    <form
-                      action={async () => {
-                        "use server";
-                      }}
-                    >
-                      <DeleteButton documentId={d.id} />
-                    </form>
-                  ) : null}
-                </div>
-              </div>
-            ))
-          )}
-        </div>
+          <div className="flex items-center gap-3 pt-2">
+            <button
+              type="submit"
+              className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white"
+            >
+              Subir y crear documento
+            </button>
+            <span id="uploadStatus" className="text-sm text-zinc-600" />
+          </div>
+        </form>
       </div>
+
+      {/* Script inline mínimo para subir (sin crear componente client aparte) */}
+      <script
+        dangerouslySetInnerHTML={{
+          __html: `
+(function() {
+  const form = document.getElementById('uploadForm');
+  const status = document.getElementById('uploadStatus');
+  if (!form) return;
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    status.textContent = 'Subiendo...';
+
+    const fd = new FormData(form);
+    const title = fd.get('title');
+    const file = fd.get('file');
+
+    if (!title || !file) {
+      status.textContent = 'Completá título y PDF.';
+      return;
+    }
+
+    try {
+      const r = await fetch('/api/documents/upload', {
+        method: 'POST',
+        body: fd
+      });
+
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        status.textContent = j?.error || 'No se pudo subir el PDF.';
+        return;
+      }
+
+      status.textContent = 'Listo. Redirigiendo...';
+      if (j?.documentId) {
+        window.location.href = '/dashboard/doc/' + j.documentId;
+      } else {
+        window.location.href = '/dashboard';
+      }
+    } catch (err) {
+      status.textContent = 'Error de red al subir.';
+    }
+  });
+})();
+          `,
+        }}
+      />
     </div>
-  );
-}
-
-// Client button (inline, sin tocar arquitectura)
-function DeleteButton({ documentId }: { documentId: string }) {
-  return (
-    <button
-      type="button"
-      className="rounded-md border border-red-200 px-3 py-1.5 text-sm text-red-700 hover:border-red-300 hover:bg-red-50"
-      onClick={async () => {
-        const ok = window.confirm("¿Eliminar este documento? Esto no se puede deshacer.");
-        if (!ok) return;
-
-        const r = await fetch(`/api/documents/${documentId}`, { method: "DELETE" });
-        const j = await r.json().catch(() => ({}));
-
-        if (!r.ok) {
-          alert(j?.error || "No se pudo eliminar.");
-          return;
-        }
-        window.location.reload();
-      }}
-    >
-      Eliminar
-    </button>
   );
 }
