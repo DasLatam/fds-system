@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import crypto from "crypto";
 
 export const runtime = "nodejs";
 
@@ -37,18 +39,127 @@ function isExpired(expiresAt: string | null | undefined) {
   return !Number.isNaN(exp) && exp < Date.now();
 }
 
-// Inserta auditoría en la tabla que exista (audit_events o audit_logs)
-async function insertAuditEvent(admin: ReturnType<typeof createAdminClient>, payload: any) {
-  const tryTables = ["audit_events", "audit_logs"]; // audit_logs NO existe en tu DB hoy, pero lo dejamos por compat.
-  for (const table of tryTables) {
-    const res = await admin.from(table).insert(payload);
-    if (!res.error) return { ok: true, table };
-    // si la tabla no existe, probamos la siguiente
-    if (res.error?.message?.includes(`relation "${table}" does not exist`)) continue;
-    // otro error real: cortamos
-    return { ok: false, table, error: res.error };
+async function downloadBytes(admin: any, bucket: string, path: string): Promise<Uint8Array> {
+  const dl = await admin.storage.from(bucket).download(path);
+  if (dl.error || !dl.data) throw new Error(`Storage download failed (${path}): ${dl.error?.message}`);
+  return new Uint8Array(await dl.data.arrayBuffer());
+}
+
+function computeAuditCode(params: {
+  documentId: string;
+  originalPdfBytes: Uint8Array;
+  completedAtIso: string;
+}): string {
+  const { documentId, originalPdfBytes, completedAtIso } = params;
+
+  // Código determinístico (sirve para mostrar en el PDF).
+  // En Sprint 3C, la validación "fuerte" la hacemos contra final_pdf_sha256 (abajo).
+  return crypto
+    .createHash("sha256")
+    .update(Buffer.from(originalPdfBytes))
+    .update(documentId)
+    .update(completedAtIso)
+    .digest("hex")
+    .slice(0, 16)
+    .toUpperCase();
+}
+
+async function generateFinalPdfBytes(opts: {
+  admin: any;
+  bucket: string;
+  originalPath: string;
+  documentId: string;
+  completedAtIso: string;
+  signers: Array<{ full_name: string; dni: string; signature_path: string }>;
+}) {
+  const { admin, bucket, originalPath, documentId, completedAtIso, signers } = opts;
+
+  const originalBytes = await downloadBytes(admin, bucket, originalPath);
+  const auditCode = computeAuditCode({ documentId, originalPdfBytes: originalBytes, completedAtIso });
+
+  const pdfDoc = await PDFDocument.load(originalBytes);
+  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+
+  const pages = pdfDoc.getPages();
+  const footer = `Marca Electrónica FES • Doc ${documentId.slice(0, 8).toUpperCase()} • Código ${auditCode}`;
+
+  // Footer en todas las páginas
+  for (const page of pages) {
+    page.drawText(footer, {
+      x: 36,
+      y: 18,
+      size: 8,
+      font,
+      color: rgb(0.35, 0.35, 0.35),
+    });
   }
-  return { ok: false, table: null, error: { message: "No audit table found (audit_events/audit_logs)" } as any };
+
+  // Página final con firmas
+  const { width, height } = pages[0].getSize();
+  const sigPage = pdfDoc.addPage([width, height]);
+
+  sigPage.drawText("Firmas", { x: 36, y: height - 52, size: 16, font });
+  sigPage.drawText(`Código de auditoría: ${auditCode}`, { x: 36, y: height - 74, size: 10, font });
+
+  // Layout: 2 columnas, múltiples filas
+  const marginX = 36;
+  const gapX = 20;
+  const boxW = (width - marginX * 2 - gapX) / 2;
+
+  const sigW = Math.min(260, boxW);
+  const sigH = 90;
+  const rowH = 150;
+  const startY = height - 120;
+
+  for (let i = 0; i < signers.length; i++) {
+    const s = signers[i];
+
+    const sigBytes = await downloadBytes(admin, bucket, s.signature_path);
+    const sigImg = await pdfDoc.embedPng(sigBytes);
+
+    const col = i % 2;
+    const row = Math.floor(i / 2);
+
+    const x = marginX + col * (boxW + gapX);
+    const yTop = startY - row * rowH;
+
+    sigPage.drawImage(sigImg, {
+      x,
+      y: yTop - sigH,
+      width: sigW,
+      height: sigH,
+    });
+
+    sigPage.drawText(`Aclaración: ${(s.full_name || "").trim()}`, {
+      x,
+      y: yTop - sigH - 18,
+      size: 10,
+      font,
+      color: rgb(0, 0, 0),
+    });
+
+    sigPage.drawText(`DNI: ${(s.dni || "").trim()}`, {
+      x,
+      y: yTop - sigH - 34,
+      size: 10,
+      font,
+      color: rgb(0, 0, 0),
+    });
+  }
+
+  // Footer también en la página de firmas
+  sigPage.drawText(footer, {
+    x: 36,
+    y: 18,
+    size: 8,
+    font,
+    color: rgb(0.35, 0.35, 0.35),
+  });
+
+  const finalBytes = await pdfDoc.save();
+  const finalHashSha256 = crypto.createHash("sha256").update(Buffer.from(finalBytes)).digest("hex");
+
+  return { finalBytes, auditCode, finalHashSha256 };
 }
 
 export async function POST(req: NextRequest) {
@@ -86,16 +197,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const sr = srRes.data;
+    const sr = srRes.data as any;
     if (!sr) return NextResponse.json({ error: "Invalid or expired token" }, { status: 404 });
 
-    if (isExpired(sr.expires_at as any) && sr.status === "pending") {
+    if (isExpired(sr.expires_at) && sr.status === "pending") {
       return NextResponse.json({ error: "Invalid or expired token" }, { status: 404 });
     }
 
     if (sr.status === "signed") return NextResponse.json({ error: "Already signed" }, { status: 400 });
 
-    // Documento (incluimos counts + final_path)
+    // Documento
     const docRes = await admin
       .from("documents")
       .select(
@@ -115,12 +226,8 @@ export async function POST(req: NextRequest) {
     const doc = docRes.data as any;
     if (!doc) return NextResponse.json({ error: "Document not found" }, { status: 404 });
 
-    // ✅ Defensa: no podemos finalizar si no existe original_path
     if (!doc.original_path) {
-      return NextResponse.json(
-        { error: "Document has no original_path; cannot finalize" },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: "Document has no original_path" }, { status: 500 });
     }
 
     // Guardar firma en Storage
@@ -146,6 +253,7 @@ export async function POST(req: NextRequest) {
       .update({
         status: "signed",
         signed_at: new Date().toISOString(),
+        consented_at: new Date().toISOString(),
         signer_ip: ip,
         signer_user_agent: userAgent,
         signature_path: signaturePath,
@@ -165,7 +273,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // === Recalcular signed_count real ===
+    // Recalcular signed_count real (robusto ante concurrencia)
     const countRes = await admin
       .from("signing_requests")
       .select("id", { head: true, count: "exact" })
@@ -188,41 +296,67 @@ export async function POST(req: NextRequest) {
     const counterUpd = await admin.from("documents").update({ signed_count: signedCount }).eq("id", doc.id);
     if (counterUpd.error) {
       console.warn("documents signed_count update failed:", counterUpd.error);
+      // no frenamos la firma por esto
     }
 
-    // === Finalización estricta ===
+    // === FINALIZACIÓN (Sprint 3B) ===
     if (shouldComplete) {
+      const completedAtIso = new Date().toISOString();
       const finalPath = doc.final_path || `${doc.created_by}/${doc.id}/final/final.pdf`;
 
-      // Si ya existe final_path, solo aseguramos estado coherente.
+      // Traer firmantes firmados con firma
+      const signersRes = await admin
+        .from("signing_requests")
+        .select("signature_path, signer_full_name, signer_dni")
+        .eq("document_id", doc.id)
+        .eq("status", "signed");
+
+      if (signersRes.error) {
+        console.error("load signed signers failed:", signersRes.error);
+        return NextResponse.json(
+          { error: "Failed to load signed signers", details: signersRes.error.message },
+          { status: 500 }
+        );
+      }
+
+      const signers = (signersRes.data || [])
+        .filter((r: any) => !!r.signature_path)
+        .map((r: any) => ({
+          signature_path: r.signature_path,
+          full_name: r.signer_full_name || "",
+          dni: r.signer_dni || "",
+        }));
+
+      if (signers.length === 0) {
+        return NextResponse.json({ error: "No signatures found to finalize PDF" }, { status: 500 });
+      }
+
+      // Generar PDF final (marca + firmas)
+      const { finalBytes, auditCode, finalHashSha256 } = await generateFinalPdfBytes({
+        admin,
+        bucket: "fds",
+        originalPath: doc.original_path,
+        documentId: doc.id,
+        completedAtIso,
+        signers,
+      });
+
+      // Subir final.pdf generado
+      const upFinal = await admin.storage.from("fds").upload(finalPath, finalBytes, {
+        contentType: "application/pdf",
+        upsert: true,
+      });
+
+      if (upFinal.error) {
+        console.error("finalize upload final failed:", upFinal.error);
+        return NextResponse.json(
+          { error: "Failed to upload final PDF", details: upFinal.error.message },
+          { status: 500 }
+        );
+      }
+
+      // Setear final_path primero
       if (!doc.final_path) {
-        // Descargar original
-        const dl = await admin.storage.from("fds").download(doc.original_path);
-        if (dl.error || !dl.data) {
-          console.error("finalize download original failed:", dl.error);
-          return NextResponse.json(
-            { error: "Failed to download original PDF for finalization", details: dl.error?.message },
-            { status: 500 }
-          );
-        }
-
-        const bytes = new Uint8Array(await dl.data.arrayBuffer());
-
-        // Subir final
-        const upFinal = await admin.storage.from("fds").upload(finalPath, bytes, {
-          contentType: "application/pdf",
-          upsert: true,
-        });
-
-        if (upFinal.error) {
-          console.error("finalize upload final failed:", upFinal.error);
-          return NextResponse.json(
-            { error: "Failed to upload final PDF", details: upFinal.error.message },
-            { status: 500 }
-          );
-        }
-
-        // Setear final_path
         const setFinal = await admin.from("documents").update({ final_path: finalPath }).eq("id", doc.id);
         if (setFinal.error) {
           console.error("final_path update failed:", setFinal.error);
@@ -233,10 +367,10 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // ✅ Ahora sí: marcar SIGNED + completed_at (coherente)
+      // Ahora sí: status signed + completed_at
       const finalizeDoc = await admin
         .from("documents")
-        .update({ status: "signed", completed_at: new Date().toISOString() })
+        .update({ status: "signed", completed_at: completedAtIso })
         .eq("id", doc.id);
 
       if (finalizeDoc.error) {
@@ -247,22 +381,27 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      // Auditoría: pdf_finalized
-      const auditPayload = {
+      // Auditoría
+      const auditInsert = await admin.from("audit_events").insert({
         document_id: doc.id,
+        signing_request_id: sr.id,
+        actor_email: sr.email,
+        ip,
+        user_agent: userAgent,
         event_type: "pdf_finalized",
-        metadata: {
-          final_path: doc.final_path || finalPath,
+        payload: {
+          final_path: finalPath,
+          audit_code: auditCode,
+          final_pdf_sha256: finalHashSha256,
           signed_count: signedCount,
           total_signers: total,
-          generated_at: new Date().toISOString(),
+          finalized_at: completedAtIso,
         },
-      };
+      });
 
-      const auditRes = await insertAuditEvent(admin, auditPayload);
-      if (!auditRes.ok) {
-        console.warn("audit insert failed:", auditRes);
-        // No frenamos el flujo, pero lo dejamos logueado.
+      if (auditInsert.error) {
+        console.warn("audit_events insert failed:", auditInsert.error);
+        // No frenamos la respuesta: el PDF y el status ya quedaron consistentes
       }
     }
 
@@ -271,4 +410,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: e?.message || "Unexpected error" }, { status: 500 });
   }
 }
-
