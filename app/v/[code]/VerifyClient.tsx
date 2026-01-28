@@ -3,7 +3,6 @@ import { useParams } from "next/navigation";
 
 import { useMemo, useState, useEffect } from "react";
 
-
 async function sha256Hex(file: File): Promise<string> {
   const ab = await file.arrayBuffer();
   const hash = await crypto.subtle.digest("SHA-256", ab);
