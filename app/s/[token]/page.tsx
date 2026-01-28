@@ -406,13 +406,15 @@ export default function SignPage() {
 
                 <div className="mt-2 overflow-hidden rounded-md border border-zinc-200 bg-white">
                   <SignatureCanvas
-                    ref={sigRef}
-                    penColor="black"
-                    onEnd={onSigEnd}
-                    canvasProps={{
-                      className: "h-[160px] w-full",
-                    }}
-                  />
+  ref={sigRef}
+  penColor="black"
+  canvasProps={{
+    className: "h-[160px] w-full",
+    onMouseUp: onSigEnd,
+    onTouchEnd: onSigEnd,
+  }}
+/>
+
                 </div>
 
                 <p className="mt-2 text-[11px] text-zinc-600">
