@@ -60,7 +60,7 @@ export default async function DashboardNewPage() {
               name="title"
               type="text"
               required
-              placeholder="Ej: DNI Ariel"
+              placeholder="Ej: Constancia ARCA"
               className="w-full rounded-md border border-zinc-200 px-3 py-2 text-sm"
             />
             <p className="mt-1 text-xs text-zinc-500">Este título se mostrará en el dashboard y en la página de firma.</p>
@@ -68,13 +68,29 @@ export default async function DashboardNewPage() {
 
           <div>
             <label className="mb-1 block text-sm font-medium">Archivo PDF</label>
+
+            {/* input real oculto */}
             <input
+              id="pdfFile"
               name="file"
               type="file"
               accept="application/pdf"
               required
-              className="block w-full text-sm"
+              className="hidden"
             />
+
+            {/* botón visible */}
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                id="pickFileBtn"
+                className="rounded-md border border-zinc-200 bg-white px-4 py-2 text-sm font-medium hover:bg-zinc-50"
+              >
+                Elegir PDF…
+              </button>
+              <span id="fileName" className="text-sm text-zinc-600">Ningún archivo seleccionado</span>
+            </div>
+
             <p className="mt-1 text-xs text-zinc-500">Solo PDF. Tamaño recomendado: hasta 10–20 MB.</p>
           </div>
 
@@ -90,13 +106,24 @@ export default async function DashboardNewPage() {
         </form>
       </div>
 
-      {/* Script inline mínimo para subir (sin crear componente client aparte) */}
       <script
         dangerouslySetInnerHTML={{
           __html: `
 (function() {
   const form = document.getElementById('uploadForm');
   const status = document.getElementById('uploadStatus');
+  const pickBtn = document.getElementById('pickFileBtn');
+  const fileInput = document.getElementById('pdfFile');
+  const fileName = document.getElementById('fileName');
+
+  if (pickBtn && fileInput) {
+    pickBtn.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', () => {
+      const f = fileInput.files && fileInput.files[0];
+      fileName.textContent = f ? f.name : 'Ningún archivo seleccionado';
+    });
+  }
+
   if (!form) return;
 
   form.addEventListener('submit', async (e) => {
@@ -104,32 +131,23 @@ export default async function DashboardNewPage() {
     status.textContent = 'Subiendo...';
 
     const fd = new FormData(form);
-    const title = fd.get('title');
-    const file = fd.get('file');
-
-    if (!title || !file) {
-      status.textContent = 'Completá título y PDF.';
-      return;
+    // aseguramos que el File venga del input oculto
+    if (fileInput && fileInput.files && fileInput.files[0]) {
+      fd.set('file', fileInput.files[0]);
     }
 
     try {
-      const r = await fetch('/api/documents/upload', {
-        method: 'POST',
-        body: fd
-      });
-
+      const r = await fetch('/api/documents/upload', { method: 'POST', body: fd });
       const j = await r.json().catch(() => ({}));
+
       if (!r.ok) {
         status.textContent = j?.error || 'No se pudo subir el PDF.';
         return;
       }
 
       status.textContent = 'Listo. Redirigiendo...';
-      if (j?.documentId) {
-        window.location.href = '/dashboard/doc/' + j.documentId;
-      } else {
-        window.location.href = '/dashboard';
-      }
+      if (j?.documentId) window.location.href = '/dashboard/doc/' + j.documentId;
+      else window.location.href = '/dashboard';
     } catch (err) {
       status.textContent = 'Error de red al subir.';
     }

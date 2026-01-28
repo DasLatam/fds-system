@@ -74,7 +74,7 @@ export default async function DashboardPage() {
 
   const { data: docs } = await supabase
     .from("documents")
-    .select("id,title,status,signing_mode,total_signers,signed_count,created_at")
+    .select("id,title,status,signing_mode,total_signers,signed_count,final_path,created_at")
     .order("created_at", { ascending: false });
 
   return (
@@ -132,8 +132,13 @@ export default async function DashboardPage() {
                     Ver
                   </Link>
 
-                  {d.status === "signed" ? (
-                    <Link href={`/api/download?documentId=${d.id}&kind=final`} className="rounded-md bg-black px-3 py-1.5 text-sm font-medium text-white">
+                  {/* ✅ solo si existe final_path, y sin prefetch */}
+                  {d.status === "signed" && d.final_path ? (
+                    <Link
+                      prefetch={false}
+                      href={`/api/download?documentId=${d.id}&kind=final`}
+                      className="rounded-md bg-black px-3 py-1.5 text-sm font-medium text-white"
+                    >
                       Descargar
                     </Link>
                   ) : null}
