@@ -32,43 +32,36 @@ function getIp(req: NextRequest) {
 
 // Rutas públicas (NO requieren sesión)
 function isPublicPath(pathname: string) {
-  // Pages públicas
   if (pathname === "/") return true;
   if (pathname.startsWith("/login")) return true;
   if (pathname.startsWith("/pricing")) return true;
   if (pathname.startsWith("/terms")) return true;
   if (pathname.startsWith("/privacy")) return true;
 
-  // callbacks públicos
   if (pathname.startsWith("/auth/callback")) return true;
   if (pathname.startsWith("/auth/callback-client")) return true;
 
-  // firmantes (link público)
   if (pathname.startsWith("/s/")) return true;
 
-  // auth endpoints públicos
   if (pathname.startsWith("/api/auth/magic-link")) return true;
   if (pathname.startsWith("/api/auth/set-session")) return true;
 
-  // ✅ endpoints públicos por token (NO sesión)
-  if (pathname.startsWith("/api/signing-request")) return true; // /api/signing-request/[token]
-  if (pathname.startsWith("/api/sign")) return true;            // POST firma por token
-  if (pathname.startsWith("/api/reject")) return true;          // POST rechazo por token
-  if (pathname.startsWith("/api/download")) return true;        // links desde email
-  if (pathname.startsWith("/api/preview")) return true;         // si existe y se usa
+  if (pathname.startsWith("/api/signing-request")) return true;
+  if (pathname.startsWith("/api/sign")) return true;
+  if (pathname.startsWith("/api/reject")) return true;
+  if (pathname.startsWith("/api/download")) return true;
+  if (pathname.startsWith("/api/preview")) return true;
 
   return false;
 }
 
 // Rutas que SÍ requieren sesión
 function isProtectedPath(pathname: string) {
-  // pages privadas
   if (pathname.startsWith("/dashboard")) return true;
   if (pathname.startsWith("/admin")) return true;
 
-  // ✅ api privadas (requieren sesión)
   if (pathname.startsWith("/api/admin")) return true;
-  if (pathname.startsWith("/api/documents")) return true; // ✅ NUEVO: /api/documents/*
+  if (pathname.startsWith("/api/documents")) return true;
   if (pathname.startsWith("/api/upload")) return true;
   if (pathname.startsWith("/api/invite")) return true;
   if (pathname.startsWith("/api/audit")) return true;
@@ -82,7 +75,6 @@ function isProtectedPath(pathname: string) {
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // 1) Permitir assets internos
   if (
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon.ico") ||
@@ -93,8 +85,12 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // 2) Rate limit sólo a /api (pero NO a /api/auth/*)
-  if (pathname.startsWith("/api") && !pathname.startsWith("/api/auth")) {
+  // ✅ Excluir resend-invite del rate limit global (para evitar 429 al testear)
+  const skipRateLimit =
+    pathname.startsWith("/api/resend-invite") ||
+    pathname.startsWith("/api/auth"); // auth ya estaba excluido abajo, lo dejamos explícito
+
+  if (pathname.startsWith("/api") && !skipRateLimit) {
     const ip = getIp(req);
     const { success } = await apiRateLimit.limit(`ip:${ip}`);
     if (!success) {
@@ -102,17 +98,9 @@ export async function middleware(req: NextRequest) {
     }
   }
 
-  // 3) Si es público, seguir sin auth
-  if (isPublicPath(pathname)) {
-    return NextResponse.next();
-  }
+  if (isPublicPath(pathname)) return NextResponse.next();
+  if (!isProtectedPath(pathname)) return NextResponse.next();
 
-  // 4) Si no es protegido, dejar pasar
-  if (!isProtectedPath(pathname)) {
-    return NextResponse.next();
-  }
-
-  // 5) Auth gate para protected
   const res = NextResponse.next();
 
   type CookieOptions = Parameters<typeof res.cookies.set>[2];
@@ -135,12 +123,9 @@ export async function middleware(req: NextRequest) {
     }
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
-    // ✅ Para /api/* devolvemos 401 JSON (NO redirect) para evitar POST->/login 405
     if (pathname.startsWith("/api")) {
       return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     }
