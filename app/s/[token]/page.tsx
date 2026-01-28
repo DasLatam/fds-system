@@ -12,7 +12,7 @@ type Preview = {
   signingMode: "parallel" | "sequential";
   position: number | null;
   expiresAt: string | null;
-  pdfUrl: string;
+  pdfUrl: string; // suele ser "/api/preview?token=..."
 };
 
 export default function SignPage() {
@@ -114,6 +114,12 @@ export default function SignPage() {
     bump();
   }
 
+  async function refreshPreview() {
+    const p = await fetch(`/api/signing-request/${token}`, { cache: "no-store" });
+    const pdata = await p.json().catch(() => null);
+    if (p.ok && pdata) setPreview(pdata as Preview);
+  }
+
   async function submit() {
     setErr(null);
     setOk(null);
@@ -153,10 +159,7 @@ export default function SignPage() {
       if (!res.ok) throw new Error(data?.error || "No se pudo registrar la firma.");
 
       setOk("Firma registrada. ¡Gracias!");
-
-      const p = await fetch(`/api/signing-request/${token}`, { cache: "no-store" });
-      const pdata = await p.json().catch(() => null);
-      if (p.ok && pdata) setPreview(pdata as Preview);
+      await refreshPreview();
     } catch (e: any) {
       setErr(e?.message || "Error inesperado");
     } finally {
@@ -186,10 +189,7 @@ export default function SignPage() {
       if (!res.ok) throw new Error(data?.error || "No se pudo registrar el rechazo");
 
       setOk("Rechazo registrado. Se notificará al creador.");
-
-      const p = await fetch(`/api/signing-request/${token}`, { cache: "no-store" });
-      const pdata = await p.json().catch(() => null);
-      if (p.ok && pdata) setPreview(pdata as Preview);
+      await refreshPreview();
     } catch (e: any) {
       setErr(e?.message || "Error inesperado");
     } finally {
@@ -221,7 +221,7 @@ export default function SignPage() {
 
   if (!preview) return <div className="mx-auto max-w-3xl p-6 text-sm text-zinc-600">Link inválido.</div>;
 
-  const pdfOk = Boolean(preview.pdfUrl && preview.pdfUrl.startsWith("http"));
+  const pdfOk = Boolean(preview.pdfUrl); // acepta relativo
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10">
@@ -255,167 +255,164 @@ export default function SignPage() {
         </div>
 
         <div className="mt-6 grid gap-6 lg:grid-cols-2">
+          {/* Vista previa */}
           <div className="rounded-xl border border-zinc-200 overflow-hidden">
             <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-2">
               <div className="text-sm font-medium">Vista previa</div>
-
               {pdfOk ? (
                 <a
+                  className="text-xs underline text-zinc-700"
                   href={preview.pdfUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="rounded-md border border-zinc-200 px-3 py-1.5 text-xs font-medium hover:bg-zinc-50"
                 >
                   Abrir PDF
                 </a>
               ) : (
-                <span className="text-xs text-red-600">Sin PDF disponible</span>
+                <span className="text-xs text-zinc-500">No disponible</span>
               )}
             </div>
 
             {pdfOk ? (
-              <iframe title="PDF" src={preview.pdfUrl} className="h-[640px] w-full" />
+              <iframe className="h-[560px] w-full" src={preview.pdfUrl} title="Vista previa PDF" />
             ) : (
-              <div className="p-4 text-sm text-zinc-600">
-                No se pudo mostrar la vista previa. Pedile al creador del documento que reenvíe la invitación.
-              </div>
+              <div className="p-4 text-sm text-zinc-600">No se pudo cargar la vista previa.</div>
             )}
           </div>
 
-          <div className="space-y-4">
-            <div className="rounded-xl border border-zinc-200 p-4">
-              <div className="text-sm font-medium">Datos del firmante</div>
-              <p className="mt-1 text-xs text-zinc-600">Se usan como evidencia y registro (Ley 25.506 art. 5).</p>
+          {/* Formulario + firma */}
+          <div className="rounded-xl border border-zinc-200 p-4">
+            <h2 className="text-sm font-semibold">Datos del firmante</h2>
+            <p className="mt-1 text-xs text-zinc-600">
+              Estos datos se usan para trazabilidad y evidencia de firma (Ley 25.506, art. 5).
+            </p>
 
-              <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
-                <input
-                  ref={fullNameRef}
-                  className="rounded-md border border-zinc-200 px-3 py-2 text-sm"
-                  placeholder="Ej: Juan Pérez"
-                  autoComplete="name"
-                  onInput={bump}
-                />
+            <div className="mt-4 grid gap-3">
+              <input
+                ref={fullNameRef}
+                onChange={bump}
+                placeholder="Nombre completo (ej: Juan Pérez)"
+                className="w-full rounded-md border border-zinc-200 px-3 py-2 text-sm"
+                disabled={busy || preview.status !== "pending"}
+              />
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <input
                   ref={dniRef}
-                  className="rounded-md border border-zinc-200 px-3 py-2 text-sm"
-                  placeholder="Ej: 30123456"
+                  onChange={bump}
+                  placeholder="DNI (ej: 30123456)"
+                  className="w-full rounded-md border border-zinc-200 px-3 py-2 text-sm"
+                  disabled={busy || preview.status !== "pending"}
                   inputMode="numeric"
-                  onInput={bump}
                 />
                 <input
                   ref={cuilRef}
-                  className="rounded-md border border-zinc-200 px-3 py-2 text-sm"
-                  placeholder="Ej: 20301234567"
+                  onChange={bump}
+                  placeholder="CUIL (11 dígitos, sin guiones)"
+                  className="w-full rounded-md border border-zinc-200 px-3 py-2 text-sm"
+                  disabled={busy || preview.status !== "pending"}
                   inputMode="numeric"
-                  onInput={bump}
-                />
-                <input
-                  ref={phoneRef}
-                  className="rounded-md border border-zinc-200 px-3 py-2 text-sm"
-                  placeholder="Ej: 1139009550"
-                  inputMode="tel"
-                  autoComplete="tel"
-                  onInput={bump}
-                />
-                <input
-                  ref={addressRef}
-                  className="rounded-md border border-zinc-200 px-3 py-2 text-sm md:col-span-2"
-                  placeholder="Ej: Calle 123 456, CABA"
-                  autoComplete="street-address"
-                  onInput={bump}
                 />
               </div>
+              <input
+                ref={phoneRef}
+                onChange={bump}
+                placeholder="Celular (ej: 11 5555 5555)"
+                className="w-full rounded-md border border-zinc-200 px-3 py-2 text-sm"
+                disabled={busy || preview.status !== "pending"}
+                inputMode="tel"
+              />
+              <input
+                ref={addressRef}
+                onChange={bump}
+                placeholder="Dirección postal completa (ej: Calle 123, Piso, Depto, Localidad, Provincia)"
+                className="w-full rounded-md border border-zinc-200 px-3 py-2 text-sm"
+                disabled={busy || preview.status !== "pending"}
+              />
+            </div>
 
-              <label className="mt-3 flex items-start gap-2 text-xs text-zinc-600">
-                <input
-                  type="checkbox"
-                  checked={consent}
-                  onChange={(e) => {
-                    setConsent(e.target.checked);
-                    bump();
-                  }}
-                  className="mt-0.5"
-                />
-                <span>
-                  Confirmo que leí el documento, que mi firma expresa mi voluntad y autorizo el registro de evidencia
-                  (hash, IP y timestamps) conforme a la Ley 25.506 (art. 5).
-                </span>
+            <div className="mt-4 flex items-start gap-2">
+              <input
+                type="checkbox"
+                checked={consent}
+                onChange={(e) => setConsent(e.target.checked)}
+                disabled={busy || preview.status !== "pending"}
+                className="mt-1"
+              />
+              <label className="text-xs text-zinc-700">
+                Acepto firmar electrónicamente este documento. Entiendo que este servicio implementa firma electrónica
+                conforme a la Ley 25.506 (República Argentina) y no constituye firma digital certificada.
               </label>
             </div>
 
-            <div className="rounded-xl border border-zinc-200 p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div className="text-sm font-medium">Firma manuscrita</div>
-                <button type="button" onClick={clearSig} className="text-xs text-zinc-600 hover:text-zinc-900">
+            <div className="mt-4">
+              <div className="flex items-center justify-between">
+                <div className="text-sm font-semibold">Firma manuscrita</div>
+                <button
+                  type="button"
+                  onClick={clearSig}
+                  className="text-xs underline text-zinc-700"
+                  disabled={busy || preview.status !== "pending"}
+                >
                   Limpiar
                 </button>
               </div>
 
-              <div className="mt-2 text-xs">
-                {sigDirty ? (
-                  <span className="text-emerald-700">✅ Firma capturada</span>
-                ) : (
-                  <span className="text-zinc-500">Dibujá tu firma dentro del recuadro</span>
-                )}
+              <div className="mt-2 rounded-md border border-zinc-200 overflow-hidden">
+                {/* Nota: los types de react-signature-canvas a veces no incluyen "onEnd".
+                   Lo pasamos como any para no romper el build en Vercel. */}
+                
+<SignatureCanvas
+  ref={sigRef}
+  penColor="black"
+  canvasProps={{
+    className: "h-[160px] w-full bg-white",
+    onMouseUp: onSigEnd,
+    onTouchEnd: onSigEnd,
+    onPointerUp: onSigEnd,
+  }}
+/>
+
               </div>
 
-              <div className="mt-3 rounded-lg border border-zinc-200 bg-white">
-                <SignatureCanvas
-                  ref={(r) => {
-                    sigRef.current = r;
-                  }}
-                  canvasProps={{
-                    className: "w-full h-[220px]",
-                    onMouseUp: onSigEnd,
-                    onTouchEnd: onSigEnd,
-                  }}
-                  backgroundColor="#ffffff"
-                />
+              <div className="mt-2 text-xs text-zinc-600">
+                {sigDirty ? "✅ Firma capturada" : "Dibujá tu firma en el recuadro."}
               </div>
+            </div>
 
-              <div className="mt-4 flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={submit}
-                  disabled={!canSign || busy || !pdfOk}
-                  className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
-                  title={
-                    !pdfOk
-                      ? "No hay PDF disponible para firmar"
-                      : canSign
-                        ? "Listo para firmar"
-                        : "Completá datos, aceptá el consentimiento y capturá la firma"
-                  }
-                >
-                  {busy ? "Enviando..." : "Firmar"}
-                </button>
-
-                {preview.status === "pending" ? (
-                  <button
-                    type="button"
-                    onClick={reject}
-                    disabled={busy}
-                    className="rounded-md border border-zinc-200 px-4 py-2 text-sm font-medium"
-                  >
-                    Rechazar
-                  </button>
-                ) : null}
-
-                {ok ? <span className="text-sm text-emerald-700">{ok}</span> : null}
-                {err ? <span className="text-sm text-red-600">{err}</span> : null}
+            {ok ? (
+              <div className="mt-4 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+                {ok}
               </div>
+            ) : null}
 
-              {preview.status === "pending" ? (
-                <div className="mt-3">
-                  <label className="text-xs text-zinc-600">Motivo de rechazo</label>
-                  <textarea
-                    className="mt-1 w-full rounded-md border border-zinc-200 px-3 py-2 text-sm"
-                    rows={3}
-                    value={rejectReason}
-                    onChange={(e) => setRejectReason(e.target.value)}
-                  />
-                </div>
-              ) : null}
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={submit}
+                disabled={!canSign || busy}
+                className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
+              >
+                {busy ? "Enviando…" : "Firmar"}
+              </button>
+
+              <button
+                type="button"
+                onClick={reject}
+                disabled={busy || preview.status !== "pending"}
+                className="rounded-md border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-900 disabled:opacity-40"
+              >
+                Rechazar
+              </button>
+            </div>
+
+            <div className="mt-3">
+              <input
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                placeholder="Motivo de rechazo (mín. 3 caracteres)"
+                className="w-full rounded-md border border-zinc-200 px-3 py-2 text-sm"
+                disabled={busy || preview.status !== "pending"}
+              />
             </div>
           </div>
         </div>
