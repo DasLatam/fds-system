@@ -3,58 +3,68 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
 
-type SigningRequestRow = {
+type SR = {
   id: string;
   document_id: string;
   email?: string | null;
   status?: string | null;
-  position?: number | null;
   expires_at?: string | null;
-  opened_at?: string | null;
+  // token puede NO existir en tu schema
   token?: string | null;
 };
 
-export async function GET(_req: NextRequest, ctx: { params: Promise<{ token: string }> }) {
+export async function GET(
+  _req: NextRequest,
+  ctx: { params: Promise<{ token: string }> }
+) {
   const { token } = await ctx.params;
 
   if (!token || token.length < 10) {
-    return NextResponse.json({ error: "invalid_token" }, { status: 400, headers: { "cache-control": "no-store" } });
+    return NextResponse.json(
+      { error: "invalid_token" },
+      { status: 400, headers: { "cache-control": "no-store" } }
+    );
   }
 
   const admin = createAdminClient();
 
-  // 1) Buscar por token (normal)
-  let { data: sr, error: srErr } = await admin
-    .from("signing_requests")
-    .select("*") // <- evita 500 si faltan columnas en el schema real
-    .eq("token", token)
-    .maybeSingle<SigningRequestRow>();
+  // SELECT mínimo: solo columnas "core"
+  const SR_SELECT = "id, document_id, email, status, expires_at";
 
-  if (srErr) {
-    console.error("signing-request query by token failed:", srErr);
-    return NextResponse.json(
-      { error: "signing_request_query_failed" },
-      { status: 500, headers: { "cache-control": "no-store" } }
-    );
+  // 1) Intento por columna token (si existe en el schema)
+  let sr: SR | null = null;
+
+  const byToken = await admin
+    .from("signing_requests")
+    .select(SR_SELECT)
+    .eq("token", token)
+    .maybeSingle<SR>();
+
+  if (!byToken.error && byToken.data) {
+    sr = byToken.data;
   }
 
-  // 2) Fallback: si alguien está usando el ID como token
+  // 2) Si falló (por ejemplo: columna token no existe) o no encontró, fallback por id
   if (!sr) {
     const byId = await admin
       .from("signing_requests")
-      .select("*") // <- mismo motivo
+      .select(SR_SELECT)
       .eq("id", token)
-      .maybeSingle<SigningRequestRow>();
+      .maybeSingle<SR>();
 
     if (byId.error) {
-      console.error("signing-request query by id failed:", byId.error);
+      console.error("signing_requests query failed:", {
+        byTokenError: byToken.error,
+        byIdError: byId.error,
+      });
+
       return NextResponse.json(
         { error: "signing_request_query_failed" },
         { status: 500, headers: { "cache-control": "no-store" } }
       );
     }
 
-    if (byId.data) sr = byId.data;
+    sr = byId.data ?? null;
   }
 
   if (!sr) {
@@ -64,11 +74,11 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ token: str
     );
   }
 
-  // Expiración (best-effort)
+  // Expiración (best effort)
   if (sr.expires_at) {
     const exp = new Date(sr.expires_at).getTime();
-    if (!Number.isNaN(exp) && exp < Date.now() && sr.status === "pending") {
-      await admin.from("signing_requests").update({ status: "expired" }).eq("id", sr.id);
+    if (!Number.isNaN(exp) && exp < Date.now() && (sr.status ?? "pending") === "pending") {
+      // OJO: no hacemos UPDATE de status si no estás 100% seguro de schema.
       return NextResponse.json(
         { error: "invalid_or_expired" },
         { status: 404, headers: { "cache-control": "no-store" } }
@@ -76,28 +86,14 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ token: str
     }
   }
 
-  if (sr.status === "expired") {
+  if ((sr.status ?? "pending") === "expired") {
     return NextResponse.json(
       { error: "invalid_or_expired" },
       { status: 404, headers: { "cache-control": "no-store" } }
     );
   }
 
-  // opened_at best effort (solo si existe; si no existe igual no rompe porque update se ignora? NO: en Postgres rompe.
-  // Entonces: lo intentamos SOLO si el valor viene en el row (select("*") lo trae si existe).
-  if ((sr as any).opened_at === null && sr.status === "pending") {
-    try {
-      await admin
-        .from("signing_requests")
-        .update({ opened_at: new Date().toISOString() })
-        .eq("id", sr.id);
-    } catch (e) {
-      // No frenamos Sprint #2 por tracking
-      console.warn("opened_at update skipped:", e);
-    }
-  }
-
-  // Ojo: acá antes pedías original_path. Para Sprint #2 no lo necesitás.
+  // Documents: NO pedir original_path en Sprint #2
   const { data: doc, error: docErr } = await admin
     .from("documents")
     .select("id, title, signing_mode")
@@ -126,12 +122,12 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ token: str
       documentId: doc.id,
       title: doc.title ?? "Documento",
       email: sr.email ?? "",
-      status: (sr.status as any) ?? "pending",
-      signingMode: (doc.signing_mode as any) ?? "parallel",
-      position: (sr as any).position ?? null,
+      status: sr.status ?? "pending",
+      signingMode: doc.signing_mode ?? "parallel",
+      position: null, // Sprint futuro si querés reintroducirlo con migración
       expiresAt: sr.expires_at ?? null,
       pdfUrl,
-      resolvedFromId: Boolean((sr as any).token && (sr as any).token !== token),
+      resolvedFromId: true, // porque estamos permitiendo lookup por id
     },
     { headers: { "cache-control": "no-store" } }
   );
