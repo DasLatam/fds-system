@@ -66,8 +66,9 @@ function isProtectedPath(pathname: string) {
   if (pathname.startsWith("/dashboard")) return true;
   if (pathname.startsWith("/admin")) return true;
 
-  // api privadas (requieren sesión)
+  // ✅ api privadas (requieren sesión)
   if (pathname.startsWith("/api/admin")) return true;
+  if (pathname.startsWith("/api/documents")) return true; // ✅ NUEVO: /api/documents/*
   if (pathname.startsWith("/api/upload")) return true;
   if (pathname.startsWith("/api/invite")) return true;
   if (pathname.startsWith("/api/audit")) return true;
