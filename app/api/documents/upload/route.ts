@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
+import crypto from "crypto";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -32,34 +33,14 @@ export async function POST(req: NextRequest) {
 
     const admin = createAdminClient();
 
-    // DEBUG: log mínimo en Vercel (no imprime secretos)
-    console.log("upload: creating document for user", { userId: user.id, title });
-
-    const docIns = await admin
-      .from("documents")
-      .insert({
-        created_by: user.id,
-        title,
-        status: "draft",
-        signing_mode: "parallel",
-        total_signers: 0,
-        signed_count: 0,
-      })
-      .select("id")
-      .single();
-
-    if (docIns.error || !docIns.data) {
-      console.error("upload: documents insert failed", docIns.error);
-      return NextResponse.json(
-        { error: "Failed to create document", details: docIns.error?.message || "unknown" },
-        { status: 500 }
-      );
-    }
-
-    const documentId = docIns.data.id as string;
-
-    const bytes = new Uint8Array(await file.arrayBuffer());
+    // ✅ Generamos ID nosotros (porque la tabla no tiene default)
+    const documentId = crypto.randomUUID();
     const originalPath = `${user.id}/${documentId}/original/original.pdf`;
+
+    console.log("upload: start", { userId: user.id, documentId, title, originalPath });
+
+    // 1) Subir PDF primero (si falla, no ensuciamos DB)
+    const bytes = new Uint8Array(await file.arrayBuffer());
 
     const up = await admin.storage.from("fds").upload(originalPath, bytes, {
       contentType: "application/pdf",
@@ -68,24 +49,29 @@ export async function POST(req: NextRequest) {
 
     if (up.error) {
       console.error("upload: storage upload failed", up.error);
-      await admin.from("documents").delete().eq("id", documentId);
-      return NextResponse.json(
-        { error: "Failed to upload PDF", details: up.error.message },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: "Failed to upload PDF", details: up.error.message }, { status: 500 });
     }
 
-    const upd = await admin
-      .from("documents")
-      .update({ original_path: originalPath, status: "pending" })
-      .eq("id", documentId);
+    // 2) Insert en documents (con original_path NOT NULL)
+    const ins = await admin.from("documents").insert({
+      id: documentId,
+      created_by: user.id,
+      title,
+      status: "pending",
+      original_path: originalPath,
+      signing_mode: "parallel",
+      total_signers: 0,
+      signed_count: 0,
+    });
 
-    if (upd.error) {
-      console.error("upload: documents update failed", upd.error);
+    if (ins.error) {
+      console.error("upload: documents insert failed", ins.error);
+
+      // rollback storage
       await admin.storage.from("fds").remove([originalPath]);
-      await admin.from("documents").delete().eq("id", documentId);
+
       return NextResponse.json(
-        { error: "Failed to persist document", details: upd.error.message },
+        { error: "Failed to create document", details: ins.error.message },
         { status: 500 }
       );
     }
