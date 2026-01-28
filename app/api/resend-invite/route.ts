@@ -20,6 +20,7 @@ function appUrl() {
 export async function POST(req: Request) {
   const supabase = await createSupabaseServerClient();
   const admin = createAdminClient();
+
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -39,42 +40,64 @@ export async function POST(req: Request) {
 
   const { signingRequestId, expiresInDays } = parsed.data;
 
-  const { data: sr } = await admin
+  const { data: sr, error: srErr } = await admin
     .from("signing_requests")
     .select("id,document_id,email,status,token")
     .eq("id", signingRequestId)
     .single();
 
-  if (!sr) return NextResponse.json({ error: "not_found" }, { status: 404 });
+  if (srErr || !sr) return NextResponse.json({ error: "not_found" }, { status: 404 });
 
-  const { data: doc } = await admin
+  const { data: doc, error: docErr } = await admin
     .from("documents")
     .select("id,title,created_by")
     .eq("id", sr.document_id)
     .single();
 
-  if (!doc) return NextResponse.json({ error: "doc_not_found" }, { status: 404 });
+  if (docErr || !doc) return NextResponse.json({ error: "doc_not_found" }, { status: 404 });
   if (doc.created_by !== user.id) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
   const expiresAt = new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000);
   const newToken = randomUUID();
 
-  // 1) Actualizamos token/estado/vencimiento (pero NO email_sent_at todavía)
-  await admin
+  // 1) Actualizamos token/estado/vencimiento (NO email_sent_at todavía)
+  const upd = await admin
     .from("signing_requests")
     .update({
       token: newToken,
       status: "pending",
       invited_at: new Date().toISOString(),
       expires_at: expiresAt.toISOString(),
-      rejected_at: null,
-      rejection_reason: null,
+      rejection_reason: null, // ✅ existe en tu schema
+      // ❌ NO rejected_at (no existe)
     })
-    .eq("id", sr.id);
+    .eq("id", sr.id)
+    .select("id, token")
+    .single();
+
+  if (upd.error || !upd.data) {
+    console.error("resend-invite update failed:", upd.error);
+    return NextResponse.json(
+      { error: "signing_request_update_failed" },
+      { status: 500 }
+    );
+  }
+
+  // 2) Verificación dura: si por cualquier motivo no quedó persistido, NO mandamos mail
+  if (upd.data.token !== newToken) {
+    console.error("resend-invite token mismatch after update", {
+      expected: newToken,
+      got: upd.data.token,
+    });
+    return NextResponse.json(
+      { error: "signing_request_token_not_persisted" },
+      { status: 500 }
+    );
+  }
 
   const signUrl = `${appUrl()}/s/${newToken}`;
 
-  // 2) Enviamos con retry (implementado en lib/mail/send.ts)
+  // 3) Enviamos email
   try {
     await sendInviteEmail({
       to: sr.email,
@@ -85,10 +108,14 @@ export async function POST(req: Request) {
     });
 
     // ✅ solo si se envió
-    await admin
+    const sentUpd = await admin
       .from("signing_requests")
       .update({ email_sent_at: new Date().toISOString() })
       .eq("id", sr.id);
+
+    if (sentUpd.error) {
+      console.warn("email_sent_at update failed:", sentUpd.error);
+    }
 
     await logEvent({
       documentId: doc.id,
@@ -99,10 +126,12 @@ export async function POST(req: Request) {
       payload: { signUrl, resend: true },
     });
 
-    const redirectUrl = new URL(`/dashboard/doc/${doc.id}`, process.env.NEXT_PUBLIC_APP_URL || "https://firmasimple.vercel.app");
+    const redirectUrl = new URL(
+      `/dashboard/doc/${doc.id}`,
+      process.env.NEXT_PUBLIC_APP_URL || "https://firmasimple.vercel.app"
+    );
     redirectUrl.searchParams.set("toast", "resent");
     return NextResponse.redirect(redirectUrl, 303);
-    
   } catch (e: any) {
     const msg = e?.message || "send_failed";
 
@@ -112,7 +141,7 @@ export async function POST(req: Request) {
       actorUserId: user.id,
       actorEmail: sr.email,
       eventType: "email_sent",
-      payload: { ok: false, error: msg, action: "resend_invite" }
+      payload: { ok: false, error: msg, action: "resend_invite" },
     });
 
     return NextResponse.json({ error: "email_failed", details: msg }, { status: 429 });
