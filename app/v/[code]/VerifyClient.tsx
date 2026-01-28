@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
+import { useParams } from "next/navigation";
 
 async function sha256Hex(file: File): Promise<string> {
   const ab = await file.arrayBuffer();
@@ -18,15 +19,35 @@ function maskEmail(email?: string) {
   return `${user}@${d}`;
 }
 
-export default function VerifyClient({ code }: { code: string }) {
-  const rawCode = code ?? "";
-  const auditCode = useMemo(() => {
-    try {
-      return decodeURIComponent(rawCode).trim();
-    } catch {
-      return String(rawCode).trim();
+function normalizeCode(input: string) {
+  try {
+    return decodeURIComponent(String(input || "")).trim();
+  } catch {
+    return String(input || "").trim();
+  }
+}
+
+export default function VerifyClient() {
+  const params = useParams<{ code?: string }>();
+
+  const [urlFallbackCode, setUrlFallbackCode] = useState<string>("");
+
+  useEffect(() => {
+    // fallback duro: /v/<code>
+    if (typeof window !== "undefined") {
+      const path = window.location.pathname || "";
+      const parts = path.split("/").filter(Boolean); // ["v","6690..."]
+      const code = parts[0] === "v" ? (parts[1] || "") : "";
+      setUrlFallbackCode(code);
     }
-  }, [rawCode]);
+  }, []);
+
+  const rawCode = useMemo(() => {
+    // prioridad: params.code, luego fallback por pathname
+    return (params?.code as string) || urlFallbackCode || "";
+  }, [params, urlFallbackCode]);
+
+  const auditCode = useMemo(() => normalizeCode(rawCode), [rawCode]);
 
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
@@ -73,18 +94,14 @@ export default function VerifyClient({ code }: { code: string }) {
 
       <div style={{ marginTop: 10, padding: 10, border: "1px dashed rgba(0,0,0,0.25)", borderRadius: 10 }}>
         <div style={{ fontSize: 13, opacity: 0.85 }}>
-          <b>Debug URL code:</b> {rawCode || "(vacío)"}<br />
+          <b>Debug params.code:</b> {(params?.code as string) || "(vacío)"}<br />
+          <b>Debug pathname code:</b> {urlFallbackCode || "(vacío)"}<br />
           <b>Debug auditCode:</b> {auditCode || "(vacío)"}
         </div>
       </div>
 
       <p style={{ marginTop: 12, opacity: 0.85 }}>
         Código de auditoría: <b>{auditCode || "—"}</b>
-      </p>
-
-      <p style={{ marginTop: 8, opacity: 0.85 }}>
-        Subí el PDF que querés verificar. Calculamos su huella (SHA-256) en tu navegador y la comparamos con el
-        documento final firmado.
       </p>
 
       <div style={{ marginTop: 20, padding: 16, border: "1px solid rgba(0,0,0,0.12)", borderRadius: 12 }}>
