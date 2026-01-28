@@ -125,7 +125,7 @@ export default function VerifyPage({ params }: { params: { code: string } }) {
         <div style={{ marginTop: 12 }}>
           <button
             onClick={onVerify}
-            disabled={busy || !file || !auditCode}
+            disabled={busy || !file}
             style={{
               padding: "10px 14px",
               borderRadius: 10,
