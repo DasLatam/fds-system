@@ -59,20 +59,47 @@ export default function VerifyPage({ params }: { params: { code: string } }) {
   return (
     <div style={{ maxWidth: 820, margin: "0 auto", padding: 24 }}>
       <h1 style={{ fontSize: 26, fontWeight: 700 }}>Validación pública del documento</h1>
+
       <p style={{ marginTop: 8, opacity: 0.85 }}>
         Código de auditoría: <b>{auditCode}</b>
       </p>
+
       <p style={{ marginTop: 8, opacity: 0.85 }}>
         Subí el PDF que querés verificar. Calculamos su huella (SHA-256) en tu navegador y la comparamos con el
         documento final firmado.
       </p>
 
       <div style={{ marginTop: 20, padding: 16, border: "1px solid rgba(0,0,0,0.12)", borderRadius: 12 }}>
+        {/* Input oculto */}
         <input
+          id="pdf-file"
           type="file"
           accept="application/pdf"
           onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+          style={{ display: "none" }}
         />
+
+        {/* Botón visible real */}
+        <label
+          htmlFor="pdf-file"
+          style={{
+            display: "inline-block",
+            padding: "12px 14px",
+            borderRadius: 12,
+            border: "1px solid rgba(0,0,0,0.18)",
+            cursor: "pointer",
+            fontWeight: 700,
+            userSelect: "none",
+          }}
+        >
+          📄 {file ? "Cambiar PDF" : "Subir PDF"}
+        </label>
+
+        {file && (
+          <div style={{ marginTop: 10, fontSize: 13, opacity: 0.85 }}>
+            Seleccionado: <b>{file.name}</b> ({Math.round(file.size / 1024)} KB)
+          </div>
+        )}
 
         <div style={{ marginTop: 12 }}>
           <button
@@ -83,17 +110,15 @@ export default function VerifyPage({ params }: { params: { code: string } }) {
               borderRadius: 10,
               border: "1px solid rgba(0,0,0,0.18)",
               cursor: busy || !file ? "not-allowed" : "pointer",
+              fontWeight: 700,
+              opacity: busy || !file ? 0.6 : 1,
             }}
           >
             {busy ? "Verificando…" : "Verificar PDF"}
           </button>
         </div>
 
-        {error && (
-          <div style={{ marginTop: 14, color: "#b00020" }}>
-            {error}
-          </div>
-        )}
+        {error && <div style={{ marginTop: 14, color: "#b00020" }}>{error}</div>}
 
         {result && (
           <div style={{ marginTop: 16 }}>
@@ -109,6 +134,7 @@ export default function VerifyPage({ params }: { params: { code: string } }) {
                 {result.match ? "✅ VÁLIDO" : "❌ NO VÁLIDO"}
               </div>
               {!result.match && result.reason && <div style={{ marginTop: 6 }}>{result.reason}</div>}
+
               <div style={{ marginTop: 10, fontFamily: "monospace", fontSize: 12, opacity: 0.85 }}>
                 SHA-256 verificado: {result.provided_sha256}
               </div>
@@ -118,9 +144,16 @@ export default function VerifyPage({ params }: { params: { code: string } }) {
               <div style={{ marginTop: 16 }}>
                 <h2 style={{ fontSize: 18, fontWeight: 700 }}>Detalle del documento</h2>
                 <div style={{ marginTop: 8, lineHeight: 1.6 }}>
-                  <div><b>Título:</b> {result.document.title}</div>
-                  <div><b>Fecha de firma:</b> {result.document.completed_at ? new Date(result.document.completed_at).toLocaleString() : "-"}</div>
-                  <div><b>Código de auditoría:</b> {result.document.audit_code}</div>
+                  <div>
+                    <b>Título:</b> {result.document.title}
+                  </div>
+                  <div>
+                    <b>Fecha de firma:</b>{" "}
+                    {result.document.completed_at ? new Date(result.document.completed_at).toLocaleString() : "-"}
+                  </div>
+                  <div>
+                    <b>Código de auditoría:</b> {result.document.audit_code}
+                  </div>
                 </div>
               </div>
             )}
@@ -139,7 +172,9 @@ export default function VerifyPage({ params }: { params: { code: string } }) {
                         marginBottom: 8,
                       }}
                     >
-                      <div><b>{s.full_name || "Firmante"}</b></div>
+                      <div>
+                        <b>{s.full_name || "Firmante"}</b>
+                      </div>
                       <div style={{ opacity: 0.85 }}>{maskEmail(s.email)}</div>
                       <div style={{ opacity: 0.85 }}>
                         {s.signed_at ? `Firmó: ${new Date(s.signed_at).toLocaleString()}` : `Estado: ${s.status}`}
