@@ -1,4 +1,5 @@
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
+import QRCode from "qrcode";
 
 export type EvidenceSigner = {
   email: string;
@@ -12,12 +13,19 @@ export type EvidenceSigner = {
   signaturePngBytes: Uint8Array;
 };
 
+function dataUrlToBytes(dataUrl: string): Uint8Array {
+  const base64 = dataUrl.split(",")[1] || "";
+  const bin = Buffer.from(base64, "base64");
+  return new Uint8Array(bin);
+}
+
 export async function buildFinalPdf(opts: {
   originalPdfBytes: Uint8Array;
   originalHashSha256: string;
   documentTitle: string;
   completedAtIso: string;
   signers: EvidenceSigner[];
+  auditCode?: string; // opcional para no romper callers existentes
 }) {
   const pdf = await PDFDocument.load(opts.originalPdfBytes);
 
@@ -39,6 +47,43 @@ export async function buildFinalPdf(opts: {
   drawText(`Título: ${opts.documentTitle}`, 10);
   drawText(`Hash SHA-256 del PDF original: ${opts.originalHashSha256}`, 10);
   drawText(`Documento finalizado: ${opts.completedAtIso}`, 10);
+
+  // QR de verificación pública (solo si tenemos auditCode)
+  if (opts.auditCode) {
+    const verifyUrl = `https://firmasimple.vercel.app/v/${opts.auditCode}`;
+
+    const qrDataUrl = await QRCode.toDataURL(verifyUrl, {
+      errorCorrectionLevel: "M",
+      margin: 1,
+      scale: 4,
+    });
+
+    const qrBytes = dataUrlToBytes(qrDataUrl);
+    const qrImg = await pdf.embedPng(qrBytes);
+
+    const qrSize = 72; // ~1 inch
+    const qrX = page.getWidth() - qrSize - margin;
+    const qrY = page.getHeight() - qrSize - margin;
+
+    page.drawImage(qrImg, { x: qrX, y: qrY, width: qrSize, height: qrSize });
+
+    page.drawText("Verificación", {
+      x: qrX,
+      y: qrY - 12,
+      size: 8,
+      font,
+      color: rgb(0.35, 0.35, 0.35),
+    });
+
+    page.drawText("pública", {
+      x: qrX,
+      y: qrY - 22,
+      size: 8,
+      font,
+      color: rgb(0.35, 0.35, 0.35),
+    });
+  }
+
   y -= 8;
 
   drawText("Firmantes", 12, true);
@@ -64,7 +109,11 @@ export async function buildFinalPdf(opts: {
 
     const png = await pdf.embedPng(s.signaturePngBytes);
     const pngDims = png.scale(1);
-    const scale = Math.min(maxSigWidth / pngDims.width, sigHeight / pngDims.height);
+
+    // Fit en caja + reducir 50% el tamaño final de la firma
+    const fitScale = Math.min(maxSigWidth / pngDims.width, sigHeight / pngDims.height);
+    const scale = fitScale * 0.5;
+
     const w = pngDims.width * scale;
     const h = pngDims.height * scale;
 
