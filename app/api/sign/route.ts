@@ -4,284 +4,149 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import QRCode from "qrcode";
 import crypto from "crypto";
+import { getResend } from "@/lib/mail/resendClient";
 
 async function sendResendEmail(opts: { to: string[]; subject: string; html: string; text?: string }) {
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) throw new Error("Missing RESEND_API_KEY");
+  // Usamos el SDK oficial (mismo approach que magic-link), y mantenemos compatibilidad de env vars existentes.
+  const resend = getResend();
   const from =
-    process.env.RESEND_FROM || process.env.RESEND_SENDER || "Firma Electrónica Simple <onboarding@resend.dev>";
+    process.env.RESEND_FROM_EMAIL ||
+    process.env.RESEND_FROM ||
+    process.env.RESEND_SENDER ||
+    "Firma Electrónica Simple <onboarding@resend.dev>";
 
-  // Resend acepta "to" como string o array
-  const res = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from,
-      to: opts.to,
-      subject: opts.subject,
-      html: opts.html,
-      text: opts.text,
-    }),
+  const out = await resend.emails.send({
+    from,
+    to: opts.to,
+    subject: opts.subject,
+    html: opts.html,
+    text: opts.text,
   });
 
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(`Resend error: ${res.status} ${res.statusText} ${body}`.slice(0, 3000));
+  // El SDK devuelve { data, error }
+  const anyOut: any = out as any;
+  if (anyOut?.error) {
+    throw new Error(`Resend error: ${anyOut.error?.message || String(anyOut.error)}`.slice(0, 3000));
   }
+
+  return anyOut?.data;
 }
 
 export const runtime = "nodejs";
 
-const BodySchemaNew = z.object({
-  token: z.string().min(10),
-  signatureDataUrl: z.string().min(20),
+const BodySchema = z.object({
+  token: z.string(),
+  signatureDataUrl: z.string(),
   consent: z.boolean(),
   signer: z.object({
-    fullName: z.string().min(3),
-    dni: z.string().min(5),
-    cuil: z.string().min(8),
-    address: z.string().min(5),
-    phone: z.string().min(5),
+    fullName: z.string(),
+    dni: z.string(),
+    cuil: z.string(),
+    address: z.string(),
+    phone: z.string(),
   }),
 });
 
-// Compat: aceptar formato viejo (snake_case) si existe en algún cliente
-const BodySchemaOld = z.object({
-  token: z.string().min(10),
-  signature_data_url: z.string().min(20),
-  consent: z.boolean(),
-  signer_full_name: z.string().min(3),
-  signer_dni: z.string().min(5),
-  signer_cuil: z.string().min(8),
-  signer_address: z.string().min(5),
-  signer_phone: z.string().min(5),
-});
-
-type SignBody = z.infer<typeof BodySchemaNew>;
-
-function parseBody(raw: unknown): SignBody {
-  const n = BodySchemaNew.safeParse(raw);
-  if (n.success) return n.data;
-
-  const o = BodySchemaOld.safeParse(raw);
-  if (o.success) {
-    return {
-      token: o.data.token,
-      signatureDataUrl: o.data.signature_data_url,
-      consent: o.data.consent,
-      signer: {
-        fullName: o.data.signer_full_name,
-        dni: o.data.signer_dni,
-        cuil: o.data.signer_cuil,
-        address: o.data.signer_address,
-        phone: o.data.signer_phone,
-      },
-    };
-  }
-
-  const err = new Error("Invalid body");
-  (err as any).status = 400;
-  throw err;
-}
-
 function getIp(req: NextRequest) {
   return (
-    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-    req.headers.get("x-real-ip")?.trim() ||
+    req.headers.get("x-forwarded-for")?.split(",")[0] ||
+    req.headers.get("x-real-ip") ||
     "unknown"
   );
 }
 
-function dataUrlToPngBytes(dataUrl: string): Uint8Array {
-  const m = dataUrl.match(/^data:image\/png;base64,(.+)$/);
-  if (!m) throw new Error("Invalid signature format");
-  return Uint8Array.from(Buffer.from(m[1], "base64"));
-}
-
-function dataUrlToBytes(dataUrl: string): Uint8Array {
-  const base64 = String(dataUrl || "").split(",")[1] || "";
+function dataUrlToPngBytes(dataUrl: string) {
+  const base64 = dataUrl.split(",")[1];
   return Uint8Array.from(Buffer.from(base64, "base64"));
 }
 
-function isExpired(expiresAt: string | null | undefined) {
-  if (!expiresAt) return false;
-  const exp = new Date(expiresAt).getTime();
-  return !Number.isNaN(exp) && exp < Date.now();
-}
-
-async function downloadPdfBytes(params: { admin: any; bucket: string; path: string }): Promise<Uint8Array> {
-  const { admin, bucket, path } = params;
-  const dl = await admin.storage.from(bucket).download(path);
-  if (dl.error || !dl.data) throw new Error("Failed to download original pdf");
-  return new Uint8Array(await dl.data.arrayBuffer());
-}
-
 function randomAuditCode() {
-  // 12 chars base32-like, uppercase (sin caracteres ambiguos)
-  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  const bytes = crypto.randomBytes(12);
-  let out = "";
-  for (let i = 0; i < bytes.length; i++) out += alphabet[bytes[i] % alphabet.length];
-  return out;
+  return crypto.randomBytes(6).toString("hex").toUpperCase();
 }
 
-async function generateFinalPdfBytes(params: {
+async function downloadBytes(admin: any, bucket: string, path: string) {
+  const dl = await admin.storage.from(bucket).download(path);
+  if (dl.error || !dl.data) throw new Error("Failed to download file");
+  const ab = await dl.data.arrayBuffer();
+  return new Uint8Array(ab);
+}
+
+async function generateQrPngBytes(url: string) {
+  const dataUrl = await QRCode.toDataURL(url, { margin: 0, width: 256 });
+  return dataUrlToPngBytes(dataUrl);
+}
+
+async function generateFinalPdfBytes(opts: {
   admin: any;
   bucket: string;
   originalPath: string;
   documentId: string;
   title: string;
-  completedAt: string; // ISO
-  signers: Array<{
-    signature_path: string;
-    full_name: string;
-    dni: string;
-  }>;
+  completedAt: string;
+  signers: Array<{ signature_path: string; full_name: string; dni: string }>;
 }) {
-  const { admin, bucket, originalPath, documentId, title, completedAt, signers } = params;
+  const { admin, bucket, originalPath, documentId, title, completedAt, signers } = opts;
 
-  const originalBytes = await downloadPdfBytes({ admin, bucket, path: originalPath });
-
+  const originalBytes = await downloadBytes(admin, bucket, originalPath);
   const pdfDoc = await PDFDocument.load(originalBytes);
+
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
   // generar audit code
   const auditCode = randomAuditCode();
 
-  // Agregar una página de evidencia con firmas
-  const evidencePageSize: [number, number] = [595.28, 841.89]; // A4
-  const sigPage = pdfDoc.addPage(evidencePageSize);
-  const pageH = sigPage.getHeight();
+  // Agregar una página de evidencia / constancia
+  const page = pdfDoc.addPage([595, 842]); // A4 portrait
+  page.drawText("Constancia de firma", { x: 36, y: 800, size: 16, font });
 
-  const drawEvidenceHeader = (p: any) => {
-    const h = p.getHeight();
+  page.drawText(`Documento: ${title}`, { x: 36, y: 770, size: 11, font });
+  page.drawText(`Finalizado: ${new Date(completedAt).toLocaleString()}`, { x: 36, y: 750, size: 11, font });
+  page.drawText(`Código de auditoría: ${auditCode}`, { x: 36, y: 730, size: 11, font });
 
-    p.drawText("Constancia de evidencia de firma", {
-      x: 36,
-      y: h - 50,
-      size: 16,
-      font,
-      color: rgb(0.15, 0.15, 0.15),
-    });
+  // QR hacia /v/<audit_code>
+  const verifyUrl = `https://firmasimple.vercel.app/v/${encodeURIComponent(auditCode)}`;
+  const qrBytes = await generateQrPngBytes(verifyUrl);
+  const qrImg = await pdfDoc.embedPng(qrBytes);
 
-    p.drawText(`Documento: ${title || "Documento"}`, {
-      x: 36,
-      y: h - 78,
-      size: 11,
-      font,
-      color: rgb(0.2, 0.2, 0.2),
-    });
+  page.drawText("Verificación pública:", { x: 36, y: 700, size: 11, font });
+  page.drawText(verifyUrl, { x: 36, y: 684, size: 9, font, color: rgb(0, 0, 0.8) });
 
-    p.drawText(`Finalizado: ${new Date(completedAt).toLocaleString()}`, {
-      x: 36,
-      y: h - 96,
-      size: 11,
-      font,
-      color: rgb(0.2, 0.2, 0.2),
-    });
+  page.drawImage(qrImg, { x: 480, y: 690, width: 80, height: 80 });
 
-    p.drawText(`Código de auditoría: ${auditCode}`, {
-      x: 36,
-      y: h - 114,
-      size: 11,
-      font,
-      color: rgb(0.2, 0.2, 0.2),
-    });
-  };
+  let y = 640;
 
-  drawEvidenceHeader(sigPage);
-
-  // Dibujar firmas (una por firmante)
-  let currentPage = sigPage;
-  let y = pageH - 160;
-
+  // firmas (se reduce el tamaño para que no quede grotesca)
   for (const s of signers) {
-    // ✅ Si no entra en la página actual, creamos una nueva página de constancia y continuamos
-    if (y < 140) {
-      currentPage = pdfDoc.addPage(evidencePageSize);
-      drawEvidenceHeader(currentPage);
-      y = currentPage.getHeight() - 160;
+    const sigBytes = await downloadBytes(admin, bucket, s.signature_path);
+    const sigImg = await pdfDoc.embedPng(sigBytes);
+
+    const w = 140; // antes era más grande; achicamos aprox 50%
+    const h = (sigImg.height / sigImg.width) * w;
+
+    // firma
+    page.drawImage(sigImg, { x: 36, y, width: w, height: h });
+
+    // aclaración debajo de la firma (evitar solaparse con header de constancia)
+    page.drawText(`${s.full_name}`, { x: 36, y: y - 14, size: 10, font });
+    page.drawText(`DNI: ${s.dni}`, { x: 36, y: y - 28, size: 10, font });
+
+    y -= h + 52;
+    if (y < 120) {
+      y = 740;
+      const np = pdfDoc.addPage([595, 842]);
+      (page as any) = np;
     }
-
-    const dlSig = await admin.storage.from(bucket).download(s.signature_path);
-    if (dlSig.error || !dlSig.data) continue;
-
-    const sigBytes = new Uint8Array(await dlSig.data.arrayBuffer());
-    const png = await pdfDoc.embedPng(sigBytes);
-
-    // ✅ firma 50% más chica
-    const sigW = 220 * 0.5;
-    const sigH = (png.height / png.width) * sigW;
-
-    currentPage.drawRectangle({
-      x: 36,
-      y,
-      width: sigW,
-      height: sigH,
-      borderWidth: 1,
-      borderColor: rgb(0.85, 0.85, 0.88),
-    });
-
-    currentPage.drawImage(png, {
-      x: 36,
-      y,
-      width: sigW,
-      height: sigH,
-    });
-
-    // ✅ aclaración debajo de la firma (evita montarse con cabecera)
-    const labelY1 = y - 14;
-    const labelY2 = y - 28;
-
-    currentPage.drawText(`${s.full_name || "Firmante"}`, {
-      x: 36,
-      y: labelY1,
-      size: 10,
-      font,
-      color: rgb(0.2, 0.2, 0.2),
-    });
-
-    currentPage.drawText(`DNI: ${s.dni}`, {
-      x: 36,
-      y: labelY2,
-      size: 10,
-      font,
-      color: rgb(0.2, 0.2, 0.2),
-    });
-
-    // ✅ dejamos más aire porque ahora hay 2 líneas abajo
-    y -= sigH + 90;
   }
 
-  // ✅ QR de verificación pública (/v/<audit_code>)
-  try {
-    const verifyUrl = `https://firmasimple.vercel.app/v/${auditCode}`;
-    const qrDataUrl = await QRCode.toDataURL(verifyUrl, {
-      errorCorrectionLevel: "M",
-      margin: 1,
-      scale: 4,
-    });
-    const qrImg = await pdfDoc.embedPng(dataUrlToBytes(qrDataUrl));
-    const qrSize = 72; // ~1 inch
-    const qrX = sigPage.getWidth() - qrSize - 36;
-    const qrY = 36;
-    sigPage.drawImage(qrImg, { x: qrX, y: qrY, width: qrSize, height: qrSize });
-  } catch {
-    // si falla el QR, no bloquea la firma
-  }
-
-  // ✅ Marca electrónica en TODAS las páginas (incluye las originales y la constancia)
-  const stamp = `Marca Electrónica FES • Doc ${documentId.slice(0, 8).toUpperCase()} • Código ${auditCode}`;
-  for (const p of pdfDoc.getPages()) {
-    p.drawText(stamp, {
+  // Marca electrónica en todas las páginas
+  const pages = pdfDoc.getPages();
+  for (const p of pages) {
+    p.drawText(`Marca Electrónica FES • Doc ${documentId}`, {
       x: 36,
-      y: 18,
+      y: 20,
       size: 8,
       font,
-      color: rgb(0.35, 0.35, 0.35),
+      color: rgb(0.4, 0.4, 0.4),
     });
   }
 
@@ -293,41 +158,38 @@ async function generateFinalPdfBytes(params: {
 
 export async function POST(req: NextRequest) {
   try {
-    const body = parseBody(await req.json());
+    const body = BodySchema.parse(await req.json());
     if (!body.consent) {
-      return NextResponse.json({ error: "Consent is required" }, { status: 400 });
+      return NextResponse.json({ error: "Consent required" }, { status: 400 });
     }
 
     const admin = createAdminClient();
-    const ip = getIp(req);
-    const userAgent = req.headers.get("user-agent") || "";
+    const nowIso = new Date().toISOString();
 
-    // 1) Buscar signing request por token (uuid)
-    let srRes = await admin
+    // 1) Buscar signing_request por token
+    const srRes = await admin
       .from("signing_requests")
-      .select("id, document_id, email, status, position, expires_at")
+      .select("*")
       .eq("token", body.token)
       .maybeSingle();
 
     if (srRes.error || !srRes.data) {
-      return NextResponse.json({ error: "Signing request not found" }, { status: 404 });
+      return NextResponse.json({ error: "Invalid link" }, { status: 400 });
     }
 
-    const sr = srRes.data;
+    const sr = srRes.data as any;
     if (sr.status !== "pending") {
-      return NextResponse.json({ error: "Signing request is not pending" }, { status: 400 });
-    }
-    if (isExpired(sr.expires_at)) {
-      await admin.from("signing_requests").update({ status: "expired" }).eq("id", sr.id);
-      return NextResponse.json({ error: "Link expired" }, { status: 410 });
+      return NextResponse.json({ error: "Link not pending" }, { status: 400 });
     }
 
-    const documentId = sr.document_id as string;
+    const documentId = String(sr.document_id);
 
-    // 2) Traer documento y path original
+    // 2) Cargar documento
     const docRes = await admin
       .from("documents")
-      .select("id, title, status, original_path, final_path, signed_count, total_signers, signing_mode")
+      .select(
+        "id, title, created_by, signing_mode, original_path, final_path, total_signers, signed_count, status, completed_at"
+      )
       .eq("id", documentId)
       .maybeSingle();
 
@@ -335,12 +197,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Document not found" }, { status: 404 });
     }
 
-    const doc = docRes.data;
-    if (!doc.original_path) {
-      return NextResponse.json({ error: "Original file missing" }, { status: 500 });
-    }
+    const doc = docRes.data as any;
 
-    // 3) Guardar firma como PNG en storage (firma manuscrita)
+    // 3) Guardar firma PNG en storage
     const signatureBytes = dataUrlToPngBytes(body.signatureDataUrl);
     const signaturePath = `${doc.original_path.split("/")[0]}/${documentId}/${sr.id}/signature.png`;
 
@@ -352,10 +211,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Failed to upload signature" }, { status: 500 });
     }
 
-    // 4) Actualizar signing_request como firmado + guardar datos del firmante
-    const nowIso = new Date().toISOString();
-
-    const updSr = await admin
+    // 4) Update signer status
+    const updSigner = await admin
       .from("signing_requests")
       .update({
         status: "signed",
@@ -366,19 +223,11 @@ export async function POST(req: NextRequest) {
         signer_cuil: body.signer.cuil,
         signer_address: body.signer.address,
         signer_phone: body.signer.phone,
-
-        // ✅ columnas reales en DB
-        consented_at: nowIso,
-        consent_text_version: "v1",
-
-        signer_ip: ip,
-        signer_user_agent: userAgent,
+        signer_ip: getIp(req),
       })
-      .eq("id", sr.id)
-      .select("id, status, signed_at")
-      .maybeSingle();
+      .eq("id", sr.id);
 
-    if (updSr.error) {
+    if (updSigner.error) {
       return NextResponse.json({ error: "Failed to update signer status" }, { status: 500 });
     }
 
@@ -389,7 +238,7 @@ export async function POST(req: NextRequest) {
       .eq("document_id", documentId)
       .eq("status", "signed");
 
-    const signedCount = signedCountRes.count || 0;
+    const signedCount = Number(signedCountRes.count || 0);
 
     await admin
       .from("documents")
@@ -523,7 +372,8 @@ export async function POST(req: NextRequest) {
               </p>
               ${
                 downloadUrl
-                  ? `<p style="margin:0 0 14px 0;">Descargar PDF final: <a href="${downloadUrl}">Descargar</a> (link válido por 7 días)</p>`
+                  ? `
+              <p style="margin:0 0 14px 0;">Descargar PDF final: <a href="${downloadUrl}">Descargar</a> (link válido por 7 días)</p>`
                   : ""
               }
               <hr style="border:none;border-top:1px solid #eee;margin:18px 0" />
@@ -533,7 +383,7 @@ export async function POST(req: NextRequest) {
             </div>
           `;
 
-          await sendResendEmail({
+          const sent = await sendResendEmail({
             to: recipients,
             subject,
             html,
@@ -543,9 +393,28 @@ export async function POST(req: NextRequest) {
               downloadUrl ? `\nDescarga: ${downloadUrl}` : ""
             }`,
           });
+
+          // Auditoría: registrar que se envió el aviso final
+          try {
+            await admin.from("audit_events").insert({
+              document_id: documentId,
+              event_type: "completion_email_sent",
+              actor_email: createdByEmail || null,
+              payload: { to: recipients, subject, resend_id: (sent as any)?.id || null },
+            });
+          } catch {}
         }
       } catch (e) {
         console.error("completion email failed:", e);
+        // Auditoría: registrar fallo del aviso final (no rompe la firma)
+        try {
+          await admin.from("audit_events").insert({
+            document_id: documentId,
+            event_type: "completion_email_failed",
+            actor_email: null,
+            payload: { error: String((e as any)?.message || e).slice(0, 1500) },
+          });
+        } catch {}
       }
     }
 
