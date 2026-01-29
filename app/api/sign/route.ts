@@ -316,23 +316,27 @@ export async function POST(req: NextRequest) {
     const nowIso = new Date().toISOString();
 
     const updSr = await admin
-      .from("signing_requests")
-      .update({
-        status: "signed",
-        signed_at: nowIso,
-        signature_path: signaturePath,
-        signer_full_name: body.signer.fullName,
-        signer_dni: body.signer.dni,
-        signer_cuil: body.signer.cuil,
-        signer_address: body.signer.address,
-        signer_phone: body.signer.phone,
-        consent: body.consent,
-        signer_ip: ip,
-        signer_user_agent: userAgent,
-      })
-      .eq("id", sr.id)
-      .select("id, status, signed_at")
-      .maybeSingle();
+  .from("signing_requests")
+  .update({
+    status: "signed",
+    signed_at: nowIso,
+    signature_path: signaturePath,
+    signer_full_name: body.signer.fullName,
+    signer_dni: body.signer.dni,
+    signer_cuil: body.signer.cuil,
+    signer_address: body.signer.address,
+    signer_phone: body.signer.phone,
+
+    // ✅ columnas reales en DB
+    consented_at: nowIso,
+    consent_text_version: "v1",
+
+    signer_ip: ip,
+    signer_user_agent: userAgent,
+  })
+  .eq("id", sr.id)
+  .select("id, status, signed_at")
+  .maybeSingle();
 
     if (updSr.error) {
       return NextResponse.json({ error: "Failed to update signer status" }, { status: 500 });
