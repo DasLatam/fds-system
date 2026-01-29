@@ -84,11 +84,7 @@ function isExpired(expiresAt: string | null | undefined) {
   return !Number.isNaN(exp) && exp < Date.now();
 }
 
-async function downloadPdfBytes(params: {
-  admin: any;
-  bucket: string;
-  path: string;
-}): Promise<Uint8Array> {
+async function downloadPdfBytes(params: { admin: any; bucket: string; path: string }): Promise<Uint8Array> {
   const { admin, bucket, path } = params;
   const dl = await admin.storage.from(bucket).download(path);
   if (dl.error || !dl.data) throw new Error("Failed to download original pdf");
@@ -128,46 +124,61 @@ async function generateFinalPdfBytes(params: {
   const auditCode = randomAuditCode();
 
   // Agregar una página de evidencia con firmas
-  const sigPage = pdfDoc.addPage([595.28, 841.89]); // A4
+  const evidencePageSize: [number, number] = [595.28, 841.89]; // A4
+  const sigPage = pdfDoc.addPage(evidencePageSize);
   const pageW = sigPage.getWidth();
   const pageH = sigPage.getHeight();
 
-  sigPage.drawText("Constancia de evidencia de firma", {
-    x: 36,
-    y: pageH - 50,
-    size: 16,
-    font,
-    color: rgb(0.15, 0.15, 0.15),
-  });
+  const drawEvidenceHeader = (p: any) => {
+    const h = p.getHeight();
 
-  sigPage.drawText(`Documento: ${title || "Documento"}`, {
-    x: 36,
-    y: pageH - 78,
-    size: 11,
-    font,
-    color: rgb(0.2, 0.2, 0.2),
-  });
+    p.drawText("Constancia de evidencia de firma", {
+      x: 36,
+      y: h - 50,
+      size: 16,
+      font,
+      color: rgb(0.15, 0.15, 0.15),
+    });
 
-  sigPage.drawText(`Finalizado: ${new Date(completedAt).toLocaleString()}`, {
-    x: 36,
-    y: pageH - 96,
-    size: 11,
-    font,
-    color: rgb(0.2, 0.2, 0.2),
-  });
+    p.drawText(`Documento: ${title || "Documento"}`, {
+      x: 36,
+      y: h - 78,
+      size: 11,
+      font,
+      color: rgb(0.2, 0.2, 0.2),
+    });
 
-  sigPage.drawText(`Código de auditoría: ${auditCode}`, {
-    x: 36,
-    y: pageH - 114,
-    size: 11,
-    font,
-    color: rgb(0.2, 0.2, 0.2),
-  });
+    p.drawText(`Finalizado: ${new Date(completedAt).toLocaleString()}`, {
+      x: 36,
+      y: h - 96,
+      size: 11,
+      font,
+      color: rgb(0.2, 0.2, 0.2),
+    });
+
+    p.drawText(`Código de auditoría: ${auditCode}`, {
+      x: 36,
+      y: h - 114,
+      size: 11,
+      font,
+      color: rgb(0.2, 0.2, 0.2),
+    });
+  };
+
+  drawEvidenceHeader(sigPage);
 
   // Dibujar firmas (una por firmante)
+  let currentPage = sigPage;
   let y = pageH - 160;
 
   for (const s of signers) {
+    // ✅ Si no entra en la página actual, creamos una nueva página de constancia y continuamos
+    if (y < 140) {
+      currentPage = pdfDoc.addPage(evidencePageSize);
+      drawEvidenceHeader(currentPage);
+      y = currentPage.getHeight() - 160;
+    }
+
     const dlSig = await admin.storage.from(bucket).download(s.signature_path);
     if (dlSig.error || !dlSig.data) continue;
 
@@ -178,7 +189,7 @@ async function generateFinalPdfBytes(params: {
     const sigW = 220 * 0.5;
     const sigH = (png.height / png.width) * sigW;
 
-    sigPage.drawRectangle({
+    currentPage.drawRectangle({
       x: 36,
       y,
       width: sigW,
@@ -187,7 +198,7 @@ async function generateFinalPdfBytes(params: {
       borderColor: rgb(0.85, 0.85, 0.88),
     });
 
-    sigPage.drawImage(png, {
+    currentPage.drawImage(png, {
       x: 36,
       y,
       width: sigW,
@@ -196,10 +207,9 @@ async function generateFinalPdfBytes(params: {
 
     // ✅ aclaración debajo de la firma (evita montarse con cabecera)
     const labelY1 = y - 14;
-
     const labelY2 = y - 28;
 
-    sigPage.drawText(`${s.full_name || "Firmante"}`, {
+    currentPage.drawText(`${s.full_name || "Firmante"}`, {
       x: 36,
       y: labelY1,
       size: 10,
@@ -207,7 +217,7 @@ async function generateFinalPdfBytes(params: {
       color: rgb(0.2, 0.2, 0.2),
     });
 
-    sigPage.drawText(`DNI: ${s.dni}`, {
+    currentPage.drawText(`DNI: ${s.dni}`, {
       x: 36,
       y: labelY2,
       size: 10,
@@ -217,7 +227,6 @@ async function generateFinalPdfBytes(params: {
 
     // ✅ dejamos más aire porque ahora hay 2 líneas abajo
     y -= sigH + 90;
-    if (y < 80) break;
   }
 
   // ✅ QR de verificación pública (/v/<audit_code>)
@@ -250,10 +259,7 @@ async function generateFinalPdfBytes(params: {
   }
 
   const finalBytes = await pdfDoc.save();
-  const finalHashSha256 = crypto
-    .createHash("sha256")
-    .update(Buffer.from(finalBytes))
-    .digest("hex");
+  const finalHashSha256 = crypto.createHash("sha256").update(Buffer.from(finalBytes)).digest("hex");
 
   return { finalBytes, auditCode, finalHashSha256 };
 }
