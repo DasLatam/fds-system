@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import QRCode from "qrcode";
 import crypto from "crypto";
 
 export const runtime = "nodejs";
@@ -72,6 +73,11 @@ function dataUrlToPngBytes(dataUrl: string): Uint8Array {
   return Uint8Array.from(Buffer.from(m[1], "base64"));
 }
 
+function dataUrlToBytes(dataUrl: string): Uint8Array {
+  const base64 = String(dataUrl || "").split(",")[1] || "";
+  return Uint8Array.from(Buffer.from(base64, "base64"));
+}
+
 function isExpired(expiresAt: string | null | undefined) {
   if (!expiresAt) return false;
   const exp = new Date(expiresAt).getTime();
@@ -85,24 +91,17 @@ async function downloadPdfBytes(params: {
 }): Promise<Uint8Array> {
   const { admin, bucket, path } = params;
   const dl = await admin.storage.from(bucket).download(path);
-  if (dl.error || !dl.data) throw new Error("Failed to download original PDF");
+  if (dl.error || !dl.data) throw new Error("Failed to download original pdf");
   return new Uint8Array(await dl.data.arrayBuffer());
 }
 
-function computeAuditCode(params: {
-  documentId: string;
-  originalPdfBytes: Uint8Array;
-  completedAtIso: string;
-}) {
-  const { documentId, originalPdfBytes, completedAtIso } = params;
-  return crypto
-    .createHash("sha256")
-    .update(Buffer.from(originalPdfBytes))
-    .update(documentId)
-    .update(completedAtIso)
-    .digest("hex")
-    .slice(0, 16)
-    .toUpperCase();
+function randomAuditCode() {
+  // 12 chars base32-like, uppercase (sin caracteres ambiguos)
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const bytes = crypto.randomBytes(12);
+  let out = "";
+  for (let i = 0; i < bytes.length; i++) out += alphabet[bytes[i] % alphabet.length];
+  return out;
 }
 
 async function generateFinalPdfBytes(params: {
@@ -110,74 +109,85 @@ async function generateFinalPdfBytes(params: {
   bucket: string;
   originalPath: string;
   documentId: string;
-  completedAtIso: string;
-  signers: Array<{ signature_path: string; full_name: string; dni: string }>;
+  title: string;
+  completedAt: string; // ISO
+  signers: Array<{
+    signature_path: string;
+    full_name: string;
+    dni: string;
+  }>;
 }) {
-  const { admin, bucket, originalPath, documentId, completedAtIso, signers } =
-    params;
+  const { admin, bucket, originalPath, documentId, title, completedAt, signers } = params;
 
-  const originalPdfBytes = await downloadPdfBytes({
-    admin,
-    bucket,
-    path: originalPath,
-  });
+  const originalBytes = await downloadPdfBytes({ admin, bucket, path: originalPath });
 
-  const auditCode = computeAuditCode({
-    documentId,
-    originalPdfBytes,
-    completedAtIso,
-  });
-
-  const pdfDoc = await PDFDocument.load(originalPdfBytes);
-  const pages = pdfDoc.getPages();
+  const pdfDoc = await PDFDocument.load(originalBytes);
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
-  // Footer en todas las páginas
-  pages.forEach((page) => {
-    const footer = `Marca Electrónica FES • Doc ${documentId
-      .slice(0, 8)
-      .toUpperCase()} • Código ${auditCode}`;
-    page.drawText(footer, {
-      x: 36,
-      y: 18,
-      size: 8,
-      font,
-      color: rgb(0.35, 0.35, 0.35),
-    });
-  });
+  // generar audit code
+  const auditCode = randomAuditCode();
 
-  // Página de firmas (simple)
-  const sigPage = pdfDoc.addPage();
-  const { width, height } = sigPage.getSize();
+  // Agregar una página de evidencia con firmas
+  const sigPage = pdfDoc.addPage([595.28, 841.89]); // A4
+  const pageW = sigPage.getWidth();
+  const pageH = sigPage.getHeight();
 
-  sigPage.drawText("Firmas", {
+  sigPage.drawText("Constancia de evidencia de firma", {
     x: 36,
-    y: height - 48,
-    size: 18,
+    y: pageH - 50,
+    size: 16,
     font,
-    color: rgb(0.1, 0.1, 0.1),
+    color: rgb(0.15, 0.15, 0.15),
   });
 
-  sigPage.drawText(`Código de auditoría: ${auditCode}`, {
+  sigPage.drawText(`Documento: ${title || "Documento"}`, {
     x: 36,
-    y: height - 72,
-    size: 10,
+    y: pageH - 78,
+    size: 11,
     font,
     color: rgb(0.2, 0.2, 0.2),
   });
 
-  let y = height - 120;
+  sigPage.drawText(`Finalizado: ${new Date(completedAt).toLocaleString()}`, {
+    x: 36,
+    y: pageH - 96,
+    size: 11,
+    font,
+    color: rgb(0.2, 0.2, 0.2),
+  });
+
+  sigPage.drawText(`Código de auditoría: ${auditCode}`, {
+    x: 36,
+    y: pageH - 114,
+    size: 11,
+    font,
+    color: rgb(0.2, 0.2, 0.2),
+  });
+
+  // Dibujar firmas (una por firmante)
+  let y = pageH - 160;
 
   for (const s of signers) {
     const dlSig = await admin.storage.from(bucket).download(s.signature_path);
-    if (!dlSig.data) continue;
+    if (dlSig.error || !dlSig.data) continue;
+
     const sigBytes = new Uint8Array(await dlSig.data.arrayBuffer());
     const png = await pdfDoc.embedPng(sigBytes);
 
-    const sigW = 220;
+    // ✅ firma 50% más chica
+    const sigW = 220 * 0.5;
     const sigH = (png.height / png.width) * sigW;
 
-    sigPage.drawText(`Aclaración: ${s.full_name}`, {
+    sigPage.drawRectangle({
+      x: 36,
+      y,
+      width: sigW,
+      height: sigH,
+      borderWidth: 1,
+      borderColor: rgb(0.85, 0.85, 0.88),
+    });
+
+    sigPage.drawText(`${s.full_name || "Firmante"}`, {
       x: 36,
       y: y + sigH + 18,
       size: 10,
@@ -215,6 +225,23 @@ async function generateFinalPdfBytes(params: {
     color: rgb(0.35, 0.35, 0.35),
   });
 
+  // ✅ QR de verificación pública (/v/<audit_code>)
+  try {
+    const verifyUrl = `https://firmasimple.vercel.app/v/${auditCode}`;
+    const qrDataUrl = await QRCode.toDataURL(verifyUrl, {
+      errorCorrectionLevel: "M",
+      margin: 1,
+      scale: 4,
+    });
+    const qrImg = await pdfDoc.embedPng(dataUrlToBytes(qrDataUrl));
+    const qrSize = 72; // ~1 inch
+    const qrX = sigPage.getWidth() - qrSize - 36;
+    const qrY = 36;
+    sigPage.drawImage(qrImg, { x: qrX, y: qrY, width: qrSize, height: qrSize });
+  } catch {
+    // si falla el QR, no bloquea la firma
+  }
+
   const finalBytes = await pdfDoc.save();
   const finalHashSha256 = crypto
     .createHash("sha256")
@@ -242,36 +269,26 @@ export async function POST(req: NextRequest) {
       .eq("token", body.token)
       .maybeSingle();
 
-    // 2) Fallback: por id
-    if (!srRes.data && !srRes.error) {
-      srRes = await admin
-        .from("signing_requests")
-        .select("id, document_id, email, status, position, expires_at")
-        .eq("id", body.token)
-        .maybeSingle();
-    }
-
     if (srRes.error || !srRes.data) {
-      return NextResponse.json({ error: "Invalid token" }, { status: 404 });
+      return NextResponse.json({ error: "Signing request not found" }, { status: 404 });
     }
 
     const sr = srRes.data;
-
-    if (sr.status === "signed") {
-      return NextResponse.json({ ok: true, alreadySigned: true });
+    if (sr.status !== "pending") {
+      return NextResponse.json({ error: "Signing request is not pending" }, { status: 400 });
     }
-
     if (isExpired(sr.expires_at)) {
+      await admin.from("signing_requests").update({ status: "expired" }).eq("id", sr.id);
       return NextResponse.json({ error: "Link expired" }, { status: 410 });
     }
 
-    // 3) Cargar documento
+    const documentId = sr.document_id as string;
+
+    // 2) Traer documento y path original
     const docRes = await admin
       .from("documents")
-      .select(
-        "id, title, created_by, signing_mode, original_path, final_path, total_signers, signed_count, status, completed_at"
-      )
-      .eq("id", sr.document_id)
+      .select("id, title, status, original_path, final_path, signed_count, total_signers, signing_mode")
+      .eq("id", documentId)
       .maybeSingle();
 
     if (docRes.error || !docRes.data) {
@@ -279,53 +296,23 @@ export async function POST(req: NextRequest) {
     }
 
     const doc = docRes.data;
-
-    // 4) En modo sequential: validar turno
-    if (doc.signing_mode === "sequential") {
-      const nextPendingRes = await admin
-        .from("signing_requests")
-        .select("id, status, position")
-        .eq("document_id", doc.id)
-        .eq("status", "pending")
-        .order("position", { ascending: true })
-        .limit(1);
-
-      if (nextPendingRes.error) {
-        return NextResponse.json(
-          { error: "Failed to check sequential order" },
-          { status: 500 }
-        );
-      }
-
-      const next = nextPendingRes.data?.[0];
-      if (next && next.id !== sr.id) {
-        return NextResponse.json({ error: "Not your turn yet" }, { status: 409 });
-      }
+    if (!doc.original_path) {
+      return NextResponse.json({ error: "Original file missing" }, { status: 500 });
     }
 
-    // 5) Subir firma PNG
+    // 3) Guardar firma como PNG en storage (firma manuscrita)
     const signatureBytes = dataUrlToPngBytes(body.signatureDataUrl);
-    const signatureHash = crypto
-      .createHash("sha256")
-      .update(Buffer.from(signatureBytes))
-      .digest("hex");
-
-    const signaturePath = `${doc.created_by}/${doc.id}/signatures/${sr.id}.png`;
+    const signaturePath = `${doc.original_path.split("/")[0]}/${documentId}/${sr.id}/signature.png`;
 
     const upSig = await admin.storage.from("fds").upload(signaturePath, signatureBytes, {
       contentType: "image/png",
       upsert: true,
-      cacheControl: "3600",
     });
-
     if (upSig.error) {
-      return NextResponse.json(
-        { error: "Failed to upload signature", details: upSig.error.message },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: "Failed to upload signature" }, { status: 500 });
     }
 
-    // 6) Marcar signing_request como signed
+    // 4) Actualizar signing_request como firmado + guardar datos del firmante
     const nowIso = new Date().toISOString();
 
     const updSr = await admin
@@ -333,82 +320,54 @@ export async function POST(req: NextRequest) {
       .update({
         status: "signed",
         signed_at: nowIso,
-        signer_ip: ip,
-        signer_user_agent: userAgent,
-        signature_hash: signatureHash,
         signature_path: signaturePath,
-        signature_image_sha256: signatureHash,
         signer_full_name: body.signer.fullName,
         signer_dni: body.signer.dni,
         signer_cuil: body.signer.cuil,
         signer_address: body.signer.address,
         signer_phone: body.signer.phone,
-        consented_at: nowIso,
-        consent_text_version: "v1",
+        consent: body.consent,
+        signer_ip: ip,
+        signer_user_agent: userAgent,
       })
-      .eq("id", sr.id);
+      .eq("id", sr.id)
+      .select("id, status, signed_at")
+      .maybeSingle();
 
     if (updSr.error) {
-      return NextResponse.json(
-        { error: "Failed to update signing request", details: updSr.error.message },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: "Failed to update signer status" }, { status: 500 });
     }
 
-    // 7) Auditoría: firma enviada
-    await admin.from("audit_events").insert({
-      document_id: doc.id,
-      signing_request_id: sr.id,
-      actor_email: sr.email,
-      ip,
-      user_agent: userAgent,
-      event_type: "signature_submitted",
-      payload: {
-        signature_path: signaturePath,
-        signature_hash: signatureHash,
-        consent_text_version: "v1",
-      },
-    });
-
-    // 8) Recontar firmados
-    const countRes = await admin
+    // 5) Recalcular signed_count
+    const signedCountRes = await admin
       .from("signing_requests")
       .select("id", { count: "exact", head: true })
-      .eq("document_id", doc.id)
+      .eq("document_id", documentId)
       .eq("status", "signed");
 
-    const signedCount = countRes.count ?? 0;
+    const signedCount = signedCountRes.count || 0;
 
-    const counterUpd = await admin
+    await admin
       .from("documents")
-      .update({ signed_count: signedCount })
-      .eq("id", doc.id);
+      .update({
+        signed_count: signedCount,
+      })
+      .eq("id", documentId);
 
-    if (counterUpd.error) {
-      console.warn("signed_count update failed:", counterUpd.error);
-    }
+    // 6) Si ya firmaron todos, finalizar PDF y marcar documento como signed
+    const totalSigners = Number(doc.total_signers || 0);
+    const shouldFinalize = totalSigners > 0 && signedCount >= totalSigners;
 
-    const total = doc.total_signers ?? 0;
-    const shouldComplete = total > 0 && signedCount >= total;
-
-    // === FINALIZACIÓN (Sprint 3B) ===
-    if (shouldComplete) {
-      const completedAtIso = new Date().toISOString();
-      const finalPath = doc.final_path || `${doc.created_by}/${doc.id}/final/final.pdf`;
-
-      // Traer firmantes firmados con firma
+    if (shouldFinalize) {
       const signersRes = await admin
         .from("signing_requests")
         .select("signature_path, signer_full_name, signer_dni")
-        .eq("document_id", doc.id)
-        .eq("status", "signed");
+        .eq("document_id", documentId)
+        .eq("status", "signed")
+        .order("position", { ascending: true });
 
       if (signersRes.error) {
-        console.error("load signed signers failed:", signersRes.error);
-        return NextResponse.json(
-          { error: "Failed to load signed signers", details: signersRes.error.message },
-          { status: 500 }
-        );
+        return NextResponse.json({ error: "Failed to load signers" }, { status: 500 });
       }
 
       const signers = (signersRes.data || [])
@@ -423,95 +382,46 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "No signatures found to finalize PDF" }, { status: 500 });
       }
 
-      // Generar PDF final (marca + firmas)
+      // Generar PDF final (marca + firmas + QR)
       const { finalBytes, auditCode, finalHashSha256 } = await generateFinalPdfBytes({
         admin,
         bucket: "fds",
         originalPath: doc.original_path,
-        documentId: doc.id,
-        completedAtIso,
+        documentId,
+        title: doc.title || "Documento",
+        completedAt: nowIso,
         signers,
       });
 
-      // Subir final.pdf generado
+      const finalPath = `${doc.original_path.split("/")[0]}/${documentId}/final/final.pdf`;
+
       const upFinal = await admin.storage.from("fds").upload(finalPath, finalBytes, {
         contentType: "application/pdf",
         upsert: true,
       });
-
       if (upFinal.error) {
-        console.error("finalize upload final failed:", upFinal.error);
-        return NextResponse.json(
-          { error: "Failed to upload final PDF", details: upFinal.error.message },
-          { status: 500 }
-        );
+        return NextResponse.json({ error: "Failed to upload final PDF" }, { status: 500 });
       }
 
-      // Setear final_path primero
-      if (!doc.final_path) {
-        const setFinal = await admin.from("documents").update({ final_path: finalPath }).eq("id", doc.id);
-        if (setFinal.error) {
-          console.error("final_path update failed:", setFinal.error);
-          return NextResponse.json(
-            { error: "Failed to set final_path", details: setFinal.error.message },
-            { status: 500 }
-          );
-        }
-      }
-
-      // Ahora sí: status signed + completed_at
-      const finalizeDoc = await admin
+      const updDoc = await admin
         .from("documents")
-        .update({ status: "signed", completed_at: completedAtIso })
-        .eq("id", doc.id);
-
-      if (finalizeDoc.error) {
-        console.error("documents finalize status failed:", finalizeDoc.error);
-        return NextResponse.json(
-          { error: "Failed to finalize document status", details: finalizeDoc.error.message },
-          { status: 500 }
-        );
-      }
-
-      // Guardar datos para validación pública (/v/<audit_code>)
-      const setAudit = await admin
-        .from("documents")
-        .update({ audit_code: auditCode, final_hash_sha256: finalHashSha256 })
-        .eq("id", doc.id);
-
-      if (setAudit.error) {
-        console.warn("documents audit_code/final_hash_sha256 update failed:", setAudit.error);
-        // No frenamos: el PDF ya quedó firmado y subido. Se puede backfillear si hiciera falta.
-      }
-
-      // Auditoría
-      const auditInsert = await admin.from("audit_events").insert({
-        document_id: doc.id,
-        signing_request_id: sr.id,
-        actor_email: sr.email,
-        ip,
-        user_agent: userAgent,
-        event_type: "pdf_finalized",
-        payload: {
+        .update({
+          status: "signed",
           final_path: finalPath,
+          completed_at: nowIso,
           audit_code: auditCode,
           final_hash_sha256: finalHashSha256,
-          signed_count: signedCount,
-          total_signers: total,
-          finalized_at: completedAtIso,
-        },
-      });
+        })
+        .eq("id", documentId);
 
-      if (auditInsert.error) {
-        console.warn("audit_events insert failed:", auditInsert.error);
-        // No frenamos la respuesta: el PDF y el status ya quedaron consistentes
+      if (updDoc.error) {
+        return NextResponse.json({ error: "Failed to update document" }, { status: 500 });
       }
     }
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, status: shouldFinalize ? "finalized" : "signed" });
   } catch (e: any) {
-    const status =
-      typeof (e as any)?.status === "number" ? (e as any).status : e?.message === "Invalid body" ? 400 : 500;
+    const status = Number(e?.status || 500);
     return NextResponse.json({ error: e?.message || "Unexpected error" }, { status });
   }
 }
