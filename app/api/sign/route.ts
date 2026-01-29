@@ -5,6 +5,34 @@ import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import QRCode from "qrcode";
 import crypto from "crypto";
 
+async function sendResendEmail(opts: { to: string[]; subject: string; html: string; text?: string }) {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) throw new Error("Missing RESEND_API_KEY");
+  const from =
+    process.env.RESEND_FROM || process.env.RESEND_SENDER || "Firma Electrónica Simple <onboarding@resend.dev>";
+
+  // Resend acepta "to" como string o array
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from,
+      to: opts.to,
+      subject: opts.subject,
+      html: opts.html,
+      text: opts.text,
+    }),
+  });
+
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`Resend error: ${res.status} ${res.statusText} ${body}`.slice(0, 3000));
+  }
+}
+
 export const runtime = "nodejs";
 
 const BodySchemaNew = z.object({
@@ -126,7 +154,6 @@ async function generateFinalPdfBytes(params: {
   // Agregar una página de evidencia con firmas
   const evidencePageSize: [number, number] = [595.28, 841.89]; // A4
   const sigPage = pdfDoc.addPage(evidencePageSize);
-  const pageW = sigPage.getWidth();
   const pageH = sigPage.getHeight();
 
   const drawEvidenceHeader = (p: any) => {
@@ -433,6 +460,92 @@ export async function POST(req: NextRequest) {
 
       if (updDoc.error) {
         return NextResponse.json({ error: "Failed to update document" }, { status: 500 });
+      }
+
+      // ✅ Email automático: documento firmado por todos
+      try {
+        // creador del documento (documents.created_by suele ser el email)
+        const docOwnerRes = await admin
+          .from("documents")
+          .select("created_by, title, audit_code, final_path, completed_at")
+          .eq("id", documentId)
+          .maybeSingle();
+
+        const createdByEmail = (docOwnerRes.data as any)?.created_by ? String((docOwnerRes.data as any).created_by) : "";
+        const finalPathForEmail = String((docOwnerRes.data as any)?.final_path || finalPath);
+        const auditCodeForEmail = String((docOwnerRes.data as any)?.audit_code || auditCode);
+        const titleForEmail = String((docOwnerRes.data as any)?.title || doc.title || "Documento");
+        const completedAtForEmail = String((docOwnerRes.data as any)?.completed_at || nowIso);
+
+        // firmantes (emails)
+        const signersEmailsRes = await admin
+          .from("signing_requests")
+          .select("email")
+          .eq("document_id", documentId);
+
+        const signerEmails = Array.from(
+          new Set(
+            (signersEmailsRes.data || [])
+              .map((r: any) => String(r.email || "").trim().toLowerCase())
+              .filter(Boolean)
+          )
+        );
+
+        const recipients = Array.from(
+          new Set([createdByEmail, ...signerEmails].map((e) => String(e || "").trim().toLowerCase()).filter(Boolean))
+        );
+
+        if (recipients.length > 0) {
+          // link de descarga (signed url por 7 días)
+          let downloadUrl = "";
+          try {
+            const signed = await admin.storage.from("fds").createSignedUrl(finalPathForEmail, 60 * 60 * 24 * 7);
+            if (!signed.error && signed.data?.signedUrl) downloadUrl = signed.data.signedUrl;
+          } catch {}
+
+          const verifyUrl = `https://firmasimple.vercel.app/v/${encodeURIComponent(auditCodeForEmail)}`;
+
+          const subject = `Documento firmado - ${titleForEmail} - ${new Date(completedAtForEmail).toLocaleString()}`;
+
+          const html = `
+            <div style="font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;line-height:1.5;color:#111">
+              <h2 style="margin:0 0 8px 0;">Documento completamente firmado</h2>
+              <p style="margin:0 0 12px 0;">
+                El documento <b>${titleForEmail}</b> fue firmado por todos los firmantes el <b>${new Date(
+                  completedAtForEmail
+                ).toLocaleString()}</b>.
+              </p>
+              <p style="margin:0 0 12px 0;">
+                Código de auditoría: <b>${auditCodeForEmail}</b>
+              </p>
+              <p style="margin:0 0 14px 0;">
+                Verificación pública: <a href="${verifyUrl}">${verifyUrl}</a>
+              </p>
+              ${
+                downloadUrl
+                  ? `<p style="margin:0 0 14px 0;">Descargar PDF final: <a href="${downloadUrl}">Descargar</a> (link válido por 7 días)</p>`
+                  : ""
+              }
+              <hr style="border:none;border-top:1px solid #eee;margin:18px 0" />
+              <p style="margin:0;font-size:12px;color:#555">
+                Este correo es informativo. Firma Electrónica Simple (FES) implementa firma electrónica (Ley 25.506) y no constituye firma digital certificada.
+              </p>
+            </div>
+          `;
+
+          await sendResendEmail({
+            to: recipients,
+            subject,
+            html,
+            text: `Documento completamente firmado: ${titleForEmail}\nFinalizado: ${new Date(
+              completedAtForEmail
+            ).toLocaleString()}\nCódigo de auditoría: ${auditCodeForEmail}\nVerificación: ${verifyUrl}${
+              downloadUrl ? `\nDescarga: ${downloadUrl}` : ""
+            }`,
+          });
+        }
+      } catch (e) {
+        console.error("completion email failed:", e);
       }
     }
 
