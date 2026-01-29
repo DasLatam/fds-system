@@ -158,7 +158,7 @@ export default function SignPage() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error || "No se pudo registrar la firma.");
 
-      setOk("Firma registrada. ¡Gracias!");
+      setOk("La firma fue registrada correctamente.");
       await refreshPreview();
     } catch (e: any) {
       setErr(e?.message || "Error inesperado");
@@ -260,12 +260,7 @@ export default function SignPage() {
             <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-2">
               <div className="text-sm font-medium">Vista previa</div>
               {pdfOk ? (
-                <a
-                  className="text-xs underline text-zinc-700"
-                  href={preview.pdfUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                >
+                <a className="text-xs underline text-zinc-700" href={preview.pdfUrl} target="_blank" rel="noreferrer">
                   Abrir PDF
                 </a>
               ) : (
@@ -339,8 +334,9 @@ export default function SignPage() {
                 className="mt-1"
               />
               <label className="text-xs text-zinc-700">
-                Acepto firmar electrónicamente este documento. Entiendo que este servicio implementa firma electrónica
-                conforme a la Ley 25.506 (República Argentina) y no constituye firma digital certificada.
+                Declaro que leí el documento y acepto firmarlo electrónicamente. Entiendo que este servicio implementa
+                firma electrónica conforme a la Ley 25.506 (República Argentina) y que no constituye firma digital
+                certificada.
               </label>
             </div>
 
@@ -360,23 +356,19 @@ export default function SignPage() {
               <div className="mt-2 rounded-md border border-zinc-200 overflow-hidden">
                 {/* Nota: los types de react-signature-canvas a veces no incluyen "onEnd".
                    Lo pasamos como any para no romper el build en Vercel. */}
-                
-<SignatureCanvas
-  ref={sigRef}
-  penColor="black"
-  canvasProps={{
-    className: "h-[160px] w-full bg-white",
-    onMouseUp: onSigEnd,
-    onTouchEnd: onSigEnd,
-    onPointerUp: onSigEnd,
-  }}
-/>
-
+                <SignatureCanvas
+                  ref={sigRef}
+                  penColor="black"
+                  canvasProps={{
+                    className: "h-[160px] w-full bg-white",
+                    onMouseUp: onSigEnd,
+                    onTouchEnd: onSigEnd,
+                    onPointerUp: onSigEnd,
+                  }}
+                />
               </div>
 
-              <div className="mt-2 text-xs text-zinc-600">
-                {sigDirty ? "✅ Firma capturada" : "Dibujá tu firma en el recuadro."}
-              </div>
+              <div className="mt-2 text-xs text-zinc-600">{sigDirty ? "✅ Firma capturada" : "Dibujá tu firma en el recuadro."}</div>
             </div>
 
             {ok ? (
@@ -392,7 +384,7 @@ export default function SignPage() {
                 disabled={!canSign || busy}
                 className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
               >
-                {busy ? "Enviando…" : "Firmar"}
+                {busy ? "Firmando…" : "Firmar y finalizar"}
               </button>
 
               <button

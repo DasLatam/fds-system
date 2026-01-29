@@ -160,11 +160,11 @@ export default function VerifyClient() {
 
   return (
     <div style={{ maxWidth: 860, margin: "0 auto", padding: 24 }}>
-      <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: -0.2 }}>Validación pública del documento</h1>
+      <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: -0.2 }}>Verificación pública</h1>
 
       <p style={{ marginTop: 10, opacity: 0.85, lineHeight: 1.5 }}>
-        Subí el PDF que querés verificar. Calculamos su huella (SHA-256) en tu navegador y la comparamos con el
-        documento final firmado en <b>Firma Electrónica Simple</b>.
+        Subí el <b>PDF final</b> para verificar su integridad. El sistema compara la huella criptográfica (SHA-256) del
+        archivo contra el registro de auditoría generado al momento de la firma en <b>Firma Electrónica Simple</b>.
       </p>
 
       <div style={{ marginTop: 14, opacity: 0.9 }}>
@@ -265,9 +265,21 @@ export default function VerifyClient() {
                     : "rgba(0,0,0,0.04)",
               }}
             >
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 12,
+                  flexWrap: "wrap",
+                }}
+              >
                 <div style={{ fontSize: 18, fontWeight: 1000 }}>
-                  {isValid ? "✅ VÁLIDO" : isInvalid ? "❌ NO VÁLIDO" : "Resultado"}
+                  {isValid
+                    ? "✅ El documento es auténtico"
+                    : isInvalid
+                      ? "❌ El documento no coincide"
+                      : "Resultado de la verificación"}
                 </div>
 
                 {result.provided_sha256 && (
@@ -290,12 +302,14 @@ export default function VerifyClient() {
               <div style={{ marginTop: 10, opacity: 0.92, lineHeight: 1.5 }}>
                 {isValid && (
                   <span>
-                    Este archivo <b>coincide exactamente</b> con el documento final firmado y registrado en Firma Electrónica Simple.
+                    El archivo subido <b>coincide íntegramente</b> con el documento firmado y auditado. La integridad del
+                    contenido está verificada.
                   </span>
                 )}
                 {isInvalid && (
                   <span>
-                    Este archivo <b>no coincide</b> con el documento firmado. Puede haber sido modificado o no corresponder a este código.
+                    El archivo subido <b>no coincide</b> con el documento auditado. El contenido pudo haber sido alterado
+                    o no corresponde a este código de auditoría.
                   </span>
                 )}
                 {!isValid && !isInvalid && result.reason && <span>{result.reason}</span>}
@@ -303,7 +317,9 @@ export default function VerifyClient() {
 
               {result.provided_sha256 && (
                 <div style={{ marginTop: 10 }}>
-                  <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 4 }}>SHA-256 verificado</div>
+                  <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 4 }}>
+                    Huella criptográfica verificada (SHA-256)
+                  </div>
                   <div
                     style={{
                       fontFamily: "monospace",
@@ -369,7 +385,7 @@ export default function VerifyClient() {
             )}
 
             <div style={{ marginTop: 14, fontSize: 12, opacity: 0.7 }}>
-              Nota: si el PDF fue modificado (aunque sea 1 byte), el resultado será “No válido”.
+              Nota: cualquier modificación del archivo, incluso mínima, invalida la verificación.
             </div>
           </div>
         )}
