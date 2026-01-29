@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isProfileComplete } from "@/lib/security/profile";
 import { isOwnerEmail } from "@/lib/security/owner";
+import UploadForm from "./UploadForm";
 
 export const dynamic = "force-dynamic";
 
@@ -56,120 +57,8 @@ export default async function DashboardNewPage() {
       </div>
 
       <div className="mt-8 rounded-xl border border-zinc-200 p-5">
-        <form id="uploadForm" className="space-y-4">
-          <div>
-            <label className="mb-1 block text-sm font-medium">Título del documento</label>
-            <input
-              name="title"
-              type="text"
-              required
-              placeholder="Ej: Constancia ARCA"
-              className="w-full rounded-md border border-zinc-200 px-3 py-2 text-sm"
-            />
-            <p className="mt-1 text-xs text-zinc-500">Este título se mostrará en el dashboard y en la página de firma.</p>
-          </div>
-
-          <div>
-            <label className="mb-1 block text-sm font-medium">Archivo PDF</label>
-
-            {/* input real oculto */}
-            <input id="pdfFile" name="file" type="file" accept="application/pdf" required className="hidden" />
-
-            {/* botón visible */}
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                id="pickFileBtn"
-                className="rounded-md border border-zinc-200 bg-white px-4 py-2 text-sm font-medium hover:bg-zinc-50"
-              >
-                Elegir PDF…
-              </button>
-              <span id="fileName" className="text-sm text-zinc-600">
-                Ningún archivo seleccionado
-              </span>
-            </div>
-
-            <p className="mt-1 text-xs text-zinc-500">Solo PDF. Tamaño recomendado: hasta 10–20 MB.</p>
-          </div>
-
-          <div className="flex items-center gap-3 pt-2">
-            <button type="submit" className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white">
-              Subir y crear documento
-            </button>
-            <span id="uploadStatus" className="text-sm text-zinc-600" />
-          </div>
-        </form>
+        <UploadForm />
       </div>
-
-      <script
-        dangerouslySetInnerHTML={{
-          __html: `
-(function() {
-  function ready(fn) {
-    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', fn);
-    else fn();
-  }
-
-  ready(() => {
-    const form = document.getElementById('uploadForm');
-    const status = document.getElementById('uploadStatus');
-    const pickBtn = document.getElementById('pickFileBtn');
-    const fileInput = document.getElementById('pdfFile');
-    const fileName = document.getElementById('fileName');
-
-    if (pickBtn && fileInput) {
-      const openPicker = () => {
-        try { fileInput.click(); } catch (_) {}
-      };
-
-      // ✅ robusto: algunos browsers fallan con click, pointerdown es más confiable
-      pickBtn.addEventListener('pointerdown', (e) => {
-        e.preventDefault();
-        openPicker();
-      });
-      pickBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        openPicker();
-      });
-
-      fileInput.addEventListener('change', () => {
-        const f = fileInput.files && fileInput.files[0];
-        if (fileName) fileName.textContent = f ? f.name : 'Ningún archivo seleccionado';
-      });
-    }
-
-    if (!form) return;
-
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      if (status) status.textContent = 'Subiendo...';
-
-      const fd = new FormData(form);
-      if (fileInput && fileInput.files && fileInput.files[0]) {
-        fd.set('file', fileInput.files[0]);
-      }
-
-      try {
-        const r = await fetch('/api/documents/upload', { method: 'POST', body: fd });
-        const j = await r.json().catch(() => ({}));
-
-        if (!r.ok) {
-          if (status) status.textContent = j?.error || 'No se pudo subir el PDF.';
-          return;
-        }
-
-        if (status) status.textContent = 'Listo. Redirigiendo...';
-        if (j?.documentId) window.location.href = '/dashboard/doc/' + j.documentId;
-        else window.location.href = '/dashboard';
-      } catch (err) {
-        if (status) status.textContent = 'Error de red al subir.';
-      }
-    });
-  });
-})();
-          `,
-        }}
-      />
     </div>
   );
 }
