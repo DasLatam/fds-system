@@ -30,7 +30,11 @@ export default function SignPage() {
 
   const [preview, setPreview] = useState<Preview | null>(null);
   const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState<string | null>(null);
+
+  // ✅ separar errores
+  const [loadErr, setLoadErr] = useState<string | null>(null);
+  const [actionErr, setActionErr] = useState<string | null>(null);
+
   const [busy, setBusy] = useState(false);
   const [ok, setOk] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
@@ -64,7 +68,8 @@ export default function SignPage() {
     (async () => {
       try {
         setLoading(true);
-        setErr(null);
+        setLoadErr(null);
+        setActionErr(null);
         setOk(null);
 
         const res = await fetch(`/api/signing-request/${token}`, { cache: "no-store" });
@@ -73,11 +78,10 @@ export default function SignPage() {
 
         if (mounted) {
           setPreview(data as Preview);
-          // tick para autofill
           setTimeout(() => bump(), 50);
         }
       } catch (e: any) {
-        if (mounted) setErr(e?.message || "Error inesperado");
+        if (mounted) setLoadErr(e?.message || "Error inesperado");
       } finally {
         if (mounted) setLoading(false);
       }
@@ -97,7 +101,6 @@ export default function SignPage() {
     const filled = s.fullName && s.dni && s.cuil && s.address && s.phone;
     if (!filled) return false;
 
-    // Validación mínima
     if (s.cuil && s.cuil.length !== 11) return false;
     return true;
   }, [preview, consent, sigDirty, tick]);
@@ -121,60 +124,80 @@ export default function SignPage() {
   }
 
   async function submit() {
-    setErr(null);
+    setActionErr(null);
     setOk(null);
 
     if (!preview || preview.status !== "pending") {
-      setErr("Este enlace no está en estado pendiente.");
+      setActionErr("Este enlace no está en estado pendiente.");
       return;
     }
     if (!consent) {
-      setErr("Tenés que aceptar el consentimiento.");
+      setActionErr("Tenés que aceptar el consentimiento.");
       return;
     }
     if (!sigRef.current || sigRef.current.isEmpty()) {
-      setErr("Dibujá tu firma antes de enviar.");
+      setActionErr("Dibujá tu firma antes de enviar.");
       return;
     }
 
     const signer = readSigner();
     if (!signer.fullName || !signer.dni || !signer.cuil || !signer.address || !signer.phone) {
-      setErr("Completá todos los datos del firmante.");
+      setActionErr("Completá todos los datos del firmante.");
       return;
     }
     if (signer.cuil.length !== 11) {
-      setErr("CUIL inválido: debe tener 11 dígitos (sin guiones).");
+      setActionErr("CUIL inválido: debe tener 11 dígitos (sin guiones).");
       return;
     }
 
     setBusy(true);
     try {
       const signatureDataUrl = sigRef.current.getTrimmedCanvas().toDataURL("image/png");
+
+      // ✅ body retro-compatible (evita Invalid body con cambios de schema)
       const res = await fetch(`/api/sign`, {
         method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ token, signatureDataUrl, consent, signer }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          token,
+          signatureDataUrl,
+          consent,
+          signer,
+
+          full_name: signer.fullName,
+          dni: signer.dni,
+          cuil: signer.cuil,
+          address: signer.address,
+          phone: signer.phone,
+
+          signer_full_name: signer.fullName,
+          signer_dni: signer.dni,
+          signer_cuil: signer.cuil,
+          signer_address: signer.address,
+          signer_phone: signer.phone,
+        }),
       });
+
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error || "No se pudo registrar la firma.");
 
       setOk("La firma fue registrada correctamente.");
       await refreshPreview();
     } catch (e: any) {
-      setErr(e?.message || "Error inesperado");
+      setActionErr(e?.message || "Error inesperado");
     } finally {
       setBusy(false);
     }
   }
 
   async function reject() {
-    setErr(null);
+    setActionErr(null);
     setOk(null);
 
     if (!preview || preview.status !== "pending") return;
 
     if (rejectReason.trim().length < 3) {
-      setErr("Indicá un motivo breve de rechazo.");
+      setActionErr("Indicá un motivo breve de rechazo.");
       return;
     }
 
@@ -182,7 +205,7 @@ export default function SignPage() {
     try {
       const res = await fetch(`/api/reject`, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token, reason: rejectReason.trim() }),
       });
       const data = await res.json().catch(() => ({}));
@@ -191,7 +214,7 @@ export default function SignPage() {
       setOk("Rechazo registrado. Se notificará al creador.");
       await refreshPreview();
     } catch (e: any) {
-      setErr(e?.message || "Error inesperado");
+      setActionErr(e?.message || "Error inesperado");
     } finally {
       setBusy(false);
     }
@@ -199,12 +222,13 @@ export default function SignPage() {
 
   if (loading) return <div className="mx-auto max-w-3xl p-6 text-sm text-zinc-600">Cargando…</div>;
 
-  if (err) {
+  // ✅ solo error de carga del link
+  if (loadErr) {
     return (
       <div className="mx-auto max-w-3xl p-6">
         <div className="rounded-xl border border-zinc-200 p-6">
           <h1 className="text-xl font-semibold">No se pudo abrir el enlace</h1>
-          <p className="mt-2 text-sm text-zinc-700">{err}</p>
+          <p className="mt-2 text-sm text-zinc-700">{loadErr}</p>
           <p className="mt-3 text-sm text-zinc-600">
             Este enlace puede haber vencido o haber sido reemplazado por un reenvío. Pedile al creador del documento que
             te reenvíe la invitación.
@@ -221,7 +245,7 @@ export default function SignPage() {
 
   if (!preview) return <div className="mx-auto max-w-3xl p-6 text-sm text-zinc-600">Link inválido.</div>;
 
-  const pdfOk = Boolean(preview.pdfUrl); // acepta relativo
+  const pdfOk = Boolean(preview.pdfUrl);
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10">
@@ -354,8 +378,6 @@ export default function SignPage() {
               </div>
 
               <div className="mt-2 rounded-md border border-zinc-200 overflow-hidden">
-                {/* Nota: los types de react-signature-canvas a veces no incluyen "onEnd".
-                   Lo pasamos como any para no romper el build en Vercel. */}
                 <SignatureCanvas
                   ref={sigRef}
                   penColor="black"
@@ -368,8 +390,17 @@ export default function SignPage() {
                 />
               </div>
 
-              <div className="mt-2 text-xs text-zinc-600">{sigDirty ? "✅ Firma capturada" : "Dibujá tu firma en el recuadro."}</div>
+              <div className="mt-2 text-xs text-zinc-600">
+                {sigDirty ? "✅ Firma capturada" : "Dibujá tu firma en el recuadro."}
+              </div>
             </div>
+
+            {/* ✅ errores de acción acá (no pantalla de link inválido) */}
+            {actionErr ? (
+              <div className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+                {actionErr}
+              </div>
+            ) : null}
 
             {ok ? (
               <div className="mt-4 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
