@@ -15,7 +15,10 @@ export default function InvitePanel({
 }) {
   const [mode, setMode] = useState<"parallel" | "sequential">(currentMode);
   const [expiresInDays, setExpiresInDays] = useState(3);
-  const [includeMe, setIncludeMe] = useState(true);
+
+  // ✅ debe iniciar desmarcado
+  const [includeMe, setIncludeMe] = useState(false);
+
   const [signers, setSigners] = useState<SignerInput[]>([{ email: "" }]);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -51,14 +54,12 @@ export default function InvitePanel({
           documentId,
           signingMode: mode,
           expiresInDays,
-          signers: [
-            ...(includeMe ? [{ email: currentUserEmail }] : []),
-            ...signers,
-          ].filter((s) => s.email.trim().includes("@")),
+          signers: [...(includeMe ? [{ email: currentUserEmail }] : []), ...signers].filter((s) =>
+            s.email.trim().includes("@")
+          ),
         }),
       });
 
-      // ✅ Si no existe todavía, mensaje claro
       if (res.status === 404) {
         setMsg("La asignación de firmantes todavía no está implementada (próximamente).");
         return;
@@ -136,11 +137,7 @@ export default function InvitePanel({
                 {mode === "sequential" ? ` (orden ${i + 1})` : ""}
               </div>
               {signers.length > 1 ? (
-                <button
-                  type="button"
-                  className="text-xs text-zinc-600 hover:text-zinc-900"
-                  onClick={() => removeRow(i)}
-                >
+                <button type="button" className="text-xs text-zinc-600 hover:text-zinc-900" onClick={() => removeRow(i)}>
                   Quitar
                 </button>
               ) : null}
@@ -153,19 +150,13 @@ export default function InvitePanel({
                 value={s.email}
                 onChange={(e) => update(i, "email", e.target.value)}
               />
-              <div className="text-xs text-zinc-600 md:col-span-2">
-                Los datos del firmante se pedirán al momento de firmar.
-              </div>
+              <div className="text-xs text-zinc-600 md:col-span-2">Los datos del firmante se pedirán al momento de firmar.</div>
             </div>
           </div>
         ))}
 
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            className="rounded-md border border-zinc-200 px-3 py-1.5 text-sm"
-            onClick={addRow}
-          >
+          <button type="button" className="rounded-md border border-zinc-200 px-3 py-1.5 text-sm" onClick={addRow}>
             + Agregar firmante
           </button>
           {msg ? <div className="text-sm text-zinc-700">{msg}</div> : null}

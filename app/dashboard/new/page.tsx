@@ -38,7 +38,10 @@ export default async function DashboardNewPage() {
           <Link href="/dashboard" className="rounded-md border border-zinc-200 px-4 py-2 text-sm font-medium">
             Volver
           </Link>
-          <Link href="/profile?next=/dashboard/new" className="rounded-md border border-zinc-200 px-4 py-2 text-sm font-medium">
+          <Link
+            href="/profile?next=/dashboard/new"
+            className="rounded-md border border-zinc-200 px-4 py-2 text-sm font-medium"
+          >
             Mis datos
           </Link>
           {showAdmin ? (
@@ -70,14 +73,7 @@ export default async function DashboardNewPage() {
             <label className="mb-1 block text-sm font-medium">Archivo PDF</label>
 
             {/* input real oculto */}
-            <input
-              id="pdfFile"
-              name="file"
-              type="file"
-              accept="application/pdf"
-              required
-              className="hidden"
-            />
+            <input id="pdfFile" name="file" type="file" accept="application/pdf" required className="hidden" />
 
             {/* botón visible */}
             <div className="flex items-center gap-3">
@@ -88,17 +84,16 @@ export default async function DashboardNewPage() {
               >
                 Elegir PDF…
               </button>
-              <span id="fileName" className="text-sm text-zinc-600">Ningún archivo seleccionado</span>
+              <span id="fileName" className="text-sm text-zinc-600">
+                Ningún archivo seleccionado
+              </span>
             </div>
 
             <p className="mt-1 text-xs text-zinc-500">Solo PDF. Tamaño recomendado: hasta 10–20 MB.</p>
           </div>
 
           <div className="flex items-center gap-3 pt-2">
-            <button
-              type="submit"
-              className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white"
-            >
+            <button type="submit" className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white">
               Subir y crear documento
             </button>
             <span id="uploadStatus" className="text-sm text-zinc-600" />
@@ -110,47 +105,66 @@ export default async function DashboardNewPage() {
         dangerouslySetInnerHTML={{
           __html: `
 (function() {
-  const form = document.getElementById('uploadForm');
-  const status = document.getElementById('uploadStatus');
-  const pickBtn = document.getElementById('pickFileBtn');
-  const fileInput = document.getElementById('pdfFile');
-  const fileName = document.getElementById('fileName');
-
-  if (pickBtn && fileInput) {
-    pickBtn.addEventListener('click', () => fileInput.click());
-    fileInput.addEventListener('change', () => {
-      const f = fileInput.files && fileInput.files[0];
-      fileName.textContent = f ? f.name : 'Ningún archivo seleccionado';
-    });
+  function ready(fn) {
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', fn);
+    else fn();
   }
 
-  if (!form) return;
+  ready(() => {
+    const form = document.getElementById('uploadForm');
+    const status = document.getElementById('uploadStatus');
+    const pickBtn = document.getElementById('pickFileBtn');
+    const fileInput = document.getElementById('pdfFile');
+    const fileName = document.getElementById('fileName');
 
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    status.textContent = 'Subiendo...';
+    if (pickBtn && fileInput) {
+      const openPicker = () => {
+        try { fileInput.click(); } catch (_) {}
+      };
 
-    const fd = new FormData(form);
-    // aseguramos que el File venga del input oculto
-    if (fileInput && fileInput.files && fileInput.files[0]) {
-      fd.set('file', fileInput.files[0]);
+      // ✅ robusto: algunos browsers fallan con click, pointerdown es más confiable
+      pickBtn.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        openPicker();
+      });
+      pickBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        openPicker();
+      });
+
+      fileInput.addEventListener('change', () => {
+        const f = fileInput.files && fileInput.files[0];
+        if (fileName) fileName.textContent = f ? f.name : 'Ningún archivo seleccionado';
+      });
     }
 
-    try {
-      const r = await fetch('/api/documents/upload', { method: 'POST', body: fd });
-      const j = await r.json().catch(() => ({}));
+    if (!form) return;
 
-      if (!r.ok) {
-        status.textContent = j?.error || 'No se pudo subir el PDF.';
-        return;
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (status) status.textContent = 'Subiendo...';
+
+      const fd = new FormData(form);
+      if (fileInput && fileInput.files && fileInput.files[0]) {
+        fd.set('file', fileInput.files[0]);
       }
 
-      status.textContent = 'Listo. Redirigiendo...';
-      if (j?.documentId) window.location.href = '/dashboard/doc/' + j.documentId;
-      else window.location.href = '/dashboard';
-    } catch (err) {
-      status.textContent = 'Error de red al subir.';
-    }
+      try {
+        const r = await fetch('/api/documents/upload', { method: 'POST', body: fd });
+        const j = await r.json().catch(() => ({}));
+
+        if (!r.ok) {
+          if (status) status.textContent = j?.error || 'No se pudo subir el PDF.';
+          return;
+        }
+
+        if (status) status.textContent = 'Listo. Redirigiendo...';
+        if (j?.documentId) window.location.href = '/dashboard/doc/' + j.documentId;
+        else window.location.href = '/dashboard';
+      } catch (err) {
+        if (status) status.textContent = 'Error de red al subir.';
+      }
+    });
   });
 })();
           `,
