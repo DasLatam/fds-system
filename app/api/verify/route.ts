@@ -8,6 +8,12 @@ function bad(msg: string, code = 400) {
   return NextResponse.json({ ok: false, error: msg }, { status: code });
 }
 
+function getIp(req: Request) {
+  const xf = req.headers.get("x-forwarded-for") || "";
+  const ip = xf.split(",")[0]?.trim();
+  return ip || req.headers.get("x-real-ip")?.trim() || "unknown";
+}
+
 export async function POST(req: Request) {
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
     return bad("Server misconfigured", 500);
@@ -30,6 +36,9 @@ export async function POST(req: Request) {
   if (!audit_code) return bad("Missing audit_code");
   if (!/^[a-f0-9]{64}$/.test(sha256)) return bad("Invalid sha256");
 
+  const ip = getIp(req);
+  const userAgent = req.headers.get("user-agent") || "";
+
   // 1) Buscar documento por audit_code
   const { data: doc, error: docErr } = await supabase
     .from("documents")
@@ -38,9 +47,28 @@ export async function POST(req: Request) {
     .maybeSingle();
 
   if (docErr) return bad("DB error", 500);
-  if (!doc) return bad("Código inválido", 404);
+  if (!doc) {
+    // métrica igual (código inválido)
+    await supabase.from("verification_events").insert({
+      audit_code,
+      match: null,
+      provided_sha256: sha256,
+      ip,
+      user_agent: userAgent,
+    });
+    return bad("Código inválido", 404);
+  }
 
   if (doc.status !== "signed") {
+    // métrica (documento no finalizado)
+    await supabase.from("verification_events").insert({
+      audit_code,
+      match: false,
+      provided_sha256: sha256,
+      ip,
+      user_agent: userAgent,
+    });
+
     return NextResponse.json({
       ok: true,
       match: false,
@@ -55,6 +83,13 @@ export async function POST(req: Request) {
   }
 
   if (!doc.final_hash_sha256) {
+    await supabase.from("verification_events").insert({
+      audit_code,
+      match: null,
+      provided_sha256: sha256,
+      ip,
+      user_agent: userAgent,
+    });
     return bad("Documento sin hash final (backfill pendiente)", 500);
   }
 
@@ -69,8 +104,16 @@ export async function POST(req: Request) {
 
   const match = sha256 === String(doc.final_hash_sha256).toLowerCase();
 
-  // 3) Auditar verificación pública (opcional pero recomendado)
-  // Si querés, podés guardar IP/UA; acá lo dejamos simple.
+  // 3) Métrica dedicada (nuevo)
+  await supabase.from("verification_events").insert({
+    audit_code,
+    match,
+    provided_sha256: sha256,
+    ip,
+    user_agent: userAgent,
+  });
+
+  // 4) Mantener audit_events (lo que ya tenías)
   await supabase.from("audit_events").insert({
     document_id: doc.id,
     event_type: "pdf_viewed",
@@ -85,7 +128,7 @@ export async function POST(req: Request) {
       completed_at: doc.completed_at,
       audit_code: doc.audit_code,
       status: doc.status,
-      final_hash_sha256: doc.final_hash_sha256, // si preferís no devolverlo, lo sacamos
+      final_hash_sha256: doc.final_hash_sha256, // si preferís no devolverlo, lo sacamos luego
     },
     signers: (signers || []).map((s: any) => ({
       full_name: s.signer_full_name,
