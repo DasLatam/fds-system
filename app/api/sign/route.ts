@@ -187,22 +187,6 @@ async function generateFinalPdfBytes(params: {
       borderColor: rgb(0.85, 0.85, 0.88),
     });
 
-    sigPage.drawText(`${s.full_name || "Firmante"}`, {
-      x: 36,
-      y: y + sigH + 18,
-      size: 10,
-      font,
-      color: rgb(0.2, 0.2, 0.2),
-    });
-
-    sigPage.drawText(`DNI: ${s.dni}`, {
-      x: 36,
-      y: y + sigH + 4,
-      size: 10,
-      font,
-      color: rgb(0.2, 0.2, 0.2),
-    });
-
     sigPage.drawImage(png, {
       x: 36,
       y,
@@ -210,20 +194,31 @@ async function generateFinalPdfBytes(params: {
       height: sigH,
     });
 
-    y -= sigH + 70;
+    // ✅ aclaración debajo de la firma (evita montarse con cabecera)
+    const labelY1 = y - 14;
+
+    const labelY2 = y - 28;
+
+    sigPage.drawText(`${s.full_name || "Firmante"}`, {
+      x: 36,
+      y: labelY1,
+      size: 10,
+      font,
+      color: rgb(0.2, 0.2, 0.2),
+    });
+
+    sigPage.drawText(`DNI: ${s.dni}`, {
+      x: 36,
+      y: labelY2,
+      size: 10,
+      font,
+      color: rgb(0.2, 0.2, 0.2),
+    });
+
+    // ✅ dejamos más aire porque ahora hay 2 líneas abajo
+    y -= sigH + 90;
     if (y < 80) break;
   }
-
-  const footer = `Marca Electrónica FES • Doc ${documentId
-    .slice(0, 8)
-    .toUpperCase()} • Código ${auditCode}`;
-  sigPage.drawText(footer, {
-    x: 36,
-    y: 18,
-    size: 8,
-    font,
-    color: rgb(0.35, 0.35, 0.35),
-  });
 
   // ✅ QR de verificación pública (/v/<audit_code>)
   try {
@@ -240,6 +235,18 @@ async function generateFinalPdfBytes(params: {
     sigPage.drawImage(qrImg, { x: qrX, y: qrY, width: qrSize, height: qrSize });
   } catch {
     // si falla el QR, no bloquea la firma
+  }
+
+  // ✅ Marca electrónica en TODAS las páginas (incluye las originales y la constancia)
+  const stamp = `Marca Electrónica FES • Doc ${documentId.slice(0, 8).toUpperCase()} • Código ${auditCode}`;
+  for (const p of pdfDoc.getPages()) {
+    p.drawText(stamp, {
+      x: 36,
+      y: 18,
+      size: 8,
+      font,
+      color: rgb(0.35, 0.35, 0.35),
+    });
   }
 
   const finalBytes = await pdfDoc.save();
@@ -316,27 +323,27 @@ export async function POST(req: NextRequest) {
     const nowIso = new Date().toISOString();
 
     const updSr = await admin
-  .from("signing_requests")
-  .update({
-    status: "signed",
-    signed_at: nowIso,
-    signature_path: signaturePath,
-    signer_full_name: body.signer.fullName,
-    signer_dni: body.signer.dni,
-    signer_cuil: body.signer.cuil,
-    signer_address: body.signer.address,
-    signer_phone: body.signer.phone,
+      .from("signing_requests")
+      .update({
+        status: "signed",
+        signed_at: nowIso,
+        signature_path: signaturePath,
+        signer_full_name: body.signer.fullName,
+        signer_dni: body.signer.dni,
+        signer_cuil: body.signer.cuil,
+        signer_address: body.signer.address,
+        signer_phone: body.signer.phone,
 
-    // ✅ columnas reales en DB
-    consented_at: nowIso,
-    consent_text_version: "v1",
+        // ✅ columnas reales en DB
+        consented_at: nowIso,
+        consent_text_version: "v1",
 
-    signer_ip: ip,
-    signer_user_agent: userAgent,
-  })
-  .eq("id", sr.id)
-  .select("id, status, signed_at")
-  .maybeSingle();
+        signer_ip: ip,
+        signer_user_agent: userAgent,
+      })
+      .eq("id", sr.id)
+      .select("id, status, signed_at")
+      .maybeSingle();
 
     if (updSr.error) {
       return NextResponse.json({ error: "Failed to update signer status" }, { status: 500 });
