@@ -14,7 +14,7 @@ async function sendResendEmail(opts: { to: string[]; subject: string; html: stri
   const to = opts.to;
 
   const res = await resend.emails.send({
-    from: process.env.RESEND_FROM!,
+    from: "Firma Electrónica Simple <no-reply@firmasimple.com>",
     to,
     subject: opts.subject,
     html: opts.html,
@@ -359,6 +359,8 @@ export async function POST(req: NextRequest) {
 
       const finalBytes = await originalPdf.save();
       const finalHashSha256 = sha256Hex(finalBytes);
+
+      const finalHashSha256 = finalHashSha256; // alias para mantener nombres usados abajo
 
       const finalPath = `${doc.original_path.split("/")[0]}/${documentId}/final/final.pdf`;
 

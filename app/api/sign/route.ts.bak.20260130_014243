@@ -14,7 +14,7 @@ async function sendResendEmail(opts: { to: string[]; subject: string; html: stri
   const to = opts.to;
 
   const res = await resend.emails.send({
-    from: process.env.RESEND_FROM!,
+    from: (process.env.RESEND_FROM || "Firma Electrónica Simple <onboarding@resend.dev>"),
     to,
     subject: opts.subject,
     html: opts.html,
