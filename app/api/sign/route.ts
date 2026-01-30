@@ -246,7 +246,7 @@ export async function POST(req: NextRequest) {
 
       // Hash final (se calcula del PDF final, luego de generar)
       // Armado PDF final: marca en todas las páginas + constancia + QR
-      const originalPdf = await PDFDocument.load(originalBytes);
+      const originalPdf = await PDFDocument.load(originalBytes, { ignoreEncryption: true });
 
       const font = await originalPdf.embedFont(StandardFonts.Helvetica);
       const fontBold = await originalPdf.embedFont(StandardFonts.HelveticaBold);
