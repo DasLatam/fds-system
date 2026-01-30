@@ -360,8 +360,6 @@ export async function POST(req: NextRequest) {
       const finalBytes = await originalPdf.save();
       const finalHashSha256 = sha256Hex(finalBytes);
 
-      const finalHashSha256 = finalHashSha256; // alias para mantener nombres usados abajo
-
       const finalPath = `${doc.original_path.split("/")[0]}/${documentId}/final/final.pdf`;
 
       const upFinal = await admin.storage.from("fds").upload(finalPath, finalBytes, {
