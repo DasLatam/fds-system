@@ -197,15 +197,6 @@ export async function POST(req: NextRequest) {
     // 7) Ver si hay que finalizar (si ya firmaron todos)
     const total = Number(doc.total_signers ?? 0);
     const shouldFinalize = total > 0 && inc >= total;
-
-
-    await logAuditBasic(admin, {
-      document_id: documentId,
-      event_type: shouldFinalize ? "sign_should_finalize_true" : "sign_should_finalize_false",
-      actor_email: sr?.email ? String(sr.email) : null,
-    });
-
-
     if (shouldFinalize) {
       // Re-cargar documento actualizado + firmantes para generar PDF final
       const doc2Res = await admin
