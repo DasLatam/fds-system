@@ -108,6 +108,15 @@ export async function POST(req: NextRequest) {
     }
 
     const admin = createAdminClient();
+
+
+    // DEBUG-AUDIT: confirmar que /api/sign se ejecuta en prod
+    await logAuditBasic(admin, {
+      document_id: String(sr?.document_id || "00000000-0000-0000-0000-000000000000"),
+      event_type: "sign_api_hit",
+      actor_email: sr?.email ? String(sr.email) : null,
+    });
+
     const nowIso = new Date().toISOString();
 
     // 1) Buscar signing_request por token
@@ -197,6 +206,14 @@ export async function POST(req: NextRequest) {
     // 7) Ver si hay que finalizar (si ya firmaron todos)
     const total = Number(doc.total_signers ?? 0);
     const shouldFinalize = total > 0 && inc >= total;
+
+
+    await logAuditBasic(admin, {
+      document_id: documentId,
+      event_type: shouldFinalize ? "sign_should_finalize_true" : "sign_should_finalize_false",
+      actor_email: sr?.email ? String(sr.email) : null,
+    });
+
 
     if (shouldFinalize) {
       // Re-cargar documento actualizado + firmantes para generar PDF final
