@@ -34,3 +34,7 @@ pnpm-debug.log*
 # misc
 *.pem
 EOF
+
+# FES: artifacts temporales (no deben ir al build)
+tmp/
+.tmp/
