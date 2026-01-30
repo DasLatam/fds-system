@@ -13,6 +13,11 @@ function normalizeEmail(v: unknown): string {
   return s.trim().toLowerCase();
 }
 
+function normalizeText(v: unknown): string {
+  const s = typeof v === "string" ? v : "";
+  return s.trim();
+}
+
 function getAdminEmailsFromEnv(): string[] {
   const raw = process.env.FES_ADMIN_EMAILS || "";
   return raw
@@ -92,11 +97,12 @@ export default async function AdminPage({
   const view = parseView(sp.view);
   const days = parseDays(sp.days);
   const status = parseStatus(sp.status);
-  const q = normalizeEmail(typeof sp.q === "string" ? sp.q : "");
+  const q = normalizeText(typeof sp.q === "string" ? sp.q : "");
 
-  // Auth (usuario logueado por magic link)
   const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   if (!user) redirect("/login?next=/admin");
 
@@ -132,20 +138,14 @@ export default async function AdminPage({
     );
   }
 
-  // Admin client (service role) para ver TODO
   const admin = createAdminClient();
 
   const since = sinceIso(days);
 
-  // -------- Overview metrics --------
   async function countDocs(filter: { status?: Status; since?: string | null }) {
     let query = admin.from("documents").select("*", { count: "exact", head: true });
-    if (filter.status && filter.status !== "all") {
-      query = query.eq("status", filter.status);
-    }
-    if (filter.since) {
-      query = query.gte("created_at", filter.since);
-    }
+    if (filter.status && filter.status !== "all") query = query.eq("status", filter.status);
+    if (filter.since) query = query.gte("created_at", filter.since);
     const { count } = await query;
     return count || 0;
   }
@@ -164,11 +164,10 @@ export default async function AdminPage({
   const verifTotal = await countVerifications({ since });
   const verif7 = await countVerifications({ since: sinceIso("7") });
 
-  // -------- Docs list --------
   async function fetchDocs() {
     let query = admin
       .from("documents")
-      .select("id,title,status,created_at,completed_at,owner_id,signed_count,total_signers")
+      .select("id,title,status,created_at,completed_at,signed_count,total_signers")
       .order("created_at", { ascending: false })
       .limit(50);
 
@@ -180,7 +179,6 @@ export default async function AdminPage({
     return { data: data || [], error: error?.message || null };
   }
 
-  // -------- Verifications list --------
   async function fetchVerifications() {
     let query = admin
       .from("verification_events")
@@ -212,7 +210,6 @@ export default async function AdminPage({
         </a>
       </div>
 
-      {/* Tabs (full reload) */}
       <div className="mt-6 flex flex-wrap gap-2">
         <a className={tab(view === "overview")} href={"/admin" + qs({ ...baseParams, view: "overview" })}>
           Resumen
@@ -225,7 +222,6 @@ export default async function AdminPage({
         </a>
       </div>
 
-      {/* Filters (GET submit, full reload) */}
       <form method="GET" action="/admin" className="mt-6 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
         <input type="hidden" name="view" value={view} />
 
@@ -265,19 +261,18 @@ export default async function AdminPage({
         </div>
       </form>
 
-      {/* Overview cards */}
       {view === "overview" && (
         <div className="mt-6 grid gap-4 md:grid-cols-3">
           <div className={card()}>
             <div className="text-xs font-medium text-zinc-600">Documentos</div>
             <div className="mt-2 text-3xl font-semibold">{docsTotal}</div>
-            <div className="mt-2 text-sm text-zinc-700">
-              Firmados: {docsSigned} · Pendientes: {docsPending}
-            </div>
+            <div className="mt-2 text-sm text-zinc-700">Firmados: {docsSigned} · Pendientes: {docsPending}</div>
           </div>
 
           <div className={card()}>
-            <div className="text-xs font-medium text-zinc-600">Verificaciones ({days === "all" ? "todo" : `${days} días`})</div>
+            <div className="text-xs font-medium text-zinc-600">
+              Verificaciones ({days === "all" ? "todo" : `${days} días`})
+            </div>
             <div className="mt-2 text-3xl font-semibold">{verifTotal}</div>
             <div className="mt-2 text-sm text-zinc-700">Últimos 7 días: {verif7}</div>
           </div>
@@ -285,12 +280,11 @@ export default async function AdminPage({
           <div className={card()}>
             <div className="text-xs font-medium text-zinc-600">Usuario</div>
             <div className="mt-2 font-mono text-sm text-zinc-900">{email}</div>
-            <div className="mt-2 text-xs text-zinc-600">Acceso controlado por FES_ADMIN_EMAILS</div>
+            <div className="mt-2 text-xs text-zinc-600">Acceso por FES_ADMIN_EMAILS</div>
           </div>
         </div>
       )}
 
-      {/* Docs view */}
       {view === "docs" && (
         <div className="mt-6 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between">
@@ -348,7 +342,6 @@ export default async function AdminPage({
         </div>
       )}
 
-      {/* Verifications view */}
       {view === "verifications" && (
         <div className="mt-6 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between">
@@ -367,9 +360,8 @@ export default async function AdminPage({
               <thead className="text-left text-xs text-zinc-600">
                 <tr>
                   <th className="py-2">Fecha</th>
-                  <th className="py-2">Resultado</th>
-                  <th className="py-2">Documento</th>
                   <th className="py-2">Audit</th>
+                  <th className="py-2">Resultado</th>
                   <th className="py-2">Raw</th>
                 </tr>
               </thead>
@@ -377,9 +369,8 @@ export default async function AdminPage({
                 {verRes.data.map((v: any, idx: number) => (
                   <tr key={v.id ?? idx} className="border-t border-zinc-100">
                     <td className="py-2">{fmtDate(v.created_at)}</td>
-                    <td className="py-2">{String(v.result ?? v.is_match ?? v.match ?? "—")}</td>
-                    <td className="py-2 font-mono text-xs text-zinc-600">{String(v.document_id ?? "—")}</td>
                     <td className="py-2 font-mono text-xs text-zinc-600">{String(v.audit_code ?? v.code ?? "—")}</td>
+                    <td className="py-2">{String(v.match ?? v.result ?? v.is_match ?? "—")}</td>
                     <td className="py-2">
                       <details className="text-xs text-zinc-700">
                         <summary className="cursor-pointer select-none">ver</summary>
@@ -392,7 +383,7 @@ export default async function AdminPage({
                 ))}
                 {verRes.data.length === 0 && (
                   <tr>
-                    <td className="py-6 text-sm text-zinc-600" colSpan={5}>
+                    <td className="py-6 text-sm text-zinc-600" colSpan={4}>
                       Sin resultados en este rango.
                     </td>
                   </tr>
