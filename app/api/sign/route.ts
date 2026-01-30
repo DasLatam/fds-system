@@ -38,6 +38,25 @@ function isValidEmail(v?: string | null) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
 }
 
+async function logAuditBasic(
+  admin: any,
+  evt: { document_id: string; event_type: string; actor_email?: string | null }
+) {
+  try {
+    const r = await admin.from("audit_events").insert({
+      document_id: evt.document_id,
+      event_type: evt.event_type,
+      actor_email: evt.actor_email ?? null,
+    });
+    if (r?.error) {
+      console.error("audit_events insert failed:", evt.event_type, r.error);
+    }
+  } catch (e) {
+    console.error("audit_events insert failed:", evt.event_type, e);
+  }
+}
+
+
 function getIp(req: NextRequest) {
   const xf = req.headers.get("x-forwarded-for");
   if (xf) return xf.split(",")[0].trim();
