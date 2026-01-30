@@ -64,16 +64,6 @@ function randomAuditCode() {
   return crypto.randomBytes(6).toString("hex").toUpperCase();
 }
 
-function normalizeEmail(v: unknown): string {
-  return String(v || "").trim().toLowerCase();
-}
-
-function isValidEmail(email: string): boolean {
-  // simple + robusto para Resend (evita espacios y valores no-email)
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-}
-
-
 async function downloadBytes(admin: any, bucket: string, path: string) {
   const dl = await admin.storage.from(bucket).download(path);
   if (dl.error || !dl.data) throw new Error("Failed to download file");
@@ -350,8 +340,9 @@ export async function POST(req: NextRequest) {
           )
         );
 
-        const rawRecipients = [createdByEmail, ...signerEmails].map(normalizeEmail).filter(Boolean);
-        const recipients = Array.from(new Set(rawRecipients)).filter(isValidEmail);
+        const recipients = Array.from(
+          new Set([createdByEmail, ...signerEmails].map((e) => String(e || "").trim().toLowerCase()).filter(Boolean))
+        );
 
         if (recipients.length > 0) {
           // link de descarga (signed url por 7 días)
@@ -408,18 +399,8 @@ export async function POST(req: NextRequest) {
             await admin.from("audit_events").insert({
               document_id: documentId,
               event_type: "completion_email_sent",
-              actor_email: isValidEmail(createdByEmail) ? createdByEmail : null,
+              actor_email: createdByEmail || null,
               payload: { to: recipients, subject, resend_id: (sent as any)?.id || null },
-            });
-          } catch {}
-        } else {
-          // Auditoría: no había destinatarios válidos (ej: created_by no es email)
-          try {
-            await admin.from("audit_events").insert({
-              document_id: documentId,
-              event_type: "completion_email_failed",
-              actor_email: null,
-              payload: { error: "No valid recipients to send completion email", rawRecipients },
             });
           } catch {}
         }
