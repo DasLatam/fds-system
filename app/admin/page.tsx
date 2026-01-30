@@ -2,7 +2,6 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isOwnerEmail } from "@/lib/security/owner";
 
 export const dynamic = "force-dynamic";
 
@@ -14,8 +13,13 @@ function fmt(n: number) {
   }
 }
 
-function toISO(d: Date) {
+function iso(d: Date) {
   return d.toISOString();
+}
+
+function normEmail(v: unknown): string {
+  if (!v || typeof v !== "string") return "";
+  return v.toLowerCase().trim();
 }
 
 export default async function AdminPage({
@@ -34,7 +38,65 @@ export default async function AdminPage({
   } = await supabase.auth.getUser();
 
   if (!user) redirect("/login");
-  if (!isOwnerEmail(user.email)) redirect("/dashboard");
+
+  // Owner email por ENV (no hardcode en código)
+  const ownerEmail = normEmail(process.env.FES_OWNER_EMAIL);
+
+  // Magic link => user.email debería existir siempre
+  const userEmail = normEmail(user.email);
+
+  // Si no configuraste FES_OWNER_EMAIL, no damos acceso y lo explicamos claramente
+  if (!ownerEmail) {
+    return (
+      <main className="mx-auto max-w-2xl px-4 py-10">
+        <h1 className="text-xl font-semibold">Admin</h1>
+        <p className="mt-2 text-sm text-zinc-700">
+          Admin no está configurado.
+        </p>
+
+        <div className="mt-4 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
+          <div className="text-xs font-medium text-zinc-600">Falta variable de entorno</div>
+          <div className="mt-1 font-mono text-sm text-zinc-900">FES_OWNER_EMAIL</div>
+          <div className="mt-3 text-xs text-zinc-600">
+            Configurá <span className="font-mono">FES_OWNER_EMAIL</span> en Vercel (Production/Preview) y en tu entorno local.
+          </div>
+          <div className="mt-3 text-xs text-zinc-600">
+            Email detectado del usuario actual: <span className="font-mono">{userEmail || "(vacío)"}</span>
+          </div>
+        </div>
+
+        <div className="mt-6">
+          <Link className="text-sm text-blue-700 hover:underline" href="/dashboard">
+            Volver al dashboard
+          </Link>
+        </div>
+      </main>
+    );
+  }
+
+  // Gate owner
+  if (userEmail !== ownerEmail) {
+    return (
+      <main className="mx-auto max-w-2xl px-4 py-10">
+        <h1 className="text-xl font-semibold">Admin</h1>
+        <p className="mt-2 text-sm text-zinc-700">No autorizado.</p>
+
+        <div className="mt-4 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
+          <div className="text-xs font-medium text-zinc-600">Email detectado</div>
+          <div className="mt-1 font-mono text-sm text-zinc-900">{userEmail || "(vacío)"}</div>
+          <div className="mt-3 text-xs text-zinc-600">
+            Tu sesión está OK, pero este usuario no coincide con el owner configurado por <span className="font-mono">FES_OWNER_EMAIL</span>.
+          </div>
+        </div>
+
+        <div className="mt-6">
+          <Link className="text-sm text-blue-700 hover:underline" href="/dashboard">
+            Volver al dashboard
+          </Link>
+        </div>
+      </main>
+    );
+  }
 
   const admin = createAdminClient();
 
@@ -44,14 +106,11 @@ export default async function AdminPage({
   const view = (searchParams?.view || "overview").toLowerCase();
 
   const now = new Date();
-  const d7 = toISO(new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000));
-  const d30 = toISO(new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000));
-
+  const d7 = iso(new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000));
+  const d30 = iso(new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000));
   const sinceISO = days === "7" ? d7 : days === "30" ? d30 : null;
 
-  // =========================
-  // Métricas globales (read-only)
-  // =========================
+  // ===== Métricas =====
   const { count: totalDocsCount } = await admin
     .from("documents")
     .select("id", { head: true, count: "exact" });
@@ -81,33 +140,21 @@ export default async function AdminPage({
 
   const verif30Fail = Math.max(0, (verif30 ?? 0) - (verif30Match ?? 0));
 
-  // =========================
-  // Listado de documentos (con filtros)
-  // =========================
+  // ===== Docs list =====
   let docsQuery = admin
     .from("documents")
-    .select(
-      "id,title,status,created_by,created_at,completed_at,signing_mode,total_signers,signed_count,audit_code,final_path"
-    )
+    .select("id,title,status,created_at,completed_at,total_signers,signed_count,audit_code")
     .order("created_at", { ascending: false })
     .limit(200);
 
   if (sinceISO) docsQuery = docsQuery.gte("created_at", sinceISO);
-
   if (status === "signed") docsQuery = docsQuery.eq("status", "signed");
   if (status === "pending") docsQuery = docsQuery.neq("status", "signed");
-
-  if (q) {
-    // Búsqueda simple por título (ilike)
-    docsQuery = docsQuery.ilike("title", `%${q}%`);
-  }
+  if (q) docsQuery = docsQuery.ilike("title", `%${q}%`);
 
   const { data: docs } = await docsQuery;
 
-  // =========================
-  // Verificaciones recientes (simple)
-  // OJO: selecciono campos mínimos para no romper si tu schema cambia
-  // =========================
+  // ===== Verifications list =====
   let verQuery = admin
     .from("verification_events")
     .select("id,audit_code,match,created_at")
@@ -115,14 +162,11 @@ export default async function AdminPage({
     .limit(200);
 
   if (sinceISO) verQuery = verQuery.gte("created_at", sinceISO);
-
   const { data: verifs } = await verQuery;
 
   const mkHref = (p: Record<string, string>) => {
     const sp = new URLSearchParams();
-    for (const [k, v] of Object.entries(p)) {
-      if (v) sp.set(k, v);
-    }
+    for (const [k, v] of Object.entries(p)) if (v) sp.set(k, v);
     return `/admin?${sp.toString()}`;
   };
 
@@ -131,25 +175,20 @@ export default async function AdminPage({
       ? "rounded-md bg-zinc-900 px-3 py-1.5 text-sm text-white"
       : "rounded-md border border-zinc-200 px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50";
 
-  const card =
-    "rounded-xl border border-zinc-200 bg-white p-4 shadow-sm";
+  const card = "rounded-xl border border-zinc-200 bg-white p-4 shadow-sm";
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-6">
       <div className="mb-4 flex items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold">Admin</h1>
-          <p className="text-sm text-zinc-600">Acceso restringido (owner)</p>
+          <p className="text-sm text-zinc-600">Read-only (owner)</p>
         </div>
-
-        <div className="flex items-center gap-2">
-          <Link href="/dashboard" className="text-sm text-zinc-700 hover:text-zinc-900">
-            Volver al dashboard
-          </Link>
-        </div>
+        <Link href="/dashboard" className="text-sm text-zinc-700 hover:text-zinc-900">
+          Volver al dashboard
+        </Link>
       </div>
 
-      {/* Tabs */}
       <div className="mb-5 flex flex-wrap items-center gap-2">
         <Link href={mkHref({ view: "overview", days, status, q })} className={tabClass(view === "overview")}>
           Resumen
@@ -162,35 +201,22 @@ export default async function AdminPage({
         </Link>
       </div>
 
-      {/* Filtros */}
       <div className="mb-6 grid gap-3 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm md:grid-cols-3">
         <div>
           <div className="mb-1 text-xs font-medium text-zinc-700">Rango</div>
           <div className="flex gap-2">
-            <Link href={mkHref({ view, days: "7", status, q })} className={tabClass(days === "7")}>
-              7 días
-            </Link>
-            <Link href={mkHref({ view, days: "30", status, q })} className={tabClass(days === "30")}>
-              30 días
-            </Link>
-            <Link href={mkHref({ view, days: "all", status, q })} className={tabClass(days === "all")}>
-              Todo
-            </Link>
+            <Link href={mkHref({ view, days: "7", status, q })} className={tabClass(days === "7")}>7 días</Link>
+            <Link href={mkHref({ view, days: "30", status, q })} className={tabClass(days === "30")}>30 días</Link>
+            <Link href={mkHref({ view, days: "all", status, q })} className={tabClass(days === "all")}>Todo</Link>
           </div>
         </div>
 
         <div>
           <div className="mb-1 text-xs font-medium text-zinc-700">Estado docs</div>
           <div className="flex gap-2">
-            <Link href={mkHref({ view, days, status: "all", q })} className={tabClass(status === "all")}>
-              Todos
-            </Link>
-            <Link href={mkHref({ view, days, status: "pending", q })} className={tabClass(status === "pending")}>
-              Pendientes
-            </Link>
-            <Link href={mkHref({ view, days, status: "signed", q })} className={tabClass(status === "signed")}>
-              Firmados
-            </Link>
+            <Link href={mkHref({ view, days, status: "all", q })} className={tabClass(status === "all")}>Todos</Link>
+            <Link href={mkHref({ view, days, status: "pending", q })} className={tabClass(status === "pending")}>Pendientes</Link>
+            <Link href={mkHref({ view, days, status: "signed", q })} className={tabClass(status === "signed")}>Firmados</Link>
           </div>
         </div>
 
@@ -213,7 +239,6 @@ export default async function AdminPage({
         </div>
       </div>
 
-      {/* Resumen */}
       {view === "overview" && (
         <section className="grid gap-3 md:grid-cols-3">
           <div className={card}>
@@ -239,26 +264,9 @@ export default async function AdminPage({
             <div className="mt-2 text-2xl font-semibold">{fmt(verif7 ?? 0)}</div>
             <div className="mt-1 text-sm text-zinc-600">Actividad reciente de verificación</div>
           </div>
-
-          <div className="md:col-span-3">
-            <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
-              <div className="mb-2 flex items-center justify-between">
-                <div className="text-sm font-semibold">Accesos rápidos</div>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Link href={mkHref({ view: "docs", days, status, q })} className={tabClass(false)}>
-                  Ver documentos
-                </Link>
-                <Link href={mkHref({ view: "verifications", days, status, q })} className={tabClass(false)}>
-                  Ver verificaciones
-                </Link>
-              </div>
-            </div>
-          </div>
         </section>
       )}
 
-      {/* Documentos */}
       {view === "docs" && (
         <section className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
           <div className="mb-3 flex items-center justify-between">
@@ -285,41 +293,26 @@ export default async function AdminPage({
                       <div className="font-medium text-zinc-900">{d.title || "(sin título)"}</div>
                       <div className="text-xs text-zinc-600">{d.id}</div>
                       <div className="mt-1 flex flex-wrap gap-2">
-                        <Link
-                          href={`/dashboard/doc/${d.id}`}
-                          className="text-xs text-blue-700 hover:underline"
-                        >
-                          Abrir (como dueño)
+                        <Link href={`/dashboard/doc/${d.id}`} className="text-xs text-blue-700 hover:underline">
+                          Abrir
                         </Link>
                         {d.audit_code ? (
-                          <Link
-                            href={`/v/${d.audit_code}`}
-                            className="text-xs text-blue-700 hover:underline"
-                            target="_blank"
-                          >
+                          <Link href={`/v/${d.audit_code}`} className="text-xs text-blue-700 hover:underline" target="_blank">
                             Verificar
                           </Link>
                         ) : null}
                       </div>
                     </td>
                     <td className="py-2 pr-3">
-                      <span className="rounded-full border border-zinc-200 px-2 py-0.5 text-xs">
-                        {d.status}
-                      </span>
+                      <span className="rounded-full border border-zinc-200 px-2 py-0.5 text-xs">{d.status}</span>
                     </td>
                     <td className="py-2 pr-3">
                       {fmt(Number(d.signed_count || 0))} / {fmt(Number(d.total_signers || 0))}
                     </td>
                     <td className="py-2 pr-3">{d.created_at ? new Date(d.created_at).toLocaleString("es-AR") : "-"}</td>
+                    <td className="py-2 pr-3">{d.completed_at ? new Date(d.completed_at).toLocaleString("es-AR") : "-"}</td>
                     <td className="py-2 pr-3">
-                      {d.completed_at ? new Date(d.completed_at).toLocaleString("es-AR") : "-"}
-                    </td>
-                    <td className="py-2 pr-3">
-                      {d.audit_code ? (
-                        <code className="text-xs text-zinc-700">{d.audit_code}</code>
-                      ) : (
-                        <span className="text-xs text-zinc-500">-</span>
-                      )}
+                      {d.audit_code ? <code className="text-xs text-zinc-700">{d.audit_code}</code> : <span className="text-xs text-zinc-500">-</span>}
                     </td>
                   </tr>
                 ))}
@@ -336,7 +329,6 @@ export default async function AdminPage({
         </section>
       )}
 
-      {/* Verificaciones */}
       {view === "verifications" && (
         <section className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
           <div className="mb-3 flex items-center justify-between">
@@ -356,30 +348,18 @@ export default async function AdminPage({
               <tbody>
                 {(verifs || []).map((v: any) => (
                   <tr key={v.id} className="border-b border-zinc-100">
-                    <td className="py-2 pr-3">
-                      {v.created_at ? new Date(v.created_at).toLocaleString("es-AR") : "-"}
-                    </td>
-                    <td className="py-2 pr-3">
-                      <code className="text-xs text-zinc-700">{v.audit_code}</code>
-                    </td>
+                    <td className="py-2 pr-3">{v.created_at ? new Date(v.created_at).toLocaleString("es-AR") : "-"}</td>
+                    <td className="py-2 pr-3"><code className="text-xs text-zinc-700">{v.audit_code}</code></td>
                     <td className="py-2 pr-3">
                       {v.match === true ? (
-                        <span className="rounded-full bg-green-50 px-2 py-0.5 text-xs text-green-700">
-                          MATCH
-                        </span>
+                        <span className="rounded-full bg-green-50 px-2 py-0.5 text-xs text-green-700">MATCH</span>
                       ) : (
-                        <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs text-red-700">
-                          FAIL
-                        </span>
+                        <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs text-red-700">FAIL</span>
                       )}
                     </td>
                     <td className="py-2 pr-3">
                       {v.audit_code ? (
-                        <Link
-                          href={`/v/${v.audit_code}`}
-                          className="text-xs text-blue-700 hover:underline"
-                          target="_blank"
-                        >
+                        <Link href={`/v/${v.audit_code}`} className="text-xs text-blue-700 hover:underline" target="_blank">
                           Abrir verificación
                         </Link>
                       ) : (
