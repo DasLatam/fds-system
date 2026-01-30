@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { isProfileComplete } from "@/lib/security/profile";
 import InvitePanel from "./invite-panel";
 
@@ -12,6 +13,14 @@ function formatDate(iso?: string | null) {
     return new Date(iso).toLocaleString();
   } catch {
     return iso;
+  }
+}
+
+function fmt(n: number) {
+  try {
+    return new Intl.NumberFormat("es-AR").format(n);
+  } catch {
+    return String(n);
   }
 }
 
@@ -42,7 +51,9 @@ export default async function DocumentPage({
   const { id } = await params;
 
   const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
   const { data: profile } = await supabase
@@ -70,7 +81,7 @@ export default async function DocumentPage({
 
   const { data: doc, error: docErr } = await supabase
     .from("documents")
-    .select("id,title,status,signing_mode,total_signers,signed_count,created_at,completed_at")
+    .select("id,title,status,signing_mode,total_signers,signed_count,created_at,completed_at,audit_code,final_hash_sha256")
     .eq("id", id)
     .maybeSingle();
 
@@ -103,6 +114,69 @@ export default async function DocumentPage({
     .order("created_at", { ascending: false })
     .limit(25);
 
+  // =========================
+  // Métricas (verificación pública)
+  // =========================
+  const admin = createAdminClient();
+  const auditCode = (doc as any).audit_code as string | null;
+
+  let verifTotal = 0;
+  let verifMatch = 0;
+  let verifFail = 0;
+  let verif7 = 0;
+  let verif30 = 0;
+  let lastVerificationAt: string | null = null;
+
+  const now = new Date();
+  const d7 = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const d30 = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+
+  if (auditCode) {
+    const { count: cAll } = await admin
+      .from("verification_events")
+      .select("id", { head: true, count: "exact" })
+      .eq("audit_code", auditCode);
+    verifTotal = cAll ?? 0;
+
+    const { count: cOk } = await admin
+      .from("verification_events")
+      .select("id", { head: true, count: "exact" })
+      .eq("audit_code", auditCode)
+      .eq("match", true);
+    verifMatch = cOk ?? 0;
+
+    const { count: cNo } = await admin
+      .from("verification_events")
+      .select("id", { head: true, count: "exact" })
+      .eq("audit_code", auditCode)
+      .eq("match", false);
+    verifFail = cNo ?? 0;
+
+    const { count: c7 } = await admin
+      .from("verification_events")
+      .select("id", { head: true, count: "exact" })
+      .eq("audit_code", auditCode)
+      .gte("created_at", d7);
+    verif7 = c7 ?? 0;
+
+    const { count: c30 } = await admin
+      .from("verification_events")
+      .select("id", { head: true, count: "exact" })
+      .eq("audit_code", auditCode)
+      .gte("created_at", d30);
+    verif30 = c30 ?? 0;
+
+    const { data: last } = await admin
+      .from("verification_events")
+      .select("created_at")
+      .eq("audit_code", auditCode)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    lastVerificationAt = (last as any)?.created_at ?? null;
+  }
+
   return (
     <div className="mx-auto max-w-5xl px-4 py-10">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -122,6 +196,15 @@ export default async function DocumentPage({
             Creado: {formatDate(doc.created_at)}
             {doc.completed_at ? ` · Completado: ${formatDate(doc.completed_at)}` : ""}
           </div>
+
+          {doc.status === "signed" && auditCode ? (
+            <div className="mt-3 text-xs text-zinc-600">
+              Validación pública:{" "}
+              <Link href={`/v/${auditCode}`} className="font-medium text-zinc-900 underline">
+                /v/{auditCode}
+              </Link>
+            </div>
+          ) : null}
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -141,6 +224,43 @@ export default async function DocumentPage({
           ) : null}
         </div>
       </div>
+
+      {/* Métricas */}
+      {doc.status === "signed" && auditCode ? (
+        <div className="mt-8 grid gap-4 lg:grid-cols-4">
+          <div className="rounded-xl border border-zinc-200 p-4">
+            <div className="text-xs text-zinc-500">Verificaciones totales</div>
+            <div className="mt-1 text-2xl font-semibold">{fmt(verifTotal)}</div>
+            <div className="mt-2 text-xs text-zinc-600">
+              {fmt(verifMatch)} OK · {fmt(verifFail)} NO
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-zinc-200 p-4">
+            <div className="text-xs text-zinc-500">Últimos 7 días</div>
+            <div className="mt-1 text-2xl font-semibold">{fmt(verif7)}</div>
+            <div className="mt-2 text-xs text-zinc-600">Actividad reciente</div>
+          </div>
+
+          <div className="rounded-xl border border-zinc-200 p-4">
+            <div className="text-xs text-zinc-500">Últimos 30 días</div>
+            <div className="mt-1 text-2xl font-semibold">{fmt(verif30)}</div>
+            <div className="mt-2 text-xs text-zinc-600">Tendencia del mes</div>
+          </div>
+
+          <div className="rounded-xl border border-zinc-200 p-4">
+            <div className="text-xs text-zinc-500">Última verificación</div>
+            <div className="mt-1 text-sm font-medium text-zinc-900">{lastVerificationAt ? formatDate(lastVerificationAt) : "—"}</div>
+            <div className="mt-2 text-xs text-zinc-600">
+              Hash final:{" "}
+              <span className="font-mono">
+                {String((doc as any).final_hash_sha256 || "").slice(0, 10) || "—"}
+                {(doc as any).final_hash_sha256 ? "…" : ""}
+              </span>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <div className="mt-8 grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-6">
