@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import AdminRefresh from "./admin-refresh";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -25,9 +26,7 @@ function normEmail(v: unknown): string {
 
 function mkHref(p: Record<string, string>) {
   const sp = new URLSearchParams();
-  for (const [k, v] of Object.entries(p)) {
-    if (v) sp.set(k, v);
-  }
+  for (const [k, v] of Object.entries(p)) if (v) sp.set(k, v);
   return `/admin?${sp.toString()}`;
 }
 
@@ -44,9 +43,9 @@ export default async function AdminPage({
 }: {
   searchParams?: {
     q?: string;
-    status?: string; // all | pending | signed
-    days?: string; // all | 7 | 30
-    view?: string; // overview | docs | verifications
+    status?: string;
+    days?: string;
+    view?: string;
   };
 }) {
   const supabase = await createSupabaseServerClient();
@@ -56,7 +55,6 @@ export default async function AdminPage({
 
   if (!user) redirect("/login");
 
-  // Owner email por ENV (no hardcode)
   const ownerEmail = normEmail(process.env.FES_OWNER_EMAIL);
   const userEmail = normEmail(user.email);
 
@@ -106,19 +104,21 @@ export default async function AdminPage({
     );
   }
 
-  const admin = createAdminClient();
-
   const q = (searchParams?.q || "").trim();
   const status = (searchParams?.status || "all").toLowerCase();
   const days = (searchParams?.days || "30").toLowerCase();
   const view = (searchParams?.view || "overview").toLowerCase();
+
+  // stamp: cuando cambia esto, forzamos router.refresh()
+  const stamp = `${view}|${days}|${status}|${q}`;
+
+  const admin = createAdminClient();
 
   const now = new Date();
   const d7 = iso(new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000));
   const d30 = iso(new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000));
   const sinceISO = days === "7" ? d7 : days === "30" ? d30 : null;
 
-  // ===== Métricas =====
   const { count: totalDocsCount } = await admin
     .from("documents")
     .select("id", { head: true, count: "exact" });
@@ -148,7 +148,6 @@ export default async function AdminPage({
 
   const verif30Fail = Math.max(0, (verif30 ?? 0) - (verif30Match ?? 0));
 
-  // ===== Docs list =====
   let docsQuery = admin
     .from("documents")
     .select("id,title,status,created_at,completed_at,total_signers,signed_count,audit_code")
@@ -162,7 +161,6 @@ export default async function AdminPage({
 
   const { data: docs } = await docsQuery;
 
-  // ===== Verifications list =====
   let verQuery = admin
     .from("verification_events")
     .select("id,audit_code,match,created_at")
@@ -172,11 +170,11 @@ export default async function AdminPage({
   if (sinceISO) verQuery = verQuery.gte("created_at", sinceISO);
   const { data: verifs } = await verQuery;
 
-  // key para forzar remount si la navegación client-side queda “pegada”
-  const pageKey = `${view}|${days}|${status}|${q}`;
-
   return (
-    <main key={pageKey} className="mx-auto max-w-5xl px-4 py-6">
+    <main className="mx-auto max-w-5xl px-4 py-6">
+      {/* fuerza refresh al cambiar filtros */}
+      <AdminRefresh stamp={stamp} />
+
       <div className="mb-4 flex items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold">Admin</h1>
@@ -187,36 +185,49 @@ export default async function AdminPage({
         </Link>
       </div>
 
-      {/* Tabs (anchor full navigation) */}
       <div className="mb-5 flex flex-wrap items-center gap-2">
-        <a href={mkHref({ view: "overview", days, status, q })} className={tabClass(view === "overview")}>
+        <Link href={mkHref({ view: "overview", days, status, q })} className={tabClass(view === "overview")}>
           Resumen
-        </a>
-        <a href={mkHref({ view: "docs", days, status, q })} className={tabClass(view === "docs")}>
+        </Link>
+        <Link href={mkHref({ view: "docs", days, status, q })} className={tabClass(view === "docs")}>
           Documentos
-        </a>
-        <a href={mkHref({ view: "verifications", days, status, q })} className={tabClass(view === "verifications")}>
+        </Link>
+        <Link
+          href={mkHref({ view: "verifications", days, status, q })}
+          className={tabClass(view === "verifications")}
+        >
           Verificaciones
-        </a>
+        </Link>
       </div>
 
-      {/* Filtros */}
       <div className="mb-6 grid gap-3 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm md:grid-cols-3">
         <div>
           <div className="mb-1 text-xs font-medium text-zinc-700">Rango</div>
           <div className="flex gap-2">
-            <a href={mkHref({ view, days: "7", status, q })} className={tabClass(days === "7")}>7 días</a>
-            <a href={mkHref({ view, days: "30", status, q })} className={tabClass(days === "30")}>30 días</a>
-            <a href={mkHref({ view, days: "all", status, q })} className={tabClass(days === "all")}>Todo</a>
+            <Link href={mkHref({ view, days: "7", status, q })} className={tabClass(days === "7")}>
+              7 días
+            </Link>
+            <Link href={mkHref({ view, days: "30", status, q })} className={tabClass(days === "30")}>
+              30 días
+            </Link>
+            <Link href={mkHref({ view, days: "all", status, q })} className={tabClass(days === "all")}>
+              Todo
+            </Link>
           </div>
         </div>
 
         <div>
           <div className="mb-1 text-xs font-medium text-zinc-700">Estado docs</div>
           <div className="flex gap-2">
-            <a href={mkHref({ view, days, status: "all", q })} className={tabClass(status === "all")}>Todos</a>
-            <a href={mkHref({ view, days, status: "pending", q })} className={tabClass(status === "pending")}>Pendientes</a>
-            <a href={mkHref({ view, days, status: "signed", q })} className={tabClass(status === "signed")}>Firmados</a>
+            <Link href={mkHref({ view, days, status: "all", q })} className={tabClass(status === "all")}>
+              Todos
+            </Link>
+            <Link href={mkHref({ view, days, status: "pending", q })} className={tabClass(status === "pending")}>
+              Pendientes
+            </Link>
+            <Link href={mkHref({ view, days, status: "signed", q })} className={tabClass(status === "signed")}>
+              Firmados
+            </Link>
           </div>
         </div>
 
@@ -239,7 +250,6 @@ export default async function AdminPage({
         </div>
       </div>
 
-      {/* Resumen */}
       {view === "overview" && (
         <section className="grid gap-3 md:grid-cols-3">
           <div className={card}>
@@ -268,7 +278,6 @@ export default async function AdminPage({
         </section>
       )}
 
-      {/* Documentos */}
       {view === "docs" && (
         <section className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
           <div className="mb-3 flex items-center justify-between">
@@ -331,7 +340,6 @@ export default async function AdminPage({
         </section>
       )}
 
-      {/* Verificaciones */}
       {view === "verifications" && (
         <section className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
           <div className="mb-3 flex items-center justify-between">
