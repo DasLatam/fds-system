@@ -1,395 +1,406 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import AdminRefresh from "./admin-refresh";
 
 export const dynamic = "force-dynamic";
-export const revalidate = 0;
 
-function fmt(n: number) {
-  try {
-    return new Intl.NumberFormat("es-AR").format(n);
-  } catch {
-    return String(n);
-  }
+type View = "overview" | "docs" | "verifications";
+type Days = "7" | "30" | "all";
+type Status = "all" | "pending" | "signed";
+
+function normalizeEmail(v: unknown): string {
+  const s = typeof v === "string" ? v : "";
+  return s.trim().toLowerCase();
 }
 
-function iso(d: Date) {
+function getAdminEmailsFromEnv(): string[] {
+  const raw = process.env.FES_ADMIN_EMAILS || "";
+  return raw
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function parseView(v: unknown): View {
+  const s = typeof v === "string" ? v : "";
+  if (s === "docs" || s === "verifications" || s === "overview") return s;
+  return "overview";
+}
+
+function parseDays(v: unknown): Days {
+  const s = typeof v === "string" ? v : "";
+  if (s === "7" || s === "30" || s === "all") return s;
+  return "30";
+}
+
+function parseStatus(v: unknown): Status {
+  const s = typeof v === "string" ? v : "";
+  if (s === "all" || s === "pending" || s === "signed") return s;
+  return "all";
+}
+
+function sinceIso(days: Days): string | null {
+  if (days === "all") return null;
+  const n = days === "7" ? 7 : 30;
+  const d = new Date(Date.now() - n * 24 * 60 * 60 * 1000);
   return d.toISOString();
 }
 
-function normEmail(v: unknown): string {
-  if (!v || typeof v !== "string") return "";
-  return v.toLowerCase().trim();
+function qs(params: Record<string, string | undefined>) {
+  const p = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== "") p.set(k, v);
+  }
+  const s = p.toString();
+  return s ? `?${s}` : "";
 }
 
-function mkHref(p: Record<string, string>) {
-  const sp = new URLSearchParams();
-  for (const [k, v] of Object.entries(p)) if (v) sp.set(k, v);
-  return `/admin?${sp.toString()}`;
-}
-
-function tabClass(active: boolean) {
+function pill(active: boolean) {
   return active
-    ? "rounded-md bg-zinc-900 px-3 py-1.5 text-sm text-white"
-    : "rounded-md border border-zinc-200 px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50";
+    ? "rounded-lg border border-zinc-900 bg-zinc-900 px-3 py-1 text-sm font-medium text-white"
+    : "rounded-lg border border-zinc-200 bg-white px-3 py-1 text-sm font-medium text-zinc-800 hover:bg-zinc-50";
 }
 
-const card = "rounded-xl border border-zinc-200 bg-white p-4 shadow-sm";
+function tab(active: boolean) {
+  return active
+    ? "rounded-xl border border-zinc-900 bg-zinc-900 px-4 py-2 text-sm font-semibold text-white"
+    : "rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-50";
+}
+
+function card() {
+  return "rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm";
+}
+
+function fmtDate(v: any) {
+  if (!v) return "—";
+  try {
+    const d = new Date(v);
+    if (isNaN(d.getTime())) return String(v);
+    return d.toLocaleString("es-AR");
+  } catch {
+    return String(v);
+  }
+}
 
 export default async function AdminPage({
   searchParams,
 }: {
-  searchParams?: {
-    q?: string;
-    status?: string;
-    days?: string;
-    view?: string;
-  };
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  const sp = await searchParams;
+
+  const view = parseView(sp.view);
+  const days = parseDays(sp.days);
+  const status = parseStatus(sp.status);
+  const q = normalizeEmail(typeof sp.q === "string" ? sp.q : "");
+
+  // Auth (usuario logueado por magic link)
   const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data: { user } } = await supabase.auth.getUser();
 
-  if (!user) redirect("/login");
+  if (!user) redirect("/login?next=/admin");
 
-  const ownerEmail = normEmail(process.env.FES_OWNER_EMAIL);
-  const userEmail = normEmail(user.email);
+  const email =
+    normalizeEmail(user.email) ||
+    normalizeEmail((user.user_metadata as any)?.email) ||
+    normalizeEmail((user.user_metadata as any)?.user_email);
 
-  if (!ownerEmail) {
+  const allowed = getAdminEmailsFromEnv();
+  const isAdmin = email && allowed.includes(email);
+
+  if (!isAdmin) {
     return (
-      <main className="mx-auto max-w-2xl px-4 py-10">
-        <h1 className="text-xl font-semibold">Admin</h1>
-        <p className="mt-2 text-sm text-zinc-700">Admin no está configurado.</p>
-
-        <div className="mt-4 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
-          <div className="text-xs font-medium text-zinc-600">Falta variable de entorno</div>
-          <div className="mt-1 font-mono text-sm text-zinc-900">FES_OWNER_EMAIL</div>
-          <div className="mt-3 text-xs text-zinc-600">
-            Configurá <span className="font-mono">FES_OWNER_EMAIL</span> en Vercel (Production/Preview).
-          </div>
-          <div className="mt-3 text-xs text-zinc-600">
-            Email detectado: <span className="font-mono">{userEmail || "(vacío)"}</span>
-          </div>
-        </div>
-
-        <div className="mt-6">
-          <Link className="text-sm text-blue-700 hover:underline" href="/dashboard">
-            Volver al dashboard
-          </Link>
-        </div>
-      </main>
-    );
-  }
-
-  if (userEmail !== ownerEmail) {
-    return (
-      <main className="mx-auto max-w-2xl px-4 py-10">
-        <h1 className="text-xl font-semibold">Admin</h1>
+      <main className="mx-auto max-w-3xl px-4 py-10">
+        <h1 className="text-2xl font-semibold">Admin</h1>
         <p className="mt-2 text-sm text-zinc-700">No autorizado.</p>
 
-        <div className="mt-4 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
+        <div className="mt-6 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
           <div className="text-xs font-medium text-zinc-600">Email detectado</div>
-          <div className="mt-1 font-mono text-sm text-zinc-900">{userEmail || "(vacío)"}</div>
+          <div className="mt-1 font-mono text-sm text-zinc-900">{email || "(vacío)"}</div>
+
+          <div className="mt-4 text-xs text-zinc-600">
+            Para habilitar acceso, definí <span className="font-mono">FES_ADMIN_EMAILS</span> en Vercel (coma-separado).
+          </div>
         </div>
 
         <div className="mt-6">
-          <Link className="text-sm text-blue-700 hover:underline" href="/dashboard">
+          <a className="text-sm text-blue-700 hover:underline" href="/dashboard">
             Volver al dashboard
-          </Link>
+          </a>
         </div>
       </main>
     );
   }
 
-  const q = (searchParams?.q || "").trim();
-  const status = (searchParams?.status || "all").toLowerCase();
-  const days = (searchParams?.days || "30").toLowerCase();
-  const view = (searchParams?.view || "overview").toLowerCase();
-
-  // stamp: cuando cambia esto, forzamos router.refresh()
-  const stamp = `${view}|${days}|${status}|${q}`;
-
+  // Admin client (service role) para ver TODO
   const admin = createAdminClient();
 
-  const now = new Date();
-  const d7 = iso(new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000));
-  const d30 = iso(new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000));
-  const sinceISO = days === "7" ? d7 : days === "30" ? d30 : null;
+  const since = sinceIso(days);
 
-  const { count: totalDocsCount } = await admin
-    .from("documents")
-    .select("id", { head: true, count: "exact" });
+  // -------- Overview metrics --------
+  async function countDocs(filter: { status?: Status; since?: string | null }) {
+    let query = admin.from("documents").select("*", { count: "exact", head: true });
+    if (filter.status && filter.status !== "all") {
+      query = query.eq("status", filter.status);
+    }
+    if (filter.since) {
+      query = query.gte("created_at", filter.since);
+    }
+    const { count } = await query;
+    return count || 0;
+  }
 
-  const { count: signedDocsCount } = await admin
-    .from("documents")
-    .select("id", { head: true, count: "exact" })
-    .eq("status", "signed");
+  async function countVerifications(filter: { since?: string | null }) {
+    let query = admin.from("verification_events").select("*", { count: "exact", head: true });
+    if (filter.since) query = query.gte("created_at", filter.since);
+    const { count } = await query;
+    return count || 0;
+  }
 
-  const pendingDocsCount = Math.max(0, (totalDocsCount ?? 0) - (signedDocsCount ?? 0));
+  const docsTotal = await countDocs({ since });
+  const docsSigned = await countDocs({ status: "signed", since });
+  const docsPending = await countDocs({ status: "pending", since });
 
-  const { count: verif30 } = await admin
-    .from("verification_events")
-    .select("id", { head: true, count: "exact" })
-    .gte("created_at", d30);
+  const verifTotal = await countVerifications({ since });
+  const verif7 = await countVerifications({ since: sinceIso("7") });
 
-  const { count: verif7 } = await admin
-    .from("verification_events")
-    .select("id", { head: true, count: "exact" })
-    .gte("created_at", d7);
+  // -------- Docs list --------
+  async function fetchDocs() {
+    let query = admin
+      .from("documents")
+      .select("id,title,status,created_at,completed_at,owner_id,signed_count,total_signers")
+      .order("created_at", { ascending: false })
+      .limit(50);
 
-  const { count: verif30Match } = await admin
-    .from("verification_events")
-    .select("id", { head: true, count: "exact" })
-    .gte("created_at", d30)
-    .eq("match", true);
+    if (since) query = query.gte("created_at", since);
+    if (status !== "all") query = query.eq("status", status);
+    if (q) query = query.ilike("title", `%${q}%`);
 
-  const verif30Fail = Math.max(0, (verif30 ?? 0) - (verif30Match ?? 0));
+    const { data, error } = await query;
+    return { data: data || [], error: error?.message || null };
+  }
 
-  let docsQuery = admin
-    .from("documents")
-    .select("id,title,status,created_at,completed_at,total_signers,signed_count,audit_code")
-    .order("created_at", { ascending: false })
-    .limit(200);
+  // -------- Verifications list --------
+  async function fetchVerifications() {
+    let query = admin
+      .from("verification_events")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(50);
 
-  if (sinceISO) docsQuery = docsQuery.gte("created_at", sinceISO);
-  if (status === "signed") docsQuery = docsQuery.eq("status", "signed");
-  if (status === "pending") docsQuery = docsQuery.neq("status", "signed");
-  if (q) docsQuery = docsQuery.ilike("title", `%${q}%`);
+    if (since) query = query.gte("created_at", since);
 
-  const { data: docs } = await docsQuery;
+    const { data, error } = await query;
+    return { data: data || [], error: error?.message || null };
+  }
 
-  let verQuery = admin
-    .from("verification_events")
-    .select("id,audit_code,match,created_at")
-    .order("created_at", { ascending: false })
-    .limit(200);
+  const docsRes = view === "docs" ? await fetchDocs() : { data: [], error: null };
+  const verRes = view === "verifications" ? await fetchVerifications() : { data: [], error: null };
 
-  if (sinceISO) verQuery = verQuery.gte("created_at", sinceISO);
-  const { data: verifs } = await verQuery;
+  const baseParams = { days, status, q: q || undefined };
 
   return (
-    <main className="mx-auto max-w-5xl px-4 py-6">
-      {/* fuerza refresh al cambiar filtros */}
-      <AdminRefresh stamp={stamp} />
-
-      <div className="mb-4 flex items-center justify-between gap-3">
+    <main className="mx-auto max-w-6xl px-4 py-10">
+      <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-xl font-semibold">Admin</h1>
-          <p className="text-sm text-zinc-600">Read-only (owner)</p>
+          <h1 className="text-2xl font-semibold">Admin</h1>
+          <p className="mt-1 text-sm text-zinc-600">Read-only (owner)</p>
         </div>
-        <Link href="/dashboard" className="text-sm text-zinc-700 hover:text-zinc-900">
+
+        <a className="text-sm text-blue-700 hover:underline" href="/dashboard">
           Volver al dashboard
-        </Link>
+        </a>
       </div>
 
-      <div className="mb-5 flex flex-wrap items-center gap-2">
-        <Link href={mkHref({ view: "overview", days, status, q })} className={tabClass(view === "overview")}>
+      {/* Tabs (full reload) */}
+      <div className="mt-6 flex flex-wrap gap-2">
+        <a className={tab(view === "overview")} href={"/admin" + qs({ ...baseParams, view: "overview" })}>
           Resumen
-        </Link>
-        <Link href={mkHref({ view: "docs", days, status, q })} className={tabClass(view === "docs")}>
+        </a>
+        <a className={tab(view === "docs")} href={"/admin" + qs({ ...baseParams, view: "docs" })}>
           Documentos
-        </Link>
-        <Link
-          href={mkHref({ view: "verifications", days, status, q })}
-          className={tabClass(view === "verifications")}
-        >
+        </a>
+        <a className={tab(view === "verifications")} href={"/admin" + qs({ ...baseParams, view: "verifications" })}>
           Verificaciones
-        </Link>
+        </a>
       </div>
 
-      <div className="mb-6 grid gap-3 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm md:grid-cols-3">
-        <div>
-          <div className="mb-1 text-xs font-medium text-zinc-700">Rango</div>
-          <div className="flex gap-2">
-            <Link href={mkHref({ view, days: "7", status, q })} className={tabClass(days === "7")}>
-              7 días
-            </Link>
-            <Link href={mkHref({ view, days: "30", status, q })} className={tabClass(days === "30")}>
-              30 días
-            </Link>
-            <Link href={mkHref({ view, days: "all", status, q })} className={tabClass(days === "all")}>
-              Todo
-            </Link>
+      {/* Filters (GET submit, full reload) */}
+      <form method="GET" action="/admin" className="mt-6 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+        <input type="hidden" name="view" value={view} />
+
+        <div className="grid gap-4 md:grid-cols-3">
+          <div>
+            <div className="text-xs font-medium text-zinc-600">Rango</div>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <button className={pill(days === "7")} name="days" value="7" type="submit">7 días</button>
+              <button className={pill(days === "30")} name="days" value="30" type="submit">30 días</button>
+              <button className={pill(days === "all")} name="days" value="all" type="submit">Todo</button>
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs font-medium text-zinc-600">Estado docs</div>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <button className={pill(status === "all")} name="status" value="all" type="submit">Todos</button>
+              <button className={pill(status === "pending")} name="status" value="pending" type="submit">Pendientes</button>
+              <button className={pill(status === "signed")} name="status" value="signed" type="submit">Firmados</button>
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs font-medium text-zinc-600">Buscar por título</div>
+            <div className="mt-2 flex gap-2">
+              <input
+                className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-400"
+                name="q"
+                defaultValue={q}
+                placeholder="Ej: DNI Ariel"
+              />
+              <button className="rounded-xl bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-800" type="submit">
+                Buscar
+              </button>
+            </div>
           </div>
         </div>
+      </form>
 
-        <div>
-          <div className="mb-1 text-xs font-medium text-zinc-700">Estado docs</div>
-          <div className="flex gap-2">
-            <Link href={mkHref({ view, days, status: "all", q })} className={tabClass(status === "all")}>
-              Todos
-            </Link>
-            <Link href={mkHref({ view, days, status: "pending", q })} className={tabClass(status === "pending")}>
-              Pendientes
-            </Link>
-            <Link href={mkHref({ view, days, status: "signed", q })} className={tabClass(status === "signed")}>
-              Firmados
-            </Link>
-          </div>
-        </div>
-
-        <div>
-          <div className="mb-1 text-xs font-medium text-zinc-700">Buscar por título</div>
-          <form action="/admin" method="get" className="flex gap-2">
-            <input type="hidden" name="view" value={view} />
-            <input type="hidden" name="days" value={days} />
-            <input type="hidden" name="status" value={status} />
-            <input
-              name="q"
-              defaultValue={q}
-              placeholder="Ej: DNI Ariel"
-              className="w-full rounded-md border border-zinc-200 px-3 py-2 text-sm outline-none focus:border-zinc-400"
-            />
-            <button className="rounded-md bg-zinc-900 px-3 py-2 text-sm text-white hover:bg-zinc-800">
-              Buscar
-            </button>
-          </form>
-        </div>
-      </div>
-
+      {/* Overview cards */}
       {view === "overview" && (
-        <section className="grid gap-3 md:grid-cols-3">
-          <div className={card}>
+        <div className="mt-6 grid gap-4 md:grid-cols-3">
+          <div className={card()}>
             <div className="text-xs font-medium text-zinc-600">Documentos</div>
-            <div className="mt-2 text-2xl font-semibold">{fmt(totalDocsCount ?? 0)}</div>
-            <div className="mt-1 text-sm text-zinc-600">
-              Firmados: <span className="font-medium text-zinc-900">{fmt(signedDocsCount ?? 0)}</span> · Pendientes:{" "}
-              <span className="font-medium text-zinc-900">{fmt(pendingDocsCount)}</span>
+            <div className="mt-2 text-3xl font-semibold">{docsTotal}</div>
+            <div className="mt-2 text-sm text-zinc-700">
+              Firmados: {docsSigned} · Pendientes: {docsPending}
             </div>
           </div>
 
-          <div className={card}>
-            <div className="text-xs font-medium text-zinc-600">Verificaciones (30 días)</div>
-            <div className="mt-2 text-2xl font-semibold">{fmt(verif30 ?? 0)}</div>
-            <div className="mt-1 text-sm text-zinc-600">
-              Match: <span className="font-medium text-zinc-900">{fmt(verif30Match ?? 0)}</span> · Fail:{" "}
-              <span className="font-medium text-zinc-900">{fmt(verif30Fail)}</span>
-            </div>
+          <div className={card()}>
+            <div className="text-xs font-medium text-zinc-600">Verificaciones ({days === "all" ? "todo" : `${days} días`})</div>
+            <div className="mt-2 text-3xl font-semibold">{verifTotal}</div>
+            <div className="mt-2 text-sm text-zinc-700">Últimos 7 días: {verif7}</div>
           </div>
 
-          <div className={card}>
-            <div className="text-xs font-medium text-zinc-600">Verificaciones (7 días)</div>
-            <div className="mt-2 text-2xl font-semibold">{fmt(verif7 ?? 0)}</div>
-            <div className="mt-1 text-sm text-zinc-600">Actividad reciente de verificación</div>
+          <div className={card()}>
+            <div className="text-xs font-medium text-zinc-600">Usuario</div>
+            <div className="mt-2 font-mono text-sm text-zinc-900">{email}</div>
+            <div className="mt-2 text-xs text-zinc-600">Acceso controlado por FES_ADMIN_EMAILS</div>
           </div>
-        </section>
+        </div>
       )}
 
+      {/* Docs view */}
       {view === "docs" && (
-        <section className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
-          <div className="mb-3 flex items-center justify-between">
-            <div className="text-sm font-semibold">Documentos (máx. 200)</div>
-            <div className="text-xs text-zinc-600">{q ? `Filtro: “${q}”` : ""}</div>
+        <div className="mt-6 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-semibold">Documentos</h2>
+            <div className="text-xs text-zinc-600">Mostrando hasta 50</div>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="border-b border-zinc-200 text-xs text-zinc-600">
+          {docsRes.error && (
+            <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+              Error: {docsRes.error}
+            </div>
+          )}
+
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="text-left text-xs text-zinc-600">
                 <tr>
-                  <th className="py-2 pr-3">Título</th>
-                  <th className="py-2 pr-3">Estado</th>
-                  <th className="py-2 pr-3">Firmas</th>
-                  <th className="py-2 pr-3">Creado</th>
-                  <th className="py-2 pr-3">Finalizado</th>
-                  <th className="py-2 pr-3">Auditoría</th>
+                  <th className="py-2">Título</th>
+                  <th className="py-2">Estado</th>
+                  <th className="py-2">Firmas</th>
+                  <th className="py-2">Creado</th>
+                  <th className="py-2">Completado</th>
+                  <th className="py-2">ID</th>
                 </tr>
               </thead>
-              <tbody>
-                {(docs || []).map((d: any) => (
-                  <tr key={d.id} className="border-b border-zinc-100">
-                    <td className="py-2 pr-3">
-                      <div className="font-medium text-zinc-900">{d.title || "(sin título)"}</div>
-                      <div className="text-xs text-zinc-600">{d.id}</div>
-                      <div className="mt-1 flex flex-wrap gap-2">
-                        <a href={`/dashboard/doc/${d.id}`} className="text-xs text-blue-700 hover:underline">
-                          Abrir
-                        </a>
-                        {d.audit_code ? (
-                          <a href={`/v/${d.audit_code}`} className="text-xs text-blue-700 hover:underline" target="_blank">
-                            Verificar
-                          </a>
-                        ) : null}
-                      </div>
+              <tbody className="text-zinc-900">
+                {docsRes.data.map((d: any) => (
+                  <tr key={d.id} className="border-t border-zinc-100">
+                    <td className="py-2">
+                      <a className="text-blue-700 hover:underline" href={`/dashboard/doc/${d.id}`}>
+                        {d.title || "(sin título)"}
+                      </a>
                     </td>
-                    <td className="py-2 pr-3">
-                      <span className="rounded-full border border-zinc-200 px-2 py-0.5 text-xs">{d.status}</span>
+                    <td className="py-2">{d.status || "—"}</td>
+                    <td className="py-2">
+                      {typeof d.signed_count === "number" && typeof d.total_signers === "number"
+                        ? `${d.signed_count}/${d.total_signers}`
+                        : "—"}
                     </td>
-                    <td className="py-2 pr-3">
-                      {fmt(Number(d.signed_count || 0))} / {fmt(Number(d.total_signers || 0))}
-                    </td>
-                    <td className="py-2 pr-3">{d.created_at ? new Date(d.created_at).toLocaleString("es-AR") : "-"}</td>
-                    <td className="py-2 pr-3">{d.completed_at ? new Date(d.completed_at).toLocaleString("es-AR") : "-"}</td>
-                    <td className="py-2 pr-3">
-                      {d.audit_code ? <code className="text-xs text-zinc-700">{d.audit_code}</code> : <span className="text-xs text-zinc-500">-</span>}
-                    </td>
+                    <td className="py-2">{fmtDate(d.created_at)}</td>
+                    <td className="py-2">{fmtDate(d.completed_at)}</td>
+                    <td className="py-2 font-mono text-xs text-zinc-600">{d.id}</td>
                   </tr>
                 ))}
-                {(docs || []).length === 0 && (
+                {docsRes.data.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="py-6 text-center text-sm text-zinc-600">
-                      No hay documentos para este filtro.
+                    <td className="py-6 text-sm text-zinc-600" colSpan={6}>
+                      Sin resultados con estos filtros.
                     </td>
                   </tr>
                 )}
               </tbody>
             </table>
           </div>
-        </section>
+        </div>
       )}
 
+      {/* Verifications view */}
       {view === "verifications" && (
-        <section className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
-          <div className="mb-3 flex items-center justify-between">
-            <div className="text-sm font-semibold">Verificaciones (máx. 200)</div>
+        <div className="mt-6 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-semibold">Verificaciones</h2>
+            <div className="text-xs text-zinc-600">Mostrando hasta 50</div>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="border-b border-zinc-200 text-xs text-zinc-600">
+          {verRes.error && (
+            <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+              Error: {verRes.error}
+            </div>
+          )}
+
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="text-left text-xs text-zinc-600">
                 <tr>
-                  <th className="py-2 pr-3">Fecha</th>
-                  <th className="py-2 pr-3">Audit code</th>
-                  <th className="py-2 pr-3">Resultado</th>
-                  <th className="py-2 pr-3">Link</th>
+                  <th className="py-2">Fecha</th>
+                  <th className="py-2">Resultado</th>
+                  <th className="py-2">Documento</th>
+                  <th className="py-2">Audit</th>
+                  <th className="py-2">Raw</th>
                 </tr>
               </thead>
-              <tbody>
-                {(verifs || []).map((v: any) => (
-                  <tr key={v.id} className="border-b border-zinc-100">
-                    <td className="py-2 pr-3">{v.created_at ? new Date(v.created_at).toLocaleString("es-AR") : "-"}</td>
-                    <td className="py-2 pr-3"><code className="text-xs text-zinc-700">{v.audit_code}</code></td>
-                    <td className="py-2 pr-3">
-                      {v.match === true ? (
-                        <span className="rounded-full bg-green-50 px-2 py-0.5 text-xs text-green-700">MATCH</span>
-                      ) : (
-                        <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs text-red-700">FAIL</span>
-                      )}
-                    </td>
-                    <td className="py-2 pr-3">
-                      {v.audit_code ? (
-                        <a href={`/v/${v.audit_code}`} className="text-xs text-blue-700 hover:underline" target="_blank">
-                          Abrir verificación
-                        </a>
-                      ) : (
-                        <span className="text-xs text-zinc-500">-</span>
-                      )}
+              <tbody className="text-zinc-900">
+                {verRes.data.map((v: any, idx: number) => (
+                  <tr key={v.id ?? idx} className="border-t border-zinc-100">
+                    <td className="py-2">{fmtDate(v.created_at)}</td>
+                    <td className="py-2">{String(v.result ?? v.is_match ?? v.match ?? "—")}</td>
+                    <td className="py-2 font-mono text-xs text-zinc-600">{String(v.document_id ?? "—")}</td>
+                    <td className="py-2 font-mono text-xs text-zinc-600">{String(v.audit_code ?? v.code ?? "—")}</td>
+                    <td className="py-2">
+                      <details className="text-xs text-zinc-700">
+                        <summary className="cursor-pointer select-none">ver</summary>
+                        <pre className="mt-2 whitespace-pre-wrap rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-[11px]">
+{JSON.stringify(v, null, 2)}
+                        </pre>
+                      </details>
                     </td>
                   </tr>
                 ))}
-                {(verifs || []).length === 0 && (
+                {verRes.data.length === 0 && (
                   <tr>
-                    <td colSpan={4} className="py-6 text-center text-sm text-zinc-600">
-                      No hay verificaciones para este rango.
+                    <td className="py-6 text-sm text-zinc-600" colSpan={5}>
+                      Sin resultados en este rango.
                     </td>
                   </tr>
                 )}
               </tbody>
             </table>
           </div>
-        </section>
+        </div>
       )}
     </main>
   );
