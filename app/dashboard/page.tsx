@@ -5,15 +5,9 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isProfileComplete } from "@/lib/security/profile";
 import { isOwnerEmail } from "@/lib/security/owner";
+import DocumentsListClient from "./DocumentsListClient";
 
 export const dynamic = "force-dynamic";
-
-function canDelete(doc: any) {
-  const status = String(doc.status || "");
-  const total = Number(doc.total_signers || 0);
-  const signed = Number(doc.signed_count || 0);
-  return status !== "signed" && total === 0 && signed === 0;
-}
 
 function fmt(n: number) {
   try {
@@ -46,6 +40,7 @@ async function deleteDocumentAction(formData: FormData) {
   if (docErr || !doc) return;
   if (doc.created_by !== user.id) return;
 
+  // Seguridad: NO eliminar documentos firmados o con firmas
   if (doc.status === "signed" || (doc.signed_count ?? 0) > 0) return;
 
   const { count: srCount } = await admin
@@ -86,7 +81,7 @@ export default async function DashboardPage() {
 
   const { data: docs } = await supabase
     .from("documents")
-    .select("id,title,status,signing_mode,total_signers,signed_count,final_path,audit_code,created_at")
+    .select("id,title,status,signing_mode,total_signers,signed_count,final_path,audit_code,created_at,completed_at")
     .order("created_at", { ascending: false });
 
   // =========================
@@ -183,7 +178,7 @@ export default async function DashboardPage() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold">Dashboard</h1>
-          <p className="mt-1 text-sm text-zinc-600">Subí un PDF, invitá firmantes y seguí el estado.</p>
+          <p className="mt-1 text-sm text-zinc-600">Creá una nueva firma, invitá firmantes y seguí el estado.</p>
         </div>
         <div className="flex items-center gap-3">
           <Link href="/profile?next=/dashboard" className="rounded-md border border-zinc-200 px-4 py-2 text-sm font-medium">
@@ -194,8 +189,11 @@ export default async function DashboardPage() {
               Admin
             </Link>
           ) : null}
-          <Link href="/dashboard/new" className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white">
-            Subir PDF
+          <Link
+            href="/dashboard/new"
+            className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
+          >
+            Nueva Firma
           </Link>
           <form action="/api/logout" method="post">
             <button className="rounded-md border border-zinc-200 px-4 py-2 text-sm font-medium">Salir</button>
@@ -236,7 +234,12 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      {/* Actividad reciente */}
+      {/* Tus documentos (arriba) */}
+      <div className="mt-6">
+        <DocumentsListClient docs={safeDocs} deleteAction={deleteDocumentAction} />
+      </div>
+
+      {/* Actividad reciente (abajo) */}
       <div className="mt-6 rounded-xl border border-zinc-200">
         <div className="border-b border-zinc-200 px-4 py-3">
           <h2 className="text-sm font-medium">Actividad reciente (últimos 25)</h2>
@@ -258,63 +261,6 @@ export default async function DashboardPage() {
                   <div className="text-xs text-zinc-500">{formatDate(e.created_at)}</div>
                 </div>
                 <div className="text-xs text-zinc-600">{e.actor_email || "—"}</div>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
-
-      <div className="mt-8 rounded-xl border border-zinc-200">
-        <div className="border-b border-zinc-200 px-4 py-3">
-          <h2 className="text-sm font-medium">Tus documentos</h2>
-          <p className="mt-1 text-xs text-zinc-500">
-            Podés eliminar documentos “vacíos” (sin firmantes ni firmas). La eliminación se ejecuta al enviar el formulario.
-          </p>
-        </div>
-
-        <div className="divide-y divide-zinc-200">
-          {!docs || docs.length === 0 ? (
-            <div className="p-6">
-              <p className="text-sm text-zinc-600">Todavía no subiste documentos.</p>
-            </div>
-          ) : (
-            docs.map((d) => (
-              <div key={d.id} className="flex flex-wrap items-center justify-between gap-4 px-4 py-4">
-                <div>
-                  <div className="font-medium">{d.title}</div>
-                  <div className="mt-1 text-xs text-zinc-600">
-                    Estado: <span className="font-medium text-zinc-800">{d.status}</span> · Firma: {d.signing_mode} · {d.signed_count}/{d.total_signers} firmantes
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <Link href={`/dashboard/doc/${d.id}`} className="rounded-md border border-zinc-200 px-3 py-1.5 text-sm">
-                    Ver
-                  </Link>
-
-                  {/* ✅ solo si existe final_path, y sin prefetch */}
-                  {d.status === "signed" && d.final_path ? (
-                    <Link
-                      prefetch={false}
-                      href={`/api/download?documentId=${d.id}&kind=final`}
-                      className="rounded-md bg-black px-3 py-1.5 text-sm font-medium text-white"
-                    >
-                      Descargar
-                    </Link>
-                  ) : null}
-
-                  {canDelete(d) ? (
-                    <form action={deleteDocumentAction}>
-                      <input type="hidden" name="documentId" value={d.id} />
-                      <button
-                        type="submit"
-                        className="rounded-md border border-red-200 px-3 py-1.5 text-sm text-red-700 hover:border-red-300 hover:bg-red-50"
-                      >
-                        Eliminar
-                      </button>
-                    </form>
-                  ) : null}
-                </div>
               </div>
             ))
           )}

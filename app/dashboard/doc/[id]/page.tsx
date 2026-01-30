@@ -101,23 +101,26 @@ export default async function DocumentPage({
     );
   }
 
+  const isFinal = doc.status === "signed";
+
   const { data: signers } = await supabase
     .from("signing_requests")
     .select("id,email,status,position,email_sent_at,opened_at,signed_at,expires_at,rejection_reason")
     .eq("document_id", doc.id)
     .order("position", { ascending: true, nullsFirst: true });
 
-  const { data: audit } = await supabase
+  // =========================
+  // Métricas (verificación pública) + Auditoría completa (admin)
+  // =========================
+  const admin = createAdminClient();
+
+  const { data: audit } = await admin
     .from("audit_events")
     .select("id,event_type,actor_email,created_at")
     .eq("document_id", doc.id)
     .order("created_at", { ascending: false })
     .limit(25);
 
-  // =========================
-  // Métricas (verificación pública)
-  // =========================
-  const admin = createAdminClient();
   const auditCode = (doc as any).audit_code as string | null;
 
   let verifTotal = 0;
@@ -181,10 +184,7 @@ export default async function DocumentPage({
     <div className="mx-auto max-w-5xl px-4 py-10">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <Link href="/dashboard" className="text-sm text-zinc-600 hover:text-zinc-900">
-            ← Volver
-          </Link>
-          <h1 className="mt-2 text-2xl font-semibold">{doc.title}</h1>
+          <h1 className="text-2xl font-semibold">{doc.title}</h1>
           <div className="mt-2 text-sm text-zinc-600">
             Estado: <span className="font-medium text-zinc-900">{doc.status}</span>
             <span className="mx-2">·</span>
@@ -208,6 +208,9 @@ export default async function DocumentPage({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <Link href="/dashboard" className="rounded-md border border-zinc-200 px-3 py-2 text-sm">
+            ← Volver
+          </Link>
           <a
             href={`/api/download?documentId=${doc.id}&kind=original`}
             className="rounded-md border border-zinc-200 px-3 py-2 text-sm"
@@ -269,7 +272,13 @@ export default async function DocumentPage({
               <h2 className="text-sm font-medium">Firmantes</h2>
             </div>
             <div className="p-4">
-              <InvitePanel documentId={doc.id} currentMode={doc.signing_mode} currentUserEmail={user.email || ""} />
+              {isFinal ? (
+                <div className="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700">
+                  Documento finalizado: no se pueden modificar firmantes ni reenviar invitaciones.
+                </div>
+              ) : (
+                <InvitePanel documentId={doc.id} currentMode={doc.signing_mode} currentUserEmail={user.email || ""} />
+              )}
 
               <div className="mt-6 overflow-x-auto">
                 <table className="min-w-full text-sm">
@@ -308,7 +317,7 @@ export default async function DocumentPage({
                         <td className="py-3 pr-4 text-xs text-zinc-500">{s.opened_at ? formatDate(s.opened_at) : "—"}</td>
                         <td className="py-3 pr-4 text-xs text-zinc-500">{s.signed_at ? formatDate(s.signed_at) : "—"}</td>
                         <td className="py-3">
-                          {s.status !== "signed" ? (
+                          {!isFinal && s.status !== "signed" ? (
                             <form action="/api/resend-invite" method="post">
                               <input type="hidden" name="signingRequestId" value={s.id} />
                               <input type="hidden" name="expiresInDays" value="3" />
@@ -322,7 +331,7 @@ export default async function DocumentPage({
                         </td>
                       </tr>
                     ))}
-                    {(!signers || (signers as any[]).length === 0) ? (
+                    {!signers || (signers as any[]).length === 0 ? (
                       <tr>
                         <td className="py-6 text-sm text-zinc-600" colSpan={8}>
                           Todavía no agregaste firmantes.
@@ -349,7 +358,7 @@ export default async function DocumentPage({
                   <div className="text-xs text-zinc-600">{e.actor_email || "—"}</div>
                 </div>
               ))}
-              {(!audit || (audit as any[]).length === 0) ? (
+              {!audit || (audit as any[]).length === 0 ? (
                 <div className="px-4 py-6 text-sm text-zinc-600">Sin eventos aún.</div>
               ) : null}
             </div>
