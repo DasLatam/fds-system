@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRef, useState } from "react";
 
 export default function UploadForm() {
@@ -8,7 +9,9 @@ export default function UploadForm() {
   const [title, setTitle] = useState("");
   const [fileName, setFileName] = useState("Ningún archivo seleccionado");
   const [busy, setBusy] = useState(false);
+
   const [status, setStatus] = useState<string>("");
+  const [planLimitReached, setPlanLimitReached] = useState(false);
 
   function openPicker() {
     // ✅ siempre desde un gesto del usuario (click real)
@@ -23,6 +26,7 @@ export default function UploadForm() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setStatus("");
+    setPlanLimitReached(false);
 
     const f = fileRef.current?.files?.[0];
     if (!title.trim()) {
@@ -50,6 +54,16 @@ export default function UploadForm() {
       const j = await r.json().catch(() => ({}));
 
       if (!r.ok) {
+        // ✅ Caso producto: límite del plan Free
+        if (r.status === 402 && j?.code === "PLAN_LIMIT_REACHED") {
+          setPlanLimitReached(true);
+          setStatus(
+            j?.error ||
+              "Alcanzaste el límite mensual del plan Free. Actualizá a Pro para crear más documentos."
+          );
+          return;
+        }
+
         setStatus(j?.error || "No se pudo subir el PDF.");
         return;
       }
@@ -78,7 +92,9 @@ export default function UploadForm() {
           className="w-full rounded-md border border-zinc-200 px-3 py-2 text-sm"
           disabled={busy}
         />
-        <p className="mt-1 text-xs text-zinc-500">Este título se mostrará en el dashboard y en la página de firma.</p>
+        <p className="mt-1 text-xs text-zinc-500">
+          Este título se mostrará en el dashboard y en la página de firma.
+        </p>
       </div>
 
       <div>
@@ -111,7 +127,7 @@ export default function UploadForm() {
         <p className="mt-1 text-xs text-zinc-500">Solo PDF. Tamaño recomendado: hasta 10–20 MB.</p>
       </div>
 
-      <div className="flex items-center gap-3 pt-2">
+      <div className="flex items-start gap-3 pt-2">
         <button
           type="submit"
           className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
@@ -119,7 +135,21 @@ export default function UploadForm() {
         >
           {busy ? "Subiendo..." : "Subir y crear documento"}
         </button>
-        <span className="text-sm text-zinc-600">{status}</span>
+
+        <div className="text-sm text-zinc-600">
+          {status ? <div>{status}</div> : null}
+
+          {planLimitReached ? (
+            <div className="mt-2">
+              <Link
+                href="/pricing"
+                className="inline-flex rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium hover:bg-zinc-50"
+              >
+                Ver planes
+              </Link>
+            </div>
+          ) : null}
+        </div>
       </div>
     </form>
   );
