@@ -123,7 +123,8 @@ const CanonicalBodySchema = z
 
       if (name.length < 2) ctx.addIssue({ code: "custom", message: "Company name required when representing" });
       if (role.length < 2) ctx.addIssue({ code: "custom", message: "Company role required when representing" });
-      if (cuit.length !== 11) ctx.addIssue({ code: "custom", message: "Company CUIT must be 11 digits when representing" });
+      if (cuit.length !== 11)
+        ctx.addIssue({ code: "custom", message: "Company CUIT must be 11 digits when representing" });
     }
   });
 
@@ -334,12 +335,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Failed to update document counts" }, { status: 500 });
     }
 
-    // 6) Auditoría mínima (ya existente en tu sistema): email_sent / invite_created vienen por otro flujo.
-    // (No agregamos nada acá para no ensuciar, solo lo crítico al final.)
-
-    // 7) Ver si hay que finalizar (si ya firmaron todos)
+    // 6) Ver si hay que finalizar (si ya firmaron todos)
     const total = Number(doc.total_signers ?? 0);
     const shouldFinalize = total > 0 && inc >= total;
+
     if (shouldFinalize) {
       // Re-cargar documento actualizado + firmantes para generar PDF final
       const doc2Res = await admin
@@ -353,31 +352,6 @@ export async function POST(req: NextRequest) {
       }
 
       const doc2 = doc2Res.data as any;
-
-      // Intentar traer columnas P1; si no existen, fallback al select anterior
-      let signersRes = await admin
-        .from("signing_requests")
-        .select(
-          "id,email,status,position,signed_at,signature_path,signature_hash,signer_full_name,signer_dni,signer_ip,signer_user_agent,consented_at,consent_text_version,signer_capacity,signer_company_name,signer_company_cuit,signer_company_address,signer_company_role"
-        )
-        .eq("document_id", documentId)
-        .order("position", { ascending: true, nullsFirst: true });
-
-      if (signersRes.error && isMissingColumnError(signersRes.error)) {
-        signersRes = await admin
-          .from("signing_requests")
-          .select(
-            "id,email,status,position,signed_at,signature_path,signature_hash,signer_full_name,signer_dni,signer_ip,signer_user_agent,consented_at,consent_text_version"
-          )
-          .eq("document_id", documentId)
-          .order("position", { ascending: true, nullsFirst: true });
-      }
-
-      if (signersRes.error) {
-        return NextResponse.json({ error: "Failed to load signers" }, { status: 500 });
-      }
-
-      const signers = (signersRes.data || []) as any[];
 
       // Descargar original.pdf
       const dl = await admin.storage.from("fds").download(doc2.original_path);
@@ -508,6 +482,35 @@ export async function POST(req: NextRequest) {
 
       certPage.drawImage(qrImage, { x: 595.28 - MARGIN - 90, y: 841.89 - MARGIN - 90, width: 90, height: 90 });
 
+      /**
+       * ✅ FIX TypeScript:
+       * el tipo de la respuesta cambia entre el select "con P1" y el select "sin P1".
+       * Tipamos `signersRes` con un shape mínimo para permitir el fallback sin error de compilación.
+       */
+      let signersRes: { data: any[] | null; error: any } = await admin
+        .from("signing_requests")
+        .select(
+          "id,email,status,position,signed_at,signature_path,signature_hash,signer_full_name,signer_dni,signer_ip,signer_user_agent,consented_at,consent_text_version,signer_capacity,signer_company_name,signer_company_cuit,signer_company_address,signer_company_role"
+        )
+        .eq("document_id", documentId)
+        .order("position", { ascending: true, nullsFirst: true });
+
+      if (signersRes.error && isMissingColumnError(signersRes.error)) {
+        signersRes = await admin
+          .from("signing_requests")
+          .select(
+            "id,email,status,position,signed_at,signature_path,signature_hash,signer_full_name,signer_dni,signer_ip,signer_user_agent,consented_at,consent_text_version"
+          )
+          .eq("document_id", documentId)
+          .order("position", { ascending: true, nullsFirst: true });
+      }
+
+      if (signersRes.error) {
+        return NextResponse.json({ error: "Failed to load signers" }, { status: 500 });
+      }
+
+      const signers = (signersRes.data || []) as any[];
+
       for (const s of signers) {
         if (cursorY < MARGIN + SIGN_H + 90) {
           certPage = addCertPage();
@@ -536,7 +539,9 @@ export async function POST(req: NextRequest) {
           const cname = String(s.signer_company_name || "-");
           const ccuit = onlyDigits(s.signer_company_cuit || "");
           const crole = String(s.signer_company_role || "");
-          const repLine = `En representación de: ${cname}${ccuit ? ` (CUIT ${ccuit})` : ""}${crole ? ` • Rol: ${crole}` : ""}`;
+          const repLine = `En representación de: ${cname}${ccuit ? ` (CUIT ${ccuit})` : ""}${
+            crole ? ` • Rol: ${crole}` : ""
+          }`;
           certPage.drawText(repLine, { x: MARGIN, y: cursorY, size: 9, font, color: rgb(0.1, 0.1, 0.1) });
           cursorY -= 12;
 
@@ -561,7 +566,12 @@ export async function POST(req: NextRequest) {
             borderColor: rgb(0.2, 0.2, 0.2),
             borderWidth: 1,
           });
-          certPage.drawImage(sigImg, { x: MARGIN + 6, y: cursorY - SIGN_H + 6, width: SIGN_W - 12, height: SIGN_H - 12 });
+          certPage.drawImage(sigImg, {
+            x: MARGIN + 6,
+            y: cursorY - SIGN_H + 6,
+            width: SIGN_W - 12,
+            height: SIGN_H - 12,
+          });
         } else {
           certPage.drawRectangle({
             x: MARGIN,
@@ -571,7 +581,13 @@ export async function POST(req: NextRequest) {
             borderColor: rgb(0.2, 0.2, 0.2),
             borderWidth: 1,
           });
-          certPage.drawText("(sin imagen de firma)", { x: MARGIN + 8, y: cursorY - 24, size: 9, font, color: rgb(0.4, 0.4, 0.4) });
+          certPage.drawText("(sin imagen de firma)", {
+            x: MARGIN + 8,
+            y: cursorY - 24,
+            size: 9,
+            font,
+            color: rgb(0.4, 0.4, 0.4),
+          });
         }
 
         cursorY -= SIGN_H + ROW_GAP;
