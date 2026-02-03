@@ -15,6 +15,8 @@ type Preview = {
   pdfUrl: string; // suele ser "/api/preview?token=..."
 };
 
+type SignerCapacity = "self" | "representing";
+
 export default function SignPage() {
   const params = useParams<{ token: string }>();
   const token = params?.token || "";
@@ -28,6 +30,12 @@ export default function SignPage() {
   const addressRef = useRef<HTMLInputElement | null>(null);
   const phoneRef = useRef<HTMLInputElement | null>(null);
 
+  // Empresa (solo si firma en representación)
+  const companyNameRef = useRef<HTMLInputElement | null>(null);
+  const companyCuitRef = useRef<HTMLInputElement | null>(null);
+  const companyAddressRef = useRef<HTMLInputElement | null>(null);
+  const companyRoleRef = useRef<HTMLInputElement | null>(null);
+
   const [preview, setPreview] = useState<Preview | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -39,6 +47,9 @@ export default function SignPage() {
   const [ok, setOk] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [consent, setConsent] = useState(false);
+
+  // Capacidad de firma
+  const [signerCapacity, setSignerCapacity] = useState<SignerCapacity>("self");
 
   // Para recalcular canSign cuando el usuario escribe o firma
   const [tick, setTick] = useState(0);
@@ -59,6 +70,14 @@ export default function SignPage() {
     const address = (addressRef.current?.value || "").trim();
     const phone = onlyDigits(phoneRef.current?.value || "");
     return { fullName, dni, cuil, address, phone };
+  }
+
+  function readCompany() {
+    const companyName = (companyNameRef.current?.value || "").trim();
+    const companyCuit = onlyDigits(companyCuitRef.current?.value || "");
+    const companyAddress = (companyAddressRef.current?.value || "").trim();
+    const companyRole = (companyRoleRef.current?.value || "").trim();
+    return { companyName, companyCuit, companyAddress, companyRole };
   }
 
   useEffect(() => {
@@ -102,8 +121,16 @@ export default function SignPage() {
     if (!filled) return false;
 
     if (s.cuil && s.cuil.length !== 11) return false;
+
+    if (signerCapacity === "representing") {
+      const c = readCompany();
+      if (!c.companyName || c.companyName.length < 2) return false;
+      if (!c.companyRole || c.companyRole.length < 2) return false;
+      if (!c.companyCuit || c.companyCuit.length !== 11) return false;
+    }
+
     return true;
-  }, [preview, consent, sigDirty, tick]);
+  }, [preview, consent, sigDirty, signerCapacity, tick]);
 
   function clearSig() {
     sigRef.current?.clear();
@@ -150,6 +177,22 @@ export default function SignPage() {
       return;
     }
 
+    const company = readCompany();
+    if (signerCapacity === "representing") {
+      if (!company.companyName || company.companyName.length < 2) {
+        setActionErr("Completá la razón social de la empresa.");
+        return;
+      }
+      if (!company.companyRole || company.companyRole.length < 2) {
+        setActionErr("Completá tu rol/cargo dentro de la empresa.");
+        return;
+      }
+      if (!company.companyCuit || company.companyCuit.length !== 11) {
+        setActionErr("CUIT inválido: debe tener 11 dígitos (sin guiones).");
+        return;
+      }
+    }
+
     setBusy(true);
     try {
       const signatureDataUrl = sigRef.current.getTrimmedCanvas().toDataURL("image/png");
@@ -164,6 +207,19 @@ export default function SignPage() {
           consent,
           signer,
 
+          // NUEVO (P1): capacidad de firma + empresa
+          signerCapacity,
+          signer_capacity: signerCapacity, // alias legacy/DB
+          signerCompanyName: company.companyName || null,
+          signer_company_name: company.companyName || null,
+          signerCompanyCuit: company.companyCuit || null,
+          signer_company_cuit: company.companyCuit || null,
+          signerCompanyAddress: company.companyAddress || null,
+          signer_company_address: company.companyAddress || null,
+          signerCompanyRole: company.companyRole || null,
+          signer_company_role: company.companyRole || null,
+
+          // legacy/compat (por si el backend esperaba campos sueltos)
           full_name: signer.fullName,
           dni: signer.dni,
           cuil: signer.cuil,
@@ -314,6 +370,7 @@ export default function SignPage() {
                 className="w-full rounded-md border border-zinc-200 px-3 py-2 text-sm"
                 disabled={busy || preview.status !== "pending"}
               />
+
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <input
                   ref={dniRef}
@@ -332,6 +389,7 @@ export default function SignPage() {
                   inputMode="numeric"
                 />
               </div>
+
               <input
                 ref={phoneRef}
                 onChange={bump}
@@ -340,6 +398,7 @@ export default function SignPage() {
                 disabled={busy || preview.status !== "pending"}
                 inputMode="tel"
               />
+
               <input
                 ref={addressRef}
                 onChange={bump}
@@ -347,6 +406,82 @@ export default function SignPage() {
                 className="w-full rounded-md border border-zinc-200 px-3 py-2 text-sm"
                 disabled={busy || preview.status !== "pending"}
               />
+            </div>
+
+            {/* P1: Capacidad de firma */}
+            <div className="mt-5 rounded-lg border border-zinc-200 p-3">
+              <div className="text-sm font-semibold">Capacidad de firma</div>
+              <p className="mt-1 text-xs text-zinc-600">
+                Esta información puede incorporarse como evidencia en la constancia y auditoría del documento.
+              </p>
+
+              <div className="mt-3 flex flex-col gap-2">
+                <label className="flex items-center gap-2 text-sm text-zinc-800">
+                  <input
+                    type="radio"
+                    name="signerCapacity"
+                    checked={signerCapacity === "self"}
+                    onChange={() => {
+                      setSignerCapacity("self");
+                      bump();
+                    }}
+                    disabled={busy || preview.status !== "pending"}
+                  />
+                  Firmo por mi cuenta
+                </label>
+
+                <label className="flex items-center gap-2 text-sm text-zinc-800">
+                  <input
+                    type="radio"
+                    name="signerCapacity"
+                    checked={signerCapacity === "representing"}
+                    onChange={() => {
+                      setSignerCapacity("representing");
+                      bump();
+                    }}
+                    disabled={busy || preview.status !== "pending"}
+                  />
+                  Firmo en representación de una empresa
+                </label>
+              </div>
+
+              {signerCapacity === "representing" ? (
+                <div className="mt-3 grid gap-3">
+                  <input
+                    ref={companyNameRef}
+                    onChange={bump}
+                    placeholder="Razón social (ej: Empresa S.A.)"
+                    className="w-full rounded-md border border-zinc-200 px-3 py-2 text-sm"
+                    disabled={busy || preview.status !== "pending"}
+                  />
+
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <input
+                      ref={companyCuitRef}
+                      onChange={bump}
+                      placeholder="CUIT (11 dígitos, sin guiones)"
+                      className="w-full rounded-md border border-zinc-200 px-3 py-2 text-sm"
+                      disabled={busy || preview.status !== "pending"}
+                      inputMode="numeric"
+                    />
+                    <input
+                      ref={companyRoleRef}
+                      onChange={bump}
+                      placeholder="Rol / cargo (ej: Apoderado / Director)"
+                      className="w-full rounded-md border border-zinc-200 px-3 py-2 text-sm"
+                      disabled={busy || preview.status !== "pending"}
+                    />
+                  </div>
+
+                  <input
+                    ref={companyAddressRef}
+                    onChange={bump}
+                    placeholder="Domicilio de la empresa (opcional)"
+                    className="w-full rounded-md border border-zinc-200 px-3 py-2 text-sm"
+                    disabled={busy || preview.status !== "pending"}
+                  />
+                </div>
+              ) : null}
             </div>
 
             <div className="mt-4 flex items-start gap-2">

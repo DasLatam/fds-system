@@ -6,8 +6,6 @@ import QRCode from "qrcode";
 import crypto from "crypto";
 import { getResend } from "@/lib/mail/resendClient";
 
-export const runtime = "nodejs";
-
 async function sendResendEmail(opts: { to: string[]; subject: string; html: string; text?: string }) {
   // Usamos el SDK oficial (mismo approach que magic-link), y mantenemos compatibilidad mínima.
   const resend = getResend();
@@ -58,6 +56,7 @@ async function logAuditBasic(
   }
 }
 
+
 function getIp(req: NextRequest) {
   const xf = req.headers.get("x-forwarded-for");
   if (xf) return xf.split(",")[0].trim();
@@ -85,12 +84,6 @@ function uuidLike() {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
-function onlyDigits(v: any) {
-  return String(v || "").replace(/\D/g, "");
-}
-
-type SignerCapacity = "self" | "representing";
-
 const SignerSchema = z.object({
   fullName: z.string().min(2),
   dni: z.string().min(5),
@@ -99,157 +92,30 @@ const SignerSchema = z.object({
   phone: z.string().min(5),
 });
 
-const CanonicalBodySchema = z
-  .object({
-    token: z.string().min(10),
-    consent: z.boolean(),
-    consentTextVersion: z.string().optional().nullable(),
-    signatureDataUrl: z.string().min(20),
-    signer: SignerSchema,
-
-    // P1 (opcionales para compat)
-    signerCapacity: z.enum(["self", "representing"]).optional(),
-    signerCompanyName: z.string().optional().nullable(),
-    signerCompanyCuit: z.string().optional().nullable(),
-    signerCompanyAddress: z.string().optional().nullable(),
-    signerCompanyRole: z.string().optional().nullable(),
-  })
-  .superRefine((val, ctx) => {
-    const cap = (val.signerCapacity || "self") as SignerCapacity;
-    if (cap === "representing") {
-      const name = String(val.signerCompanyName || "").trim();
-      const cuit = onlyDigits(val.signerCompanyCuit);
-      const role = String(val.signerCompanyRole || "").trim();
-
-      if (name.length < 2) ctx.addIssue({ code: "custom", message: "Company name required when representing" });
-      if (role.length < 2) ctx.addIssue({ code: "custom", message: "Company role required when representing" });
-      if (cuit.length !== 11) ctx.addIssue({ code: "custom", message: "Company CUIT must be 11 digits when representing" });
-    }
-  });
-
-const BodySchema = z.preprocess((v) => {
-  if (!v || typeof v !== "object") return v;
-  const b: any = v;
-
-  // signatureDataUrl aliases
-  if (!b.signatureDataUrl && b.signature_data_url) b.signatureDataUrl = b.signature_data_url;
-
-  // signerCapacity aliases
-  if (!b.signerCapacity && b.signer_capacity) b.signerCapacity = b.signer_capacity;
-
-  // company aliases
-  if (!b.signerCompanyName && b.signer_company_name) b.signerCompanyName = b.signer_company_name;
-  if (!b.signerCompanyCuit && b.signer_company_cuit) b.signerCompanyCuit = b.signer_company_cuit;
-  if (!b.signerCompanyAddress && b.signer_company_address) b.signerCompanyAddress = b.signer_company_address;
-  if (!b.signerCompanyRole && b.signer_company_role) b.signerCompanyRole = b.signer_company_role;
-
-  // signer object: allow snake_case inside signer
-  if (b.signer && typeof b.signer === "object") {
-    const s = b.signer;
-    if (!s.fullName && s.full_name) s.fullName = s.full_name;
-    if (!s.dni && s.signer_dni) s.dni = s.signer_dni;
-    if (!s.cuil && s.signer_cuil) s.cuil = s.signer_cuil;
-    if (!s.address && s.signer_address) s.address = s.signer_address;
-    if (!s.phone && s.signer_phone) s.phone = s.signer_phone;
-  }
-
-  // legacy: signer fields sueltos
-  if (!b.signer) {
-    const fullName = b.signer_full_name || b.full_name || b.fullName;
-    const dni = b.signer_dni || b.dni;
-    const cuil = b.signer_cuil || b.cuil;
-    const address = b.signer_address || b.address;
-    const phone = b.signer_phone || b.phone;
-
-    if (fullName && dni && cuil && address && phone) {
-      b.signer = {
-        fullName,
-        dni,
-        cuil,
-        address,
-        phone,
-      };
-    }
-  }
-
-  return b;
-}, CanonicalBodySchema);
-
-// Helpers para compatibilidad de DB (si aún no migraste columnas nuevas)
-function isMissingColumnError(err: any) {
-  const msg = String(err?.message || err || "");
-  // PostgREST suele devolver mensajes de columna inexistente
-  return (
-    msg.toLowerCase().includes("column") &&
-    (msg.toLowerCase().includes("does not exist") || msg.toLowerCase().includes("not found"))
-  );
-}
+const BodySchema = z.object({
+  token: z.string().min(10),
+  consent: z.boolean(),
+  consentTextVersion: z.string().optional().nullable(),
+  signatureDataUrl: z.string().min(20),
+  signer: SignerSchema,
+});
 
 export async function POST(req: NextRequest) {
   try {
-    let parsed: z.infer<typeof CanonicalBodySchema>;
-    try {
-      parsed = BodySchema.parse(await req.json());
-    } catch (e: any) {
-      if (e instanceof z.ZodError) {
-        return NextResponse.json(
-          {
-            error: "Invalid body",
-            details: process.env.NODE_ENV === "production" ? undefined : e.issues,
-          },
-          { status: 400 }
-        );
-      }
-      throw e;
-    }
-
-    const body = parsed;
-
+    const body = BodySchema.parse(await req.json());
     if (!body.consent) {
       return NextResponse.json({ error: "Consent required" }, { status: 400 });
-    }
-
-    // Normalización de identidad (aceptar guiones/espacios)
-    const signer = {
-      fullName: String(body.signer.fullName || "").trim(),
-      dni: onlyDigits(body.signer.dni),
-      cuil: onlyDigits(body.signer.cuil),
-      address: String(body.signer.address || "").trim(),
-      phone: onlyDigits(body.signer.phone),
-    };
-
-    if (!signer.fullName || signer.fullName.length < 2) {
-      return NextResponse.json({ error: "Invalid signer_full_name" }, { status: 400 });
-    }
-    if (signer.cuil.length !== 11) {
-      return NextResponse.json({ error: "CUIL inválido: debe tener 11 dígitos" }, { status: 400 });
-    }
-
-    const signerCapacity = (body.signerCapacity || "self") as SignerCapacity;
-    const company = {
-      name: String(body.signerCompanyName || "").trim() || null,
-      cuit: onlyDigits(body.signerCompanyCuit || null) || null,
-      address: String(body.signerCompanyAddress || "").trim() || null,
-      role: String(body.signerCompanyRole || "").trim() || null,
-    };
-
-    if (signerCapacity === "representing") {
-      if (!company.name || company.name.length < 2) {
-        return NextResponse.json({ error: "Razón social requerida para firmar en representación" }, { status: 400 });
-      }
-      if (!company.role || company.role.length < 2) {
-        return NextResponse.json({ error: "Rol/cargo requerido para firmar en representación" }, { status: 400 });
-      }
-      if (!company.cuit || company.cuit.length !== 11) {
-        return NextResponse.json({ error: "CUIT inválido: debe tener 11 dígitos" }, { status: 400 });
-      }
     }
 
     const admin = createAdminClient();
     const nowIso = new Date().toISOString();
 
     // 1) Buscar signing_request por token
-    const srRes = await admin.from("signing_requests").select("*").eq("token", body.token).maybeSingle();
+    const srRes = await admin
+      .from("signing_requests")
+      .select("*")
+      .eq("token", body.token)
+      .maybeSingle();
 
     if (srRes.error || !srRes.data) {
       return NextResponse.json({ error: "Invalid link" }, { status: 400 });
@@ -289,37 +155,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Failed to upload signature" }, { status: 500 });
     }
 
-    // 4) Update signer status (con fallback si DB todavía no tiene columnas P1)
-    const baseUpdate: any = {
-      status: "signed",
-      signed_at: nowIso,
-      signature_path: signaturePath,
-      signer_full_name: signer.fullName,
-      signer_dni: signer.dni,
-      signer_cuil: signer.cuil,
-      signer_address: signer.address,
-      signer_phone: signer.phone,
-      signer_ip: getIp(req),
-      signer_user_agent: req.headers.get("user-agent") ?? null,
-      consented_at: nowIso,
-      consent_text_version: body.consentTextVersion ?? null,
-      signature_hash: sha256Hex(signatureBytes),
-    };
-
-    const p1Update: any = {
-      signer_capacity: signerCapacity,
-      signer_company_name: signerCapacity === "representing" ? company.name : null,
-      signer_company_cuit: signerCapacity === "representing" ? company.cuit : null,
-      signer_company_address: signerCapacity === "representing" ? company.address : null,
-      signer_company_role: signerCapacity === "representing" ? company.role : null,
-    };
-
-    let updSigner = await admin.from("signing_requests").update({ ...baseUpdate, ...p1Update }).eq("id", sr.id);
-
-    if (updSigner.error && isMissingColumnError(updSigner.error)) {
-      // fallback: DB aún no migrada
-      updSigner = await admin.from("signing_requests").update(baseUpdate).eq("id", sr.id);
-    }
+    // 4) Update signer status
+    const updSigner = await admin
+      .from("signing_requests")
+      .update({
+        status: "signed",
+        signed_at: nowIso,
+        signature_path: signaturePath,
+        signer_full_name: body.signer.fullName,
+        signer_dni: body.signer.dni,
+        signer_cuil: body.signer.cuil,
+        signer_address: body.signer.address,
+        signer_phone: body.signer.phone,
+        signer_ip: getIp(req),
+        signer_user_agent: req.headers.get("user-agent") ?? null,
+        consented_at: nowIso,
+        consent_text_version: body.consentTextVersion ?? null,
+        signature_hash: sha256Hex(signatureBytes),
+      })
+      .eq("id", sr.id);
 
     if (updSigner.error) {
       return NextResponse.json({ error: "Failed to update signer" }, { status: 500 });
@@ -328,7 +182,10 @@ export async function POST(req: NextRequest) {
     // 5) Update signed_count en documents
     const inc = (doc.signed_count ?? 0) + 1;
 
-    const updCounts = await admin.from("documents").update({ signed_count: inc }).eq("id", documentId);
+    const updCounts = await admin
+      .from("documents")
+      .update({ signed_count: inc })
+      .eq("id", documentId);
 
     if (updCounts.error) {
       return NextResponse.json({ error: "Failed to update document counts" }, { status: 500 });
@@ -354,24 +211,13 @@ export async function POST(req: NextRequest) {
 
       const doc2 = doc2Res.data as any;
 
-      // Intentar traer columnas P1; si no existen, fallback al select anterior
-      let signersRes = await admin
+      const signersRes = await admin
         .from("signing_requests")
         .select(
-          "id,email,status,position,signed_at,signature_path,signature_hash,signer_full_name,signer_dni,signer_ip,signer_user_agent,consented_at,consent_text_version,signer_capacity,signer_company_name,signer_company_cuit,signer_company_address,signer_company_role"
+          "id,email,status,position,signed_at,signature_path,signature_hash,signer_full_name,signer_dni,signer_ip,signer_user_agent,consented_at,consent_text_version"
         )
         .eq("document_id", documentId)
         .order("position", { ascending: true, nullsFirst: true });
-
-      if (signersRes.error && isMissingColumnError(signersRes.error)) {
-        signersRes = await admin
-          .from("signing_requests")
-          .select(
-            "id,email,status,position,signed_at,signature_path,signature_hash,signer_full_name,signer_dni,signer_ip,signer_user_agent,consented_at,consent_text_version"
-          )
-          .eq("document_id", documentId)
-          .order("position", { ascending: true, nullsFirst: true });
-      }
 
       if (signersRes.error) {
         return NextResponse.json({ error: "Failed to load signers" }, { status: 500 });
@@ -386,9 +232,10 @@ export async function POST(req: NextRequest) {
       }
       const originalBytes = new Uint8Array(await dl.data.arrayBuffer());
 
-      // Generar audit_code
+      // Generar audit_code (si falta)
       const auditCode = uuidLike();
 
+      // Hash final (se calcula del PDF final, luego de generar)
       // Armado PDF final: marca en todas las páginas + constancia + QR
       const originalPdf = await PDFDocument.load(originalBytes, { ignoreEncryption: true });
 
@@ -479,37 +326,19 @@ export async function POST(req: NextRequest) {
       });
       cursorY -= 18;
 
-      certPage.drawText(`Código de auditoría: ${auditCode}`, {
-        x: MARGIN,
-        y: cursorY,
-        size: 11,
-        font,
-        color: rgb(0, 0, 0),
-      });
+      certPage.drawText(`Código de auditoría: ${auditCode}`, { x: MARGIN, y: cursorY, size: 11, font, color: rgb(0, 0, 0) });
       cursorY -= 18;
 
-      certPage.drawText(`URL de verificación: ${verifyUrl}`, {
-        x: MARGIN,
-        y: cursorY,
-        size: 10,
-        font,
-        color: rgb(0, 0, 0),
-      });
+      certPage.drawText(`URL de verificación: ${verifyUrl}`, { x: MARGIN, y: cursorY, size: 10, font, color: rgb(0, 0, 0) });
       cursorY -= 18;
 
-      certPage.drawText(`Fecha de finalización (UTC): ${nowIso}`, {
-        x: MARGIN,
-        y: cursorY,
-        size: 10,
-        font,
-        color: rgb(0, 0, 0),
-      });
+      certPage.drawText(`Fecha de finalización (UTC): ${nowIso}`, { x: MARGIN, y: cursorY, size: 10, font, color: rgb(0, 0, 0) });
       cursorY -= 28;
 
       certPage.drawImage(qrImage, { x: 595.28 - MARGIN - 90, y: 841.89 - MARGIN - 90, width: 90, height: 90 });
 
       for (const s of signers) {
-        if (cursorY < MARGIN + SIGN_H + 90) {
+        if (cursorY < MARGIN + SIGN_H + 60) {
           certPage = addCertPage();
           cursorY = 841.89 - MARGIN;
           certPage.drawText(title, { x: MARGIN, y: cursorY - 22, size: 18, font: fontBold, color: rgb(0, 0, 0) });
@@ -530,47 +359,11 @@ export async function POST(req: NextRequest) {
         certPage.drawText(label, { x: MARGIN, y: cursorY, size: 11, font: fontBold, color: rgb(0, 0, 0) });
         cursorY -= 14;
 
-        // P1: línea de representación si existe
-        const cap: SignerCapacity = (s.signer_capacity as any) || "self";
-        if (cap === "representing") {
-          const cname = String(s.signer_company_name || "-");
-          const ccuit = onlyDigits(s.signer_company_cuit || "");
-          const crole = String(s.signer_company_role || "");
-          const repLine = `En representación de: ${cname}${ccuit ? ` (CUIT ${ccuit})` : ""}${crole ? ` • Rol: ${crole}` : ""}`;
-          certPage.drawText(repLine, { x: MARGIN, y: cursorY, size: 9, font, color: rgb(0.1, 0.1, 0.1) });
-          cursorY -= 12;
-
-          if (s.signer_company_address) {
-            certPage.drawText(`Domicilio empresa: ${String(s.signer_company_address)}`, {
-              x: MARGIN,
-              y: cursorY,
-              size: 8,
-              font,
-              color: rgb(0.25, 0.25, 0.25),
-            });
-            cursorY -= 11;
-          }
-        }
-
         if (sigImg) {
-          certPage.drawRectangle({
-            x: MARGIN,
-            y: cursorY - SIGN_H,
-            width: SIGN_W,
-            height: SIGN_H,
-            borderColor: rgb(0.2, 0.2, 0.2),
-            borderWidth: 1,
-          });
+          certPage.drawRectangle({ x: MARGIN, y: cursorY - SIGN_H, width: SIGN_W, height: SIGN_H, borderColor: rgb(0.2, 0.2, 0.2), borderWidth: 1 });
           certPage.drawImage(sigImg, { x: MARGIN + 6, y: cursorY - SIGN_H + 6, width: SIGN_W - 12, height: SIGN_H - 12 });
         } else {
-          certPage.drawRectangle({
-            x: MARGIN,
-            y: cursorY - SIGN_H,
-            width: SIGN_W,
-            height: SIGN_H,
-            borderColor: rgb(0.2, 0.2, 0.2),
-            borderWidth: 1,
-          });
+          certPage.drawRectangle({ x: MARGIN, y: cursorY - SIGN_H, width: SIGN_W, height: SIGN_H, borderColor: rgb(0.2, 0.2, 0.2), borderWidth: 1 });
           certPage.drawText("(sin imagen de firma)", { x: MARGIN + 8, y: cursorY - 24, size: 9, font, color: rgb(0.4, 0.4, 0.4) });
         }
 
@@ -610,7 +403,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Failed to update document" }, { status: 500 });
       }
 
-      // Auditoría: documento finalizado (firmado por todos) + snapshot de firmantes (incluye P1 si está)
+      // Auditoría: documento finalizado (firmado por todos)
       try {
         await admin.from("audit_events").insert({
           document_id: documentId,
@@ -623,19 +416,6 @@ export async function POST(req: NextRequest) {
             audit_code: auditCode,
             final_path: finalPath,
             final_hash_sha256: finalHashSha256,
-            signers: signers.map((x) => ({
-              email: x.email || null,
-              signer_full_name: x.signer_full_name || null,
-              signer_dni: x.signer_dni || null,
-              signer_capacity: x.signer_capacity || null,
-              signer_company_name: x.signer_company_name || null,
-              signer_company_cuit: x.signer_company_cuit || null,
-              signer_company_role: x.signer_company_role || null,
-              signer_company_address: x.signer_company_address || null,
-              signed_at: x.signed_at || null,
-              signer_ip: x.signer_ip || null,
-              signer_user_agent: x.signer_user_agent || null,
-            })),
           },
         });
       } catch {}
@@ -656,7 +436,10 @@ export async function POST(req: NextRequest) {
         const completedAtForEmail = String((docOwnerRes.data as any)?.completed_at || nowIso);
 
         // firmantes (emails)
-        const signersEmailsRes = await admin.from("signing_requests").select("email").eq("document_id", documentId);
+        const signersEmailsRes = await admin
+          .from("signing_requests")
+          .select("email")
+          .eq("document_id", documentId);
 
         const rawRecipients = [
           createdByEmail,

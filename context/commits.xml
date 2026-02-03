@@ -1,0 +1,825 @@
+<commit hash="66675f45a2f26989e6174cb2e57269a375c2e3f7" short="66675f4" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-30T15:58:05-03:00">
+<title>Plans: plan free/pro + límite mensual (server-side)</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="2792f4656a816c26990ff0bc624900e540b6ab8f" short="2792f46" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-30T15:28:26-03:00">
+<title>Marketing: home producto (qué es/qué no es + verificación + casos)</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="77ee64b2df9dcf3916083459c45a3eaf2ddd4d27" short="77ee64b" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-30T14:22:20-03:00">
+<title>Admin: unificar vistas + mantener Usuarios</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="9ac8c78ca766bc693c0307b5d7860d7b13a72eb8" short="9ac8c78" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-30T14:07:42-03:00">
+<title>Admin: agregar pestaña Usuarios con actividad</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="b9352ef2196f4520b78eb10cd4fb8cc3d168d2b5" short="b9352ef" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-30T13:49:56-03:00">
+<title>Admin: fix docs select + search query</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="05985cbe57d1235e2f5c3fb6e0edd395973a2aff" short="05985cb" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-30T13:30:55-03:00">
+<title>Admin: server-render + filtros por query (sin hardcode de email)</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="10c7ff5f10aa1be1f66d84c45feb0e6f60159976" short="10c7ff5" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-30T13:08:14-03:00">
+<title>Admin: force refresh on query param changes</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="8b75c8a81c8c0794a4be1ec66e31fbd8c2129dcf" short="8b75c8a" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-30T12:52:53-03:00">
+<title>Admin: filtros via anchors + revalidate=0</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="4064d04dcbdbbf57d6c843f3109ae8db0adfe51d" short="4064d04" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-30T12:43:41-03:00">
+<title>Admin: owner gate via env (FES_OWNER_EMAIL)</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="c96d13b2df78fe126e395effd191238862e88218" short="c96d13b" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-30T12:01:39-03:00">
+<title>Chore: ignore tmp artifacts</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="75c2d21a7ffe20d376f1c66207bfecf5f9b4dcb0" short="75c2d21" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-30T11:58:15-03:00">
+<title>Admin: panel read-only para owner</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="a941d0ae7f50d289123256b804ac5224d9090afe" short="a941d0a" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-30T10:54:42-03:00">
+<title>fix(audit): remove debug sign_should_finalize events</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="5d1b6316cb2d35bdb29d7288bdd48cb75802bcf5" short="5d1b631" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-30T10:39:30-03:00">
+<title>fix(sign): load encrypted PDFs with ignoreEncryption</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="4004d8eb32b9d6763f0edcb64b4d1b79e2fa7f79" short="4004d8e" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-30T10:16:22-03:00">
+<title>fix(build): remove debug audit block referencing sr before declaration</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="c2b33da294a1996a545f5ba17c41991c9a1d194c" short="c2b33da" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-30T10:05:49-03:00">
+<title>chore(audit): debug sign finalize branch</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="7b1f710d4d6cd80a7c52e5abc4acf1691a423c1b" short="7b1f710" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-30T01:51:39-03:00">
+<title>fix(audit): record document_completed with basic audit insert</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="cd93f26c24d4828f6fab751168c47b7acfa87659" short="cd93f26" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-30T01:43:17-03:00">
+<title>fix(email): use RESEND_FROM for completion email sender</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="7510f3cbaa6671ae0ed493290d02293b4903517a" short="7510f3c" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-30T01:09:56-03:00">
+<title>fix(api/sign): remove duplicate finalHashSha256 declaration</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="ff193d1ac5c9f12b39174df4fb9fd4f2e58ec056" short="ff193d1" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-30T00:58:54-03:00">
+<title>feat(audit): log document_completed on finalization</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="33cffe913e2d9a976b275e2b1ca6a927988ded5a" short="33cffe9" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-30T00:38:47-03:00">
+<title>fix(ux): align New page header buttons</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="6165200730df210c7957a5e51dc1d832bb861c00" short="6165200" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-30T00:25:41-03:00">
+<title>feat(ux): dashboard search + archive ui + disable final docs actions</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="37812668ce98f4ca9621bc868a8d46dabe011be8" short="3781266" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-29T22:55:55-03:00">
+<title>feat(metrics): dashboard stats + recent activity + per-doc verifications</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="1fb75cdcb05b3334be85529bfcc021b866af1d64" short="1fb75cd" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-29T22:01:50-03:00">
+<title>fix: filtrar destinatarios inválidos en email finalizado (Resend) + auditoría</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="31a068f9f32bea95c9c55ec51f36784433f89443" short="31a068f" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-29T21:57:52-03:00">
+<title>fix: filtrar destinatarios inválidos en email finalizado (Resend) + auditoría</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="89940ab859cafc730f24d488d805d66443973d1f" short="89940ab" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-29T21:55:12-03:00">
+<title>fix: filtrar destinatarios inválidos en email finalizado (Resend) + auditoría</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="902355d10a29dde6c6bcf486b5147b58d5005065" short="902355d" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-29T20:41:38-03:00">
+<title>email: aviso final con Resend SDK + auditoría completion_email_*</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="73f1f44643ed8046a1675a838eace9c387b16f90" short="73f1f44" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-29T18:56:09-03:00">
+<title>fix: selector de PDF estable en /dashboard/new (sin script, sin doble picker)</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="0563549cd8e638b0f71d9debc2a8d00bc9f0695b" short="0563549" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-29T18:43:46-03:00">
+<title>email: aviso automático cuando el documento queda firmado por todos</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="9745ef7f692f15ea9f532b07c55d6a37d9b3c637" short="9745ef7" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-29T18:21:55-03:00">
+<title>pdf: constancia multipágina para muchas firmas</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="5497db8a5a1fa09bb32249a9479f23f87032b340" short="5497db8" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-29T18:16:29-03:00">
+<title>ux: arreglar picker PDF y desmarcar 'Incluirme como firmante' por defecto</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="66446c3ee04ea66e1e9b230f15696578743389a0" short="66446c3" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-29T17:59:22-03:00">
+<title>ux: separar error de link vs error de firma en /s/[token]</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="c6c1ec309bf8ede9f2823614ddaaebf65672a432" short="c6c1ec3" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-29T17:57:33-03:00">
+<title>metrics: registrar verificaciones públicas (verification_events)</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="f1fe61f2dc7a7a324f55be6585eb55b6a5b7161b" short="f1fe61f" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-29T17:06:37-03:00">
+<title>pdf: marca en todas las páginas y aclaración bajo la firma</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="895d977bd457c95f8d52780b692fbd659cc23977" short="895d977" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-29T16:40:47-03:00">
+<title>fix: usar consented_at en signing_requests (evita 500 Invalid column)</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="0dae5024fc4c1a3117400a4ecab01307d39b5ff7" short="0dae502" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-29T16:29:31-03:00">
+<title>chore: agregar typings de qrcode para build en Vercel</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="3f8b4311172a85d012d9c7d9d71500c53071df2c" short="3f8b431" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-29T16:27:22-03:00">
+<title>pdf: QR verificación en final.pdf + firma manuscrita 50% más chica</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="fdb157a0de65da2379685c9d787732536ed6c67f" short="fdb157a" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-29T16:22:47-03:00">
+<title>pdf: agregar QR de verificación y achicar firma manuscrita 50%</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="01e7c6eae04188c822c8dcb13ebfdd5bde2b22cb" short="01e7c6e" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-29T16:09:22-03:00">
+<title>fix: /api/sign acepta body del frontend y guarda audit_code + final_hash_sha256</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="d51a5a33cc5c19bbd79a3f590c11c5d2b82a599c" short="d51a5a3" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-29T15:22:52-03:00">
+<title>ux: pulido copys y mensajes en firma y verificación pública</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="bd80c67781c821175b2176847eafb9055985ec11" short="bd80c67" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-29T14:31:00-03:00">
+<title>feat: automatizar audit_code y final_hash_sha256 en finalize</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="ff712cb6284d9adc523798478bf76f8e18ec7733" short="ff712cb" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-29T10:37:45-03:00">
+<title>ux: pulido de validación pública (copy, badge, copiar hash, sin debug)</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="f4a851cd4d9b49a11941eaf847940d652456af78" short="f4a851c" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-28T20:26:55-03:00">
+<title>mejoras</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="bd67e1fff15fe5059e87a145f5d74c2a0972e4cc" short="bd67e1f" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-28T20:06:37-03:00">
+<title>chore: add api ping route</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="d3f64e18c5ba2a84bd6c6de057f8d80e179cd490" short="d3f64e1" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-28T19:59:10-03:00">
+<title>fix: build verificación pública (VerifyClient sin props)</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="9354f5c81ef089ad46a0bcbf78fed1efc2174770" short="9354f5c" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-28T19:54:12-03:00">
+<title>fix: obtener code desde router/useParams (fallback pathname)</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="04bcd1c06124bd2caaa98d08d8a579d3d85ec76d" short="04bcd1c" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-28T19:47:27-03:00">
+<title>fix: params.code en verificación pública (server page + client component)</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="19141cbbab579cac1de5ded0297361a0f392e79f" short="19141cb" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-28T19:29:58-03:00">
+<title>fix: habilitar verificación con archivo aunque falle auditCode</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="2f30d85b41689badf87d952e1d3d010c20c5c487" short="2f30d85" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-28T19:18:00-03:00">
+<title>fix: enviar audit_code correctamente en verificación pública</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="bde2de8dde1c20195dd76d3e4181799d2a036fb5" short="bde2de8" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-28T17:02:04-03:00">
+<title>ux: mejorar botón de subida de PDF en verificación pública</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="5bbc78ccb1a84adc9b1114b3315ea97eddb88f2e" short="5bbc78c" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-28T16:34:13-03:00">
+<title>feat: validación pública de documentos (/v/[audit_code])</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="50aff242f46fce1a506b178038813daa0f756496" short="50aff24" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-28T14:21:23-03:00">
+<title>Fix download UX: force attachment filename on signed URL</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="4b46660fe41600d46650e4d5a88d883104169078" short="4b46660" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-28T13:58:08-03:00">
+<title>Relax rate limit for resend-invite during testing</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="0b0e566d0918a5a8a7dd792c0f3d4405356d6160" short="0b0e566" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-28T13:48:15-03:00">
+<title>Fix upload: generate document uuid and set original_path on insert</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="0dfe63cb4d59e4d4e630490667246e29909ed7aa" short="0dfe63c" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-28T13:41:18-03:00">
+<title>Add detailed errors to documents upload endpoint</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="9103aabf03f851c2a3437b3dbd28dfd85b4a6776" short="9103aab" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-28T13:33:34-03:00">
+<title>Add POST /api/documents/upload endpoint</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="1152d3eb0b516e87194c9b228b45df9449b384b7" short="1152d3e" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-28T13:22:36-03:00">
+<title>Add documents upload endpoint and protect /api/documents</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="5a0ee136b40fc2daa4329350a9c724f75ad6a35b" short="5a0ee13" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-28T13:18:28-03:00">
+<title>Fix dashboard download prefetch + improve upload UI</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="5f0117f88805fcb27d7529a83d3b2662f8615798" short="5f0117f" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-28T12:29:53-03:00">
+<title>Fix logout: remove auth-helpers dependency and use 303 redirect</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="ff02661f41d50134db4244f8262d447c543a102e" short="ff02661" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-28T12:24:49-03:00">
+<title>Fix dashboard/new upload UI + add documents upload endpoint</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="0201a1edaa2eeb6bb44164dc0186a8ac18a35b16" short="0201a1e" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-28T11:23:59-03:00">
+<title>Sprint 3B: final PDF with signatures page + electronic mark</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="3def7cb730f827d7bcfc970cb5ca935b9b4f2ce1" short="3def7cb" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-28T11:03:37-03:00">
+<title>Sprint 3B: generate final PDF with signatures and audit mark</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="928002905fd402d4fcfe687bd7c6a33b898d6f01" short="9280029" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-28T10:32:36-03:00">
+<title>Implement expiration check and audit event insertion</title>
+<body><![CDATA[Added functions to check expiration and insert audit events.]]></body>
+</commit>
+
+<commit hash="73d8a666cdbb2df667be848ad09ab99921a343c7" short="73d8a66" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-28T03:09:12-03:00">
+<title>Fix resend-invite: avoid sending email if token update fails</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="c5d9447f37ab6197fba463faa134fabc76efe61c" short="c5d9447" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-28T01:54:38-03:00">
+<title>Merge pull request #2 from DasLatam/sprint-2-token</title>
+<body><![CDATA[Sprint 2 token]]></body>
+</commit>
+
+<commit hash="c270bdcefe049fada7e9ab6994281d0ae4b4cc57" short="c270bdc" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-28T01:46:06-03:00">
+<title>sprint2: fix signing link (remove replaced_by) + fix signature canvas typings</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="7b3162bcaa72a4c6a7674974413dd67c010a41d4" short="7b3162b" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-28T01:24:47-03:00">
+<title>sprint2: fix signing link (remove replaced_by) + fix signature canvas typings</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="482a8188f0546c4af9a11799de49ea9a9ff7c97d" short="482a818" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-28T01:19:19-03:00">
+<title>sprint2: fix signing link (remove replaced_by) + fix signature canvas typings</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="5547608847ecfb59bce8512d4be0e319255d12a4" short="5547608" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-28T01:14:08-03:00">
+<title>sprint2: fix signing link (remove replaced_by) + fix signature canvas typings</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="13aba4f35bae5a5af6262bafc3c45b0b1eaec9e5" short="13aba4f" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-28T01:06:37-03:00">
+<title>sprint2: fix signing link (remove replaced_by) + fix signature canvas typings</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="0d5b948416c74bf85791ee8c771de0b1416becd5" short="0d5b948" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-28T00:08:41-03:00">
+<title>sprint2: fix signature canvas event typing</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="86077c79a69037295936cad397d08692aeb6b416" short="86077c7" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-28T00:05:33-03:00">
+<title>sprint2: fix token page pdf preview and error copy</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="0fb617ac795c81d77a5d5abb16abcc728c388d81" short="0fb617a" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-27T23:33:54-03:00">
+<title>Merge pull request #1 from DasLatam/sprint-1-login</title>
+<body><![CDATA[sprint1: remove duplicate auth callback routes]]></body>
+</commit>
+
+<commit hash="dfd5a6223b51b1c0deb7187c789ec168f7b8b832" short="dfd5a62" author="Ariel Baudry" email="ariel@baudry.com.ar" date="2026-01-27T23:18:02-03:00">
+<title>sprint1: remove duplicate auth callback routes</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="221d57536d72d2031be33b64ee58eda2ef758465" short="221d575" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-27T13:43:04-03:00">
+<title>Refactor GET function to use async token extraction</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="3473ec674375c0a0dd1d59cbe3f4b37a4d480260" short="3473ec6" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-27T13:10:02-03:00">
+<title>Refactor invite route for cleaner code structure</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="042ec34d0e8d528a9dbdd818ea5f0a8125222c11" short="042ec34" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-27T13:08:31-03:00">
+<title>Refactor GET function to improve token handling</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="2247f38e8c47531053c511df7dfd6d9ae98c4a55" short="2247f38" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-27T01:01:58-03:00">
+<title>Refactor preview normalization and validation logic</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="bf1b73362062825186f148f3a7a83a88af51a0b0" short="bf1b733" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-27T01:00:55-03:00">
+<title>Update public and protected path checks in middleware</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="6421fc02c81784ac7155246374a49e667d3b1838" short="6421fc0" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-27T00:42:11-03:00">
+<title>Refactor signing request handling in route.ts</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="6eb0dfaa8cf57d40d676b2a523ba3cf9962e51e6" short="6eb0dfa" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-27T00:41:14-03:00">
+<title>Improve token validation and error handling</title>
+<body><![CDATA[Refactor token handling and error responses for signing requests and document retrieval.]]></body>
+</commit>
+
+<commit hash="85074ebf154c3d38b3c8d0e6952769146c6249d7" short="85074eb" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-27T00:23:06-03:00">
+<title>Add normalizePreview function for data processing</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="4fc7898e6db4ce99f7f0788f7849e8a070d3ac18" short="4fc7898" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-26T23:51:17-03:00">
+<title>Add cache-control header to error responses</title>
+<body><![CDATA[Added 'cache-control: no-store' header to error responses for better caching control.]]></body>
+</commit>
+
+<commit hash="b3fec9904172cfcdfca6d113c6ff079d76d2d3f7" short="b3fec99" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-26T23:48:06-03:00">
+<title>Fix missing newline at end of route.ts</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="c447449d17376b52c0128bf3725c90805236d324" short="c447449" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-26T23:34:53-03:00">
+<title>Improve error handling in preview route</title>
+<body><![CDATA[Refactor error handling for queries and downloads to log errors and return specific error messages.]]></body>
+</commit>
+
+<commit hash="721f8a0bb7c5e589534a60d56f1530c025739a3b" short="721f8a0" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-26T23:34:15-03:00">
+<title>Improve error handling and response messages</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="786426c4c7c9e336f0d19690eda2bfc1c7691162" short="786426c" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-26T22:55:52-03:00">
+<title>Refactor SignPage component and improve validation</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="975a714f5633d19231ea77ffd9cb2f9936261824" short="975a714" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-26T22:38:57-03:00">
+<title>Refactor token validation and response structure</title>
+<body><![CDATA[Refactor error handling for token validation and document retrieval. Update response structure to provide default values for missing fields.]]></body>
+</commit>
+
+<commit hash="c4e2ff1545a600b87f03d06cba5a6fd7c436bcf6" short="c4e2ff1" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-26T22:36:54-03:00">
+<title>Enhance SignPage with improved input handling</title>
+<body><![CDATA[Refactor SignPage component for better state management and input handling.]]></body>
+</commit>
+
+<commit hash="ca48c32e0ca2ee50f243bed24e49f695b8d08ae1" short="ca48c32" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-26T21:56:29-03:00">
+<title>Refactor signer input handling and validation logic</title>
+<body><![CDATA[Refactor signer state management to use refs for inputs and update canSign logic.]]></body>
+</commit>
+
+<commit hash="537f75b618c9168798d87daf76dae42c02a70d65" short="537f75b" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-26T21:55:44-03:00">
+<title>Refactor signing request handling and error responses</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="2181da011e738ee55300de0ef1c976f238adf078" short="2181da0" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-26T21:54:59-03:00">
+<title>Refactor GET handler and improve error messages</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="e8dbb083abba8ce085da690b982297813f74963b" short="e8dbb08" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-26T21:54:05-03:00">
+<title>preview</title>
+<body><![CDATA[preview
+]]></body>
+</commit>
+
+<commit hash="3425acddb2a5e783cdc731be7d6feac15b762460" short="3425acd" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-26T14:19:52-03:00">
+<title>Improve signing request token validation logic</title>
+<body><![CDATA[Refactor signing request handling to retry without 'expires_at' column if the first attempt fails. Ensure 'expires_at' is handled correctly when null.]]></body>
+</commit>
+
+<commit hash="56747ee9f84e327cab594c9ffde1dbdf6a4371ad" short="56747ee" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-26T14:01:29-03:00">
+<title>Refactor token expiration handling and comments</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="fa73e215f49cabf2b5f6a889005cd18f3dbf6dea" short="fa73e21" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-26T13:46:13-03:00">
+<title>Refactor GET request handling for signing requests</title>
+<body><![CDATA[Refactor GET function to improve token validation and response handling. Update query methods and response structure for better clarity and efficiency.]]></body>
+</commit>
+
+<commit hash="14e7653f2b641c4ab29a5c9a0729141b4938150e" short="14e7653" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-26T13:44:28-03:00">
+<title>Refactor route.ts for cleaner code and updates</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="8185d4dd419e0953fc582c21762a616c5133f5c0" short="8185d4d" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-26T13:43:08-03:00">
+<title>Refactor SignPage to use useParams for token</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="c03679c36da4d928334571bd7bec5ac38b3e1b92" short="c03679c" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-26T13:19:52-03:00">
+<title>Change response to redirect after resend invite</title>
+<body><![CDATA[Redirect to dashboard after resending invite with a toast message.]]></body>
+</commit>
+
+<commit hash="273c704b1dd953ab0590addd4681faac7faac56f" short="273c704" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-25T15:50:24-03:00">
+<title>Add action type to email sent payload</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="f5258cfcbeeceb0bc504c28363692d4dbed7501e" short="f5258cf" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-25T15:48:56-03:00">
+<title>Add action type to resend invite error payload</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="4457145f1313bf6e9a319767c327a306313b50b8" short="4457145" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-24T14:38:32-03:00">
+<title>Change event type from 'email_failed' to 'email_sent'</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="d6207259f20c2d702bd5b2605e603d269c4db8d8" short="d620725" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-24T14:37:11-03:00">
+<title>Change eventType to 'email_sent' with updated payload</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="5679e465df49b1ac47f19c8d90317b020aa8a8c5" short="5679e46" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-24T14:28:15-03:00">
+<title>Refactor resend invite logic with retry mechanism</title>
+<body><![CDATA[Refactor email sending logic to include retry mechanism and update email_sent_at only if successful.]]></body>
+</commit>
+
+<commit hash="c1216566bba7f8ad602704c3fbbd6fd7db86c3b6" short="c121656" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-24T14:27:22-03:00">
+<title>Improve email invite handling with error tracking</title>
+<body><![CDATA[Refactor email sending logic to handle failures and count sent emails.]]></body>
+</commit>
+
+<commit hash="fdaba49e93b38b5995f5c1e429a689147d436c4c" short="fdaba49" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-24T14:26:36-03:00">
+<title>Add retry logic and timestamp formatting to email sends</title>
+<body><![CDATA[Refactored email sending functions to include retry logic for failed sends and added timestamp formatting for email subjects.]]></body>
+</commit>
+
+<commit hash="5aa90e2e04f37f7d12cf8699975d1702306f343b" short="5aa90e2" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-24T11:26:15-03:00">
+<title>Implement Buenos Aires timestamp formatting function</title>
+<body><![CDATA[Add function to format timestamps for Buenos Aires.]]></body>
+</commit>
+
+<commit hash="da194354c95727fde63773708bf3552ba4be7b41" short="da19435" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-24T11:24:56-03:00">
+<title>Refactor DocumentPage and improve error handling</title>
+<body><![CDATA[Refactor DocumentPage to use await for params and improve error handling. Update invite panel import and clean up code formatting.]]></body>
+</commit>
+
+<commit hash="098b5c625ec5f7b2b3b8f51a87a713c284352613" short="098b5c6" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-24T11:23:50-03:00">
+<title>Implement document deletion and profile validation</title>
+<body><![CDATA[Added document deletion functionality and improved profile checks.]]></body>
+</commit>
+
+<commit hash="cb8e99dfbcb8d994039243357644e2f325b3749d" short="cb8e99d" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-23T22:34:44+00:00">
+<title>fix</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="d9b8b98f800151f0e3012ad036c0f39604be8689" short="d9b8b98" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-23T15:17:18+00:00">
+<title>fix: Next 16 route handler params typing for DELETE document</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="53c728161411b58906fba292841c2f1bbeb5fe7e" short="53c7281" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-23T15:01:13+00:00">
+<title>fix</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="64c3537c3eefada32687cac373ff590f1714e992" short="64c3537" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-23T14:12:46+00:00">
+<title>chore: remove support bundle from repo and ignore</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="da9181e8fc28d9fa4323abfc574d503114bb8c9a" short="da9181e" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-23T14:09:33+00:00">
+<title>fix</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="5a0205e37926162c5d56c1bef5e38f9c638617ac" short="5a0205e" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-20T19:49:41+00:00">
+<title>fix</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="5a8135068773976c283f50ae8ebfaa32e2d7fed3" short="5a81350" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-20T19:31:53+00:00">
+<title>Fix callback-client: robust hash token capture + set-session</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="5dfc3b47a07298217393c6b9520ddb9507c38855" short="5dfc3b4" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-20T19:23:20+00:00">
+<title>Remove duplicate auth set-session route; keep canonical /api/auth/set-session</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="9b27d6c221f058ebcf3d47c7dc6526a607cf0458" short="9b27d6c" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-20T18:57:56+00:00">
+<title>Add /api/auth/set-session endpoint (set cookies from hash tokens)</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="c669941812f7f03f0a313b080dc9ca4430e98db0" short="c669941" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-20T18:51:44+00:00">
+<title>Fix middleware cookie typing + allow auth set-session</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="6a5d6d69b9d82c3355019ae1db69e7178147d329" short="6a5d6d6" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-20T17:45:30+00:00">
+<title>Fix magic link redirect to callback-client</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="03659e4b1e94753ad4008da8d053b1483df87fe6" short="03659e4" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-20T17:33:32+00:00">
+<title>Use callback-client for magic link redirects</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="8637003166a4f0a672bb004f114b59ded377dcbe" short="8637003" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-20T17:23:05+00:00">
+<title>Fix magic link: handle #access_token via callback-client + set-session cookies</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="22cbc32a805c3946c1d3c56b86328534fae91a45" short="22cbc32" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-20T17:03:25+00:00">
+<title>Fix magic link flow: use OTP so callback receives ?code=</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="5bba5648eec2ae723581906c4be1617a0f0da0b2" short="5bba564" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-20T16:47:37+00:00">
+<title>Fix auth callback redirects (use app origin + safe next)</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="f5ccf3809d357da52c88f3c331121999f5b65e7d" short="f5ccf38" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-20T14:14:25+00:00">
+<title>fix</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="7b035b60423c879457d9075543be26e28ff68a17" short="7b035b6" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-20T13:24:42+00:00">
+<title>Fix magic link redirect_to: force https + new domain</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="9f3b75df27691045417ca0ab8df0d9560dc8c94c" short="9f3b75d" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-20T12:53:47+00:00">
+<title>Fix magic link delivery: Resend + Supabase fallback</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="208149c2b1991157e04d91a4cefd50118a980600" short="208149c" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-20T12:38:15+00:00">
+<title>Rename product to Firma Electrónica Simple (FES)</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="2ca9fd6fd974d58cd9fdd318cb9c84fabdb0ed8c" short="2ca9fd6" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-20T01:01:49+00:00">
+<title>Fix /profile build: wrap useSearchParams in Suspense via client component</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="f58bd8a36cdb430710eed1fc8aed7408ce3222e3" short="f58bd8a" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-20T00:56:15+00:00">
+<title>Fix signing-request route (remove duplicates, typedRoutes, expiration)</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="ac1ec32fa519fec9e2a5b0d086f3e576dba9de91" short="ac1ec32" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-20T00:51:26+00:00">
+<title>Fix duplicate now variable in signing-request route</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="d6f69ca346065f4c44b65c3416a362c2a46bc918" short="d6f69ca" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-20T00:05:58+00:00">
+<title>fix</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="f6841a948df3898152426f9e2d9c215a4e6135a1" short="f6841a9" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-20T00:05:48+00:00">
+<title>fix</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="beaf4415bd7a13948cfba8ce3592a0d7489b1875" short="beaf441" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-20T00:05:23+00:00">
+<title>update</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="a337fe46298f5ac39bce9093890c582043ded7da" short="a337fe4" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-19T17:53:00+00:00">
+<title>Fix rpc typing: replace .catch with try/catch and error check</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="6820b7b054f595e03a8142c2c8685928f4b94490" short="6820b7b" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-19T17:48:32+00:00">
+<title>Fix typedRoutes params promise for signing-request route</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="95af9dfd8cda0e284895305cffd5737c37109e46" short="95af9df" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-19T17:34:25+00:00">
+<title>Release: FDS complete flow</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="4f5d99e9701703d48d0b908c254016190ff034d6" short="4f5d99e" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-19T15:02:51+00:00">
+<title>Fix corrupted postcss.config.mjs</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="b74a773b34eaf7ae85dcf265283ea5d445d388ba" short="b74a773" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-19T14:59:46+00:00">
+<title>"Remove package.json postcss override (use postcss.config.mjs for Tailwind v4)"</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="870537541d05942bc5ca7df321f173fc68aafd4b" short="8705375" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-19T14:21:49+00:00">
+<title>fix</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="d45b561293fbe1dba76a708da6c2f907f7bfbf1f" short="d45b561" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-19T04:49:31+00:00">
+<title>Implement PDF upload to Supabase Storage + DB</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="304634f1c94e310e65bcf8140c78b9eb7a46a941" short="304634f" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-19T04:33:02+00:00">
+<title>"Fix PKCE verifier: use @supabase/ssr createBrowserClient on client"</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="75f1e780e199a8688e401f3c4bc5ece66448ee4e" short="75f1e78" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-19T04:24:21+00:00">
+<title>"Make auth errors visible and avoid signup flow in OTP"</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="1261c9b94e8d3089c90a4e9ff5658ae22188de35" short="1261c9b" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-19T04:08:36+00:00">
+<title>Stabilize auth: PKCE-only + single /auth/callback route</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="aca652560cbc009ad0e1571ca9e4c9086f72403d" short="aca6525" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-19T03:30:17+00:00">
+<title>Remove conflicting /auth/callback page</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="3d7c19229b5abce2d8c7c404eb7865f76b6ffccb" short="3d7c192" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-19T03:25:25+00:00">
+<title>"Fix auth callback route/page conflict; add callback-client page"</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="2def3f04ba0d8e9bb808305c8a5119d3e6fec21f" short="2def3f0" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-19T03:19:54+00:00">
+<title>Make auth callback handle PKCE and implicit magic link flows</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="2cc24d037350e2d1d4c5011549a646f3f8fa5806" short="2cc24d0" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-19T03:10:27+00:00">
+<title>"Fix login page types and force absolute magiclink redirect"</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="252602961a7ba9cf3d2b4c76ea0bfbedbb7618f6" short="2526029" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-19T03:10:04+00:00">
+<title>Fix login page types and force absolute magiclink redirect</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="6c4727b4acbb5dd60ef5a59c5d123a73278fa1b6" short="6c4727b" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-19T03:04:20+00:00">
+<title>fix</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="f80933500b0d4f82804ee4c74e4748a76e5be045" short="f809335" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-19T02:53:52+00:00">
+<title>Force absolute magic link redirectTo using window.location.origin</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="0c5ddae291169144d13055b851e97feeaf86538e" short="0c5ddae" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-19T02:53:29+00:00">
+<title>Force absolute magic link redirectTo using window.location.origin</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="a6ea656845c707a7721d635efb401cfcffa6118d" short="a6ea656" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-19T02:43:38+00:00">
+<title>Fix magic link redirectTo to absolute https URL</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="78762ad3cb9fbddf325e4275f1b3401fef9e3b2c" short="78762ad" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-19T02:36:25+00:00">
+<title>Fix Supabase magic link redirectTo to app domain</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="518ff6fc7c012cb67c7b68001a8618306b7673bb" short="518ff6f" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-19T02:26:41+00:00">
+<title>Restore requiredEnv for edge/middleware without breaking NEXT_PUBLIC env</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="85923715e2c75d3b9d1e516bbb0651d651be01ab" short="8592371" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-19T01:59:42+00:00">
+<title>Make supabase admin client lazy to avoid build-time env crashes</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="6ac1f8ff4225519beab346474b66a00e7043b98a" short="6ac1f8f" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-19T01:19:26+00:00">
+<title>Await createSupabaseServerClient in logout route</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="6660ec47a261442813bdba4426627047e02464a4" short="6660ec4" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-19T01:10:38+00:00">
+<title>Fix Next 16 async cookies in supabase server client</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="ab61dbf747feba57ba53ae5a46f853d1c07a46ec" short="ab61dbf" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-19T01:06:39+00:00">
+<title>Add TypeScript declarations for react-signature-canvas</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="c5474fb457b73d8e73c4ab0c5466fb7745705875" short="c5474fb" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-19T01:00:47+00:00">
+<title>Fix auth callback cookie typing for Next 16</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="0d677206f7de9ca6cb26625e6b09d1067016eb30" short="0d67720" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-19T00:57:19+00:00">
+<title>Fix Next 16 async cookies in auth callback</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="390e04a956a54aa9c96a254efce29d7c64e6a983" short="390e04a" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-19T00:41:25+00:00">
+<title>Fix supabase admin module + typed routes + alias</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="4d77d2b5bbafdb5ccbff2fc5d17309f4c40b1f40" short="4d77d2b" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-19T00:01:37+00:00">
+<title>fix</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="a044367a3beff6446f5abe21ea5a8696f791a9ea" short="a044367" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-18T23:56:02+00:00">
+<title>fix</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="386ffcd7226b625494902fb3c9579807ae21ff7e" short="386ffcd" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-18T23:38:00+00:00">
+<title>v1</title>
+<body><![CDATA[]]></body>
+</commit>
+
+<commit hash="b487da95cd63c042e1925e222e8afb4701add0b8" short="b487da9" author="DAS Latam" email="daslatamarg@gmail.com" date="2026-01-18T20:09:27-03:00">
+<title>Initial commit</title>
+<body><![CDATA[]]></body>
+</commit>

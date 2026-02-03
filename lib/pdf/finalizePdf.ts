@@ -11,12 +11,23 @@ export type EvidenceSigner = {
   signedAt: string; // ISO
   ip: string;
   signaturePngBytes: Uint8Array;
+
+  // P1: capacidad de firma (opcional para compat)
+  signerCapacity?: "self" | "representing";
+  signerCompanyName?: string | null;
+  signerCompanyCuit?: string | null;
+  signerCompanyAddress?: string | null;
+  signerCompanyRole?: string | null;
 };
 
 function dataUrlToBytes(dataUrl: string): Uint8Array {
   const base64 = dataUrl.split(",")[1] || "";
   const bin = Buffer.from(base64, "base64");
   return new Uint8Array(bin);
+}
+
+function onlyDigits(s: string | null | undefined) {
+  return String(s || "").replace(/\D/g, "");
 }
 
 export async function buildFinalPdf(opts: {
@@ -29,13 +40,18 @@ export async function buildFinalPdf(opts: {
 }) {
   const pdf = await PDFDocument.load(opts.originalPdfBytes);
 
-  // Evidence page
-  const page = pdf.addPage([595.28, 841.89]); // A4
   const font = await pdf.embedFont(StandardFonts.Helvetica);
   const fontBold = await pdf.embedFont(StandardFonts.HelveticaBold);
 
   const margin = 40;
+
+  let page = pdf.addPage([595.28, 841.89]); // A4
   let y = page.getHeight() - margin;
+
+  const setNewPage = () => {
+    page = pdf.addPage([595.28, 841.89]);
+    y = page.getHeight() - margin;
+  };
 
   const drawText = (text: string, size = 10, bold = false) => {
     const f = bold ? fontBold : font;
@@ -94,18 +110,30 @@ export async function buildFinalPdf(opts: {
 
   for (let i = 0; i < opts.signers.length; i++) {
     const s = opts.signers[i];
+
+    // Si no entra, nueva página + header mínimo
     if (y < margin + 200) {
-      y = page.getHeight() - margin;
-      // If too many signers, create another evidence page
-      // For simplicity, add another page
-      const newPage = pdf.addPage([595.28, 841.89]);
-      (page as any) = newPage;
+      setNewPage();
+      drawText("Firmantes (continuación)", 12, true);
+      y -= 4;
     }
 
     drawText(`${i + 1}. ${s.fullName} (${s.email})`, 10, true);
     drawText(`DNI: ${s.dni} | CUIL: ${s.cuil}`, 9);
     drawText(`Domicilio: ${s.address} | Cel: ${s.phone}`, 9);
     drawText(`Firmó: ${s.signedAt} | IP: ${s.ip}`, 9);
+
+    // P1: capacidad de firma
+    const cap = s.signerCapacity || "self";
+    if (cap === "representing") {
+      const cuit = onlyDigits(s.signerCompanyCuit);
+      const companyLine = `En representación de: ${String(s.signerCompanyName || "-")}${
+        cuit ? ` (CUIT ${cuit})` : ""
+      }`;
+      drawText(companyLine, 9);
+      if (s.signerCompanyRole) drawText(`Rol: ${String(s.signerCompanyRole)}`, 9);
+      if (s.signerCompanyAddress) drawText(`Domicilio empresa: ${String(s.signerCompanyAddress)}`, 9);
+    }
 
     const png = await pdf.embedPng(s.signaturePngBytes);
     const pngDims = png.scale(1);

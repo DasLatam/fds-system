@@ -1,0 +1,824 @@
+2026-01-30 66675f4 Ariel Baudry Plans: plan free/pro + límite mensual (server-side)
+54	0	app/api/document/upload/route.ts
+91	0	app/api/document/upload/route.ts.bak_2026-01-30T185708284Z
+54	0	app/api/documents/upload/route.ts
+84	0	app/api/documents/upload/route.ts.bak_2026-01-30T185708344Z
+54	0	app/api/invite/route.ts
+165	0	app/api/invite/route.ts.bak_2026-01-30T185708347Z
+54	0	app/api/upload/route.ts
+71	0	app/api/upload/route.ts.bak_2026-01-30T185708355Z
+54	0	app/api/verify/route.ts
+140	0	app/api/verify/route.ts.bak_2026-01-30T185708357Z
+0	270	fes_repo_scan_20260129_104858.txt
+0	132	repo_tree_20260129_221826.txt
+0	51	supabase.sql
+
+2026-01-30 2792f46 Ariel Baudry Marketing: home producto (qué es/qué no es + verificación + casos)
+143	42	app/page.tsx
+
+2026-01-30 77ee64b Ariel Baudry Admin: unificar vistas + mantener Usuarios
+436	52	app/admin/page.tsx
+
+2026-01-30 9ac8c78 Ariel Baudry Admin: agregar pestaña Usuarios con actividad
+76	310	app/admin/page.tsx
+
+2026-01-30 b9352ef Ariel Baudry Admin: fix docs select + search query
+20	29	app/admin/page.tsx
+
+2026-01-30 05985cb Ariel Baudry Admin: server-render + filtros por query (sin hardcode de email)
+286	275	app/admin/page.tsx
+
+2026-01-30 10c7ff5 Ariel Baudry Admin: force refresh on query param changes
+15	0	app/admin/admin-refresh.tsx
+41	33	app/admin/page.tsx
+
+2026-01-30 8b75c8a Ariel Baudry Admin: filtros via anchors + revalidate=0
+47	44	app/admin/page.tsx
+
+2026-01-30 4064d04 Ariel Baudry Admin: owner gate via env (FES_OWNER_EMAIL)
+95	115	app/admin/page.tsx
+
+2026-01-30 c96d13b Ariel Baudry Chore: ignore tmp artifacts
+5	1	.gitignore
+-	-	tmp/_fes_context.zip
+0	2	tmp/_fes_context/README.txt
+0	1	tmp/_fes_context/env_files.txt
+0	27	tmp/_fes_context/git.txt
+0	523	tmp/_fes_context/key_files/app/api/sign/route.ts
+0	140	tmp/_fes_context/key_files/app/api/verify/route.ts
+0	94	tmp/_fes_context/key_files/app/auth/callback-client/page.tsx
+0	392	tmp/_fes_context/key_files/app/dashboard/doc/[id]/page.tsx
+0	96	tmp/_fes_context/key_files/app/dashboard/new/page.tsx
+0	271	tmp/_fes_context/key_files/app/dashboard/page.tsx
+0	68	tmp/_fes_context/key_files/app/layout.tsx
+0	70	tmp/_fes_context/key_files/app/login/page.tsx
+0	149	tmp/_fes_context/key_files/app/page.tsx
+0	28	tmp/_fes_context/key_files/lib/supabase/server.ts
+0	144	tmp/_fes_context/key_files/middleware.ts
+0	8075	tmp/_fes_context/key_files/package-lock.json
+0	40	tmp/_fes_context/key_files/package.json
+0	32	tmp/_fes_context/key_files/tsconfig.json
+0	145	tmp/_fes_context/tree.txt
+0	103	tmp/fes_context_pack.sh
+0	86	tmp/patch-audit-basic.js
+0	115	tmp/patch_pdf_encryption_block.js
+-	-	tmp/ux_sprint_dashboard_files.zip
+
+2026-01-30 75c2d21 Ariel Baudry Admin: panel read-only para owner
+369	87	app/admin/page.tsx
+505	0	app/api/sign/route.ts.bak.20260130_015122
+524	0	app/api/sign/route.ts.bak.20260130_100534
+541	0	app/api/sign/route.ts.bak.20260130_101519
+532	0	app/api/sign/route.ts.bak.20260130_103919
+532	0	app/api/sign/route.ts.bak.20260130_105409
+-	-	tmp/_fes_context.zip
+2	0	tmp/_fes_context/README.txt
+1	0	tmp/_fes_context/env_files.txt
+27	0	tmp/_fes_context/git.txt
+523	0	tmp/_fes_context/key_files/app/api/sign/route.ts
+140	0	tmp/_fes_context/key_files/app/api/verify/route.ts
+94	0	tmp/_fes_context/key_files/app/auth/callback-client/page.tsx
+392	0	tmp/_fes_context/key_files/app/dashboard/doc/[id]/page.tsx
+96	0	tmp/_fes_context/key_files/app/dashboard/new/page.tsx
+271	0	tmp/_fes_context/key_files/app/dashboard/page.tsx
+68	0	tmp/_fes_context/key_files/app/layout.tsx
+70	0	tmp/_fes_context/key_files/app/login/page.tsx
+149	0	tmp/_fes_context/key_files/app/page.tsx
+28	0	tmp/_fes_context/key_files/lib/supabase/server.ts
+144	0	tmp/_fes_context/key_files/middleware.ts
+8075	0	tmp/_fes_context/key_files/package-lock.json
+40	0	tmp/_fes_context/key_files/package.json
+32	0	tmp/_fes_context/key_files/tsconfig.json
+145	0	tmp/_fes_context/tree.txt
+103	0	tmp/fes_context_pack.sh
+115	0	tmp/patch_pdf_encryption_block.js
+
+2026-01-30 a941d0a Ariel Baudry fix(audit): remove debug sign_should_finalize events
+0	9	app/api/sign/route.ts
+
+2026-01-30 5d1b631 Ariel Baudry fix(sign): load encrypted PDFs with ignoreEncryption
+1	1	app/api/sign/route.ts
+
+2026-01-30 4004d8e Ariel Baudry fix(build): remove debug audit block referencing sr before declaration
+0	9	app/api/sign/route.ts
+
+2026-01-30 c2b33da Ariel Baudry chore(audit): debug sign finalize branch
+17	0	app/api/sign/route.ts
+
+2026-01-30 7b1f710 Ariel Baudry fix(audit): record document_completed with basic audit insert
+19	0	app/api/sign/route.ts
+86	0	tmp/patch-audit-basic.js
+
+2026-01-30 cd93f26 Ariel Baudry fix(email): use RESEND_FROM for completion email sender
+1	1	app/api/sign/route.ts
+507	0	app/api/sign/route.ts.bak.20260130_010922
+505	0	app/api/sign/route.ts.bak.20260130_012447
+505	0	app/api/sign/route.ts.bak.20260130_012601
+505	0	app/api/sign/route.ts.bak.20260130_012642
+505	0	app/api/sign/route.ts.bak.20260130_014243
+132	0	repo_tree_20260129_221826.txt
+-	-	tmp/ux_sprint_dashboard_files.zip
+
+2026-01-30 7510f3c Ariel Baudry fix(api/sign): remove duplicate finalHashSha256 declaration
+0	2	app/api/sign/route.ts
+
+2026-01-30 ff193d1 Ariel Baudry feat(audit): log document_completed on finalization
+284	222	app/api/sign/route.ts
+
+2026-01-30 33cffe9 Ariel Baudry fix(ux): align New page header buttons
+4	3	app/dashboard/new/page.tsx
+
+2026-01-30 6165200 Ariel Baudry feat(ux): dashboard search + archive ui + disable final docs actions
+250	0	app/dashboard/DocumentsListClient.tsx
+22	13	app/dashboard/doc/[id]/page.tsx
+33	2	app/dashboard/new/page.tsx
+15	69	app/dashboard/page.tsx
+
+2026-01-29 3781266 Ariel Baudry feat(metrics): dashboard stats + recent activity + per-doc verifications
+123	3	app/dashboard/doc/[id]/page.tsx
+166	6	app/dashboard/page.tsx
+
+2026-01-29 1fb75cd Ariel Baudry fix: filtrar destinatarios inválidos en email finalizado (Resend) + auditoría
+23	4	app/api/sign/route.ts
+
+2026-01-29 31a068f Ariel Baudry fix: filtrar destinatarios inválidos en email finalizado (Resend) + auditoría
+5	24	app/api/sign/route.ts
+
+2026-01-29 89940ab Ariel Baudry fix: filtrar destinatarios inválidos en email finalizado (Resend) + auditoría
+23	4	app/api/sign/route.ts
+
+2026-01-29 902355d Ariel Baudry email: aviso final con Resend SDK + auditoría completion_email_*
+128	259	app/api/sign/route.ts
+
+2026-01-29 73f1f44 Ariel Baudry fix: selector de PDF estable en /dashboard/new (sin script, sin doble picker)
+126	0	app/dashboard/new/UploadForm.tsx
+2	113	app/dashboard/new/page.tsx
+
+2026-01-29 0563549 Ariel Baudry email: aviso automático cuando el documento queda firmado por todos
+114	1	app/api/sign/route.ts
+
+2026-01-29 9745ef7 Ariel Baudry pdf: constancia multipágina para muchas firmas
+53	47	app/api/sign/route.ts
+
+2026-01-29 5497db8 Ariel Baudry ux: arreglar picker PDF y desmarcar 'Incluirme como firmante' por defecto
+10	19	app/dashboard/doc/[id]/invite-panel.tsx
+62	48	app/dashboard/new/page.tsx
+
+2026-01-29 66446c3 Ariel Baudry ux: separar error de link vs error de firma en /s/[token]
+55	24	app/s/[token]/page.tsx
+
+2026-01-29 c6c1ec3 Ariel Baudry metrics: registrar verificaciones públicas (verification_events)
+48	5	app/api/verify/route.ts
+
+2026-01-29 f1fe61f Ariel Baudry pdf: marca en todas las páginas y aclaración bajo la firma
+49	42	app/api/sign/route.ts
+
+2026-01-29 895d977 Ariel Baudry fix: usar consented_at en signing_requests (evita 500 Invalid column)
+21	17	app/api/sign/route.ts
+
+2026-01-29 0dae502 Ariel Baudry chore: agregar typings de qrcode para build en Vercel
+11	0	package-lock.json
+1	0	package.json
+
+2026-01-29 3f8b431 Ariel Baudry pdf: QR verificación en final.pdf + firma manuscrita 50% más chica
+140	230	app/api/sign/route.ts
+296	1	package-lock.json
+1	0	package.json
+
+2026-01-29 fdb157a Ariel Baudry pdf: agregar QR de verificación y achicar firma manuscrita 50%
+51	2	lib/pdf/finalizePdf.ts
+
+2026-01-29 01e7c6e Ariel Baudry fix: /api/sign acepta body del frontend y guarda audit_code + final_hash_sha256
+354	183	app/api/sign/route.ts
+
+2026-01-29 d51a5a3 Ariel Baudry ux: pulido copys y mensajes en firma y verificación pública
+17	25	app/s/[token]/page.tsx
+25	9	app/v/[code]/VerifyClient.tsx
+270	0	fes_repo_scan_20260129_104858.txt
+16	0	lib/audit.ts
+
+2026-01-29 bd80c67 Ariel Baudry feat: automatizar audit_code y final_hash_sha256 en finalize
+234	300	app/api/sign/route.ts
+
+2026-01-29 ff712cb Ariel Baudry ux: pulido de validación pública (copy, badge, copiar hash, sin debug)
+226	65	app/v/[code]/VerifyClient.tsx
+
+2026-01-28 f4a851c Ariel Baudry mejoras
+0	1	app/v/[code]/VerifyClient.tsx
+60	0	scripts/set-audit-code.ts
+
+2026-01-28 bd67e1f Ariel Baudry chore: add api ping route
+5	0	app/api/ping/route.ts
+
+2026-01-28 d3f64e1 Ariel Baudry fix: build verificación pública (VerifyClient sin props)
+2	1	app/v/[code]/VerifyClient.tsx
+3	4	app/v/[code]/page.tsx
+
+2026-01-28 9354f5c Ariel Baudry fix: obtener code desde router/useParams (fallback pathname)
+32	15	app/v/[code]/VerifyClient.tsx
+
+2026-01-28 04bcd1c Ariel Baudry fix: params.code en verificación pública (server page + client component)
+201	0	app/v/[code]/VerifyClient.tsx
+4	204	app/v/[code]/page.tsx
+
+2026-01-28 19141cb Ariel Baudry fix: habilitar verificación con archivo aunque falle auditCode
+1	1	app/v/[code]/page.tsx
+
+2026-01-28 2f30d85 Ariel Baudry fix: enviar audit_code correctamente en verificación pública
+32	22	app/v/[code]/page.tsx
+
+2026-01-28 bde2de8 Ariel Baudry ux: mejorar botón de subida de PDF en verificación pública
+44	9	app/v/[code]/page.tsx
+
+2026-01-28 5bbc78c Ariel Baudry feat: validación pública de documentos (/v/[audit_code])
+97	0	app/api/verify/route.ts
+161	0	app/v/[code]/page.tsx
+158	0	package-lock.json
+1	0	package.json
+86	0	scripts/backfill-audit.ts
+
+2026-01-28 50aff24 Ariel Baudry Fix download UX: force attachment filename on signed URL
+22	3	app/api/download/route.ts
+
+2026-01-28 4b46660 Ariel Baudry Relax rate limit for resend-invite during testing
+15	30	middleware.ts
+
+2026-01-28 0b0e566 Ariel Baudry Fix upload: generate document uuid and set original_path on insert
+24	38	app/api/documents/upload/route.ts
+
+2026-01-28 0dfe63c Ariel Baudry Add detailed errors to documents upload endpoint
+26	7	app/api/documents/upload/route.ts
+
+2026-01-28 9103aab Ariel Baudry Add POST /api/documents/upload endpoint
+79	0	app/api/documents/upload/route.ts
+
+2026-01-28 1152d3e Ariel Baudry Add documents upload endpoint and protect /api/documents
+6	6	app/api/document/upload/route.ts
+3	2	middleware.ts
+
+2026-01-28 5a0ee13 Ariel Baudry Fix dashboard download prefetch + improve upload UI
+37	19	app/dashboard/new/page.tsx
+9	4	app/dashboard/page.tsx
+
+2026-01-28 5f0117f Ariel Baudry Fix logout: remove auth-helpers dependency and use 303 redirect
+4	5	app/api/logout/route.ts
+
+2026-01-28 ff02661 Ariel Baudry Fix dashboard/new upload UI + add documents upload endpoint
+91	0	app/api/document/upload/route.ts
+7	6	app/api/logout/route.ts
+103	120	app/dashboard/new/page.tsx
+
+2026-01-28 0201a1e Ariel Baudry Sprint 3B: final PDF with signatures page + electronic mark
+198	60	app/api/sign/route.ts
+
+2026-01-28 3def7cb Ariel Baudry Sprint 3B: generate final PDF with signatures and audit mark
+0	8	.env.local
+16	9	.gitignore
+1	0	app/api/sign/route.ts
+16	31	package-lock.json
+5	5	package.json
+
+2026-01-28 9280029 DAS Latam Implement expiration check and audit event insertion
+155	25	app/api/sign/route.ts
+
+2026-01-28 73d8a66 Ariel Baudry Fix resend-invite: avoid sending email if token update fails
+44	15	app/api/resend-invite/route.ts
+
+2026-01-28 c5d9447 DAS Latam Merge pull request #2 from DasLatam/sprint-2-token
+2026-01-28 c270bdc Ariel Baudry sprint2: fix signing link (remove replaced_by) + fix signature canvas typings
+65	42	app/api/signing-request/[token]/route.ts
+21	4	lib/supabase/admin.ts
+
+2026-01-28 7b3162b Ariel Baudry sprint2: fix signing link (remove replaced_by) + fix signature canvas typings
+39	43	app/api/signing-request/[token]/route.ts
+
+2026-01-28 482a818 Ariel Baudry sprint2: fix signing link (remove replaced_by) + fix signature canvas typings
+37	27	app/api/signing-request/[token]/route.ts
+
+2026-01-28 5547608 Ariel Baudry sprint2: fix signing link (remove replaced_by) + fix signature canvas typings
+12	6	app/s/[token]/page.tsx
+
+2026-01-28 13aba4f Ariel Baudry sprint2: fix signing link (remove replaced_by) + fix signature canvas typings
+7	12	app/api/signing-request/[token]/route.ts
+127	184	app/s/[token]/page.tsx
+
+2026-01-28 0d5b948 Ariel Baudry sprint2: fix signature canvas event typing
+9	7	app/s/[token]/page.tsx
+
+2026-01-28 86077c7 Ariel Baudry sprint2: fix token page pdf preview and error copy
+162	116	app/s/[token]/page.tsx
+
+2026-01-27 0fb617a DAS Latam Merge pull request #1 from DasLatam/sprint-1-login
+2026-01-27 dfd5a62 Ariel Baudry sprint1: remove duplicate auth callback routes
+0	92	app/api/auth/callback-client/page.tsx
+0	102	app/auth/callback/route.ts
+
+2026-01-27 221d575 DAS Latam Refactor GET function to use async token extraction
+9	10	app/api/signing-request/[token]/route.ts
+
+2026-01-27 3473ec6 DAS Latam Refactor invite route for cleaner code structure
+40	39	app/api/invite/route.ts
+
+2026-01-27 042ec34 DAS Latam Refactor GET function to improve token handling
+72	15	app/api/signing-request/[token]/route.ts
+
+2026-01-27 2247f38 DAS Latam Refactor preview normalization and validation logic
+99	66	app/s/[token]/page.tsx
+
+2026-01-27 bf1b733 DAS Latam Update public and protected path checks in middleware
+19	5	middleware.ts
+
+2026-01-27 6421fc0 DAS Latam Refactor signing request handling in route.ts
+75	126	app/api/sign/route.ts
+
+2026-01-27 6eb0dfa DAS Latam Improve token validation and error handling
+39	15	app/api/preview/route.ts
+
+2026-01-27 85074eb DAS Latam Add normalizePreview function for data processing
+65	84	app/s/[token]/page.tsx
+
+2026-01-26 4fc7898 DAS Latam Add cache-control header to error responses
+9	13	app/api/signing-request/[token]/route.ts
+
+2026-01-26 b3fec99 DAS Latam Fix missing newline at end of route.ts
+2026-01-26 c447449 DAS Latam Improve error handling in preview route
+13	4	app/api/preview/route.ts
+
+2026-01-26 721f8a0 DAS Latam Improve error handling and response messages
+37	8	app/api/signing-request/[token]/route.ts
+
+2026-01-26 786426c DAS Latam Refactor SignPage component and improve validation
+111	110	app/s/[token]/page.tsx
+
+2026-01-26 975a714 DAS Latam Refactor token validation and response structure
+8	27	app/api/signing-request/[token]/route.ts
+
+2026-01-26 c4e2ff1 DAS Latam Enhance SignPage with improved input handling
+169	46	app/s/[token]/page.tsx
+
+2026-01-26 ca48c32 DAS Latam Refactor signer input handling and validation logic
+53	38	app/s/[token]/page.tsx
+
+2026-01-26 537f75b DAS Latam Refactor signing request handling and error responses
+9	46	app/api/signing-request/[token]/route.ts
+
+2026-01-26 2181da0 DAS Latam Refactor GET handler and improve error messages
+22	46	app/api/preview/route.ts
+
+2026-01-26 e8dbb08 DAS Latam preview
+80	0	app/api/preview/route.ts
+
+2026-01-26 3425acd DAS Latam Improve signing request token validation logic
+34	6	app/api/signing-request/[token]/route.ts
+
+2026-01-26 56747ee DAS Latam Refactor token expiration handling and comments
+4	5	app/api/signing-request/[token]/route.ts
+
+2026-01-26 fa73e21 DAS Latam Refactor GET request handling for signing requests
+52	94	app/api/signing-request/[token]/route.ts
+
+2026-01-26 14e7653 DAS Latam Refactor route.ts for cleaner code and updates
+37	91	app/api/sign/route.ts
+
+2026-01-26 8185d4d DAS Latam Refactor SignPage to use useParams for token
+57	45	app/s/[token]/page.tsx
+
+2026-01-26 c03679c DAS Latam Change response to redirect after resend invite
+4	1	app/api/resend-invite/route.ts
+
+2026-01-25 273c704 DAS Latam Add action type to email sent payload
+1	1	app/api/invite/route.ts
+
+2026-01-25 f5258cf DAS Latam Add action type to resend invite error payload
+1	1	app/api/resend-invite/route.ts
+
+2026-01-24 4457145 DAS Latam Change event type from 'email_failed' to 'email_sent'
+2	2	app/api/resend-invite/route.ts
+
+2026-01-24 d620725 DAS Latam Change eventType to 'email_sent' with updated payload
+2	2	app/api/invite/route.ts
+
+2026-01-24 5679e46 DAS Latam Refactor resend invite logic with retry mechanism
+48	20	app/api/resend-invite/route.ts
+
+2026-01-24 c121656 DAS Latam Improve email invite handling with error tracking
+66	27	app/api/invite/route.ts
+
+2026-01-24 fdaba49 DAS Latam Add retry logic and timestamp formatting to email sends
+97	30	lib/mail/send.ts
+
+2026-01-24 5aa90e2 DAS Latam Implement Buenos Aires timestamp formatting function
+32	13	app/api/auth/magic-link/route.ts
+
+2026-01-24 da19435 DAS Latam Refactor DocumentPage and improve error handling
+59	38	app/dashboard/doc/[id]/page.tsx
+
+2026-01-24 098b5c6 DAS Latam Implement document deletion and profile validation
+73	26	app/dashboard/page.tsx
+
+2026-01-23 cb8e99d DAS Latam fix
+20	5	app/dashboard/doc/[id]/page.tsx
+
+2026-01-23 d9b8b98 DAS Latam fix: Next 16 route handler params typing for DELETE document
+9	4	app/api/document/[id]/route.ts
+
+2026-01-23 53c7281 DAS Latam fix
+53	0	app/api/document/[id]/route.ts
+13	9	app/api/download/route.ts
+28	14	app/dashboard/doc/[id]/invite-panel.tsx
+148	90	app/dashboard/new/page.tsx
+13	5	app/login/page.tsx
+46	12	app/profile/profile-client.tsx
+-	-	support_bundle_20260120_194922.tar.gz
+
+2026-01-23 64c3537 DAS Latam chore: remove support bundle from repo and ignore
+0	9	support_bundle_20260120_194922/00_system.txt
+0	1	support_bundle_20260120_194922/01_git_status.txt
+0	20	support_bundle_20260120_194922/02_git_log_20.txt
+0	2	support_bundle_20260120_194922/03_git_remote.txt
+0	37	support_bundle_20260120_194922/04_package_summary.json
+0	57	support_bundle_20260120_194922/05_build_output.txt
+0	33	support_bundle_20260120_194922/06_app_files.txt
+0	41	support_bundle_20260120_194922/07_app_dirs.txt
+0	92	support_bundle_20260120_194922/08_grep_auth_redirects.txt
+0	7	support_bundle_20260120_194922/09_env_keys_used.txt
+0	7	support_bundle_20260120_194922/10_env_keys_present.txt
+0	29	support_bundle_20260120_194922/11_prod_curl_checks.txt
+0	151	support_bundle_20260120_194922/files/app__api__auth__magic-link__route.ts
+0	64	support_bundle_20260120_194922/files/app__api__auth__set-session__route.ts
+0	60	support_bundle_20260120_194922/files/app__auth__callback-client__page.tsx
+0	71	support_bundle_20260120_194922/files/app__auth__callback__route.ts
+0	13	support_bundle_20260120_194922/files/app__globals.css
+0	68	support_bundle_20260120_194922/files/app__layout.tsx
+0	62	support_bundle_20260120_194922/files/app__login__page.tsx
+0	15	support_bundle_20260120_194922/files/lib__security__ratelimit.ts
+0	13	support_bundle_20260120_194922/files/lib__supabase__admin.ts
+0	14	support_bundle_20260120_194922/files/lib__supabase__browser.ts
+0	21	support_bundle_20260120_194922/files/lib__supabase__env.ts
+0	28	support_bundle_20260120_194922/files/lib__supabase__server.ts
+0	144	support_bundle_20260120_194922/files/middleware.ts
+0	7	support_bundle_20260120_194922/files/next.config.ts
+0	6	support_bundle_20260120_194922/files/postcss.config.mjs
+0	32	support_bundle_20260120_194922/files/tsconfig.json
+
+2026-01-23 da9181e DAS Latam fix
+8	4	app/api/auth/set-session/route.ts
+69	35	app/auth/callback-client/page.tsx
+71	40	app/auth/callback/route.ts
+-	-	support_bundle_20260120_194922.tar.gz
+46	0	support_bundle_20260120_194922/05_build_output.txt
+33	0	support_bundle_20260120_194922/06_app_files.txt
+41	0	support_bundle_20260120_194922/07_app_dirs.txt
+92	0	support_bundle_20260120_194922/08_grep_auth_redirects.txt
+7	0	support_bundle_20260120_194922/09_env_keys_used.txt
+7	0	support_bundle_20260120_194922/10_env_keys_present.txt
+29	0	support_bundle_20260120_194922/11_prod_curl_checks.txt
+151	0	support_bundle_20260120_194922/files/app__api__auth__magic-link__route.ts
+64	0	support_bundle_20260120_194922/files/app__api__auth__set-session__route.ts
+60	0	support_bundle_20260120_194922/files/app__auth__callback-client__page.tsx
+71	0	support_bundle_20260120_194922/files/app__auth__callback__route.ts
+13	0	support_bundle_20260120_194922/files/app__globals.css
+68	0	support_bundle_20260120_194922/files/app__layout.tsx
+62	0	support_bundle_20260120_194922/files/app__login__page.tsx
+15	0	support_bundle_20260120_194922/files/lib__security__ratelimit.ts
+13	0	support_bundle_20260120_194922/files/lib__supabase__admin.ts
+14	0	support_bundle_20260120_194922/files/lib__supabase__browser.ts
+21	0	support_bundle_20260120_194922/files/lib__supabase__env.ts
+28	0	support_bundle_20260120_194922/files/lib__supabase__server.ts
+144	0	support_bundle_20260120_194922/files/middleware.ts
+7	0	support_bundle_20260120_194922/files/next.config.ts
+6	0	support_bundle_20260120_194922/files/postcss.config.mjs
+32	0	support_bundle_20260120_194922/files/tsconfig.json
+
+2026-01-20 5a0205e DAS Latam fix
+9	0	support_bundle_20260120_194922/00_system.txt
+1	0	support_bundle_20260120_194922/01_git_status.txt
+20	0	support_bundle_20260120_194922/02_git_log_20.txt
+2	0	support_bundle_20260120_194922/03_git_remote.txt
+37	0	support_bundle_20260120_194922/04_package_summary.json
+11	0	support_bundle_20260120_194922/05_build_output.txt
+
+2026-01-20 5a81350 DAS Latam Fix callback-client: robust hash token capture + set-session
+92	0	app/api/auth/callback-client/page.tsx
+
+2026-01-20 5dfc3b4 DAS Latam Remove duplicate auth set-session route; keep canonical /api/auth/set-session
+0	64	app/auth/set-session/route.ts
+
+2026-01-20 9b27d6c DAS Latam Add /api/auth/set-session endpoint (set cookies from hash tokens)
+64	0	app/api/auth/set-session/route.ts
+
+2026-01-20 c669941 DAS Latam Fix middleware cookie typing + allow auth set-session
+132	11	middleware.ts
+
+2026-01-20 6a5d6d6 DAS Latam Fix magic link redirect to callback-client
+103	20	app/api/auth/magic-link/route.ts
+
+2026-01-20 03659e4 DAS Latam Use callback-client for magic link redirects
+2	1	app/api/auth/magic-link/route.ts
+
+2026-01-20 8637003 DAS Latam Fix magic link: handle #access_token via callback-client + set-session cookies
+60	0	app/auth/callback-client/page.tsx
+64	0	app/auth/set-session/route.ts
+
+2026-01-20 22cbc32 DAS Latam Fix magic link flow: use OTP so callback receives ?code=
+18	87	app/api/auth/magic-link/route.ts
+
+2026-01-20 5bba564 DAS Latam Fix auth callback redirects (use app origin + safe next)
+35	8	app/auth/callback/route.ts
+
+2026-01-20 f5ccf38 DAS Latam fix
+54	30	app/api/auth/magic-link/route.ts
+
+2026-01-20 7b035b6 DAS Latam Fix magic link redirect_to: force https + new domain
+4	3	app/api/auth/magic-link/route.ts
+
+2026-01-20 9f3b75d DAS Latam Fix magic link delivery: Resend + Supabase fallback
+97	36	app/api/auth/magic-link/route.ts
+
+2026-01-20 208149c DAS Latam Rename product to Firma Electrónica Simple (FES)
+3	3	README.md
+3	3	app/layout.tsx
+1	1	app/page.tsx
+1	1	app/s/[token]/page.tsx
+9	9	app/terms/page.tsx
+1	1	lib/mail/send.ts
+1	1	lib/mail/templates/base.ts
+1	1	lib/mail/templates/magicLink.ts
+1	1	lib/pdf/finalizePdf.ts
+
+2026-01-20 2ca9fd6 DAS Latam Fix /profile build: wrap useSearchParams in Suspense via client component
+16	138	app/profile/page.tsx
+176	0	app/profile/profile-client.tsx
+
+2026-01-20 f58bd8a DAS Latam Fix signing-request route (remove duplicates, typedRoutes, expiration)
+82	61	app/api/signing-request/[token]/route.ts
+
+2026-01-20 ac1ec32 DAS Latam Fix duplicate now variable in signing-request route
+2	2	app/api/signing-request/[token]/route.ts
+
+2026-01-20 d6f69ca DAS Latam fix
+89	0	app/api/resend-invite/route.ts
+248	0	app/api/sign/route.ts
+71	0	app/api/upload/route.ts
+62	0	app/login/page.tsx
+45	0	app/pricing/page.tsx
+
+2026-01-20 f6841a9 DAS Latam fix
+67	0	app/api/download/route.ts
+
+2026-01-20 beaf441 DAS Latam update
+-	-	app/.DS_Store
+123	0	app/admin/page.tsx
+-	-	app/api/.DS_Store
+28	0	app/api/admin/toggle-user/route.ts
+50	0	app/api/auth/magic-link/route.ts
+0	67	app/api/download/route.ts
+17	16	app/api/invite/route.ts
+54	0	app/api/profile/route.ts
+48	0	app/api/reject/route.ts
+0	259	app/api/sign/route.ts
+67	70	app/api/signing-request/[token]/route.ts
+0	71	app/api/upload/route.ts
+37	46	app/dashboard/doc/[id]/invite-panel.tsx
+46	6	app/dashboard/doc/[id]/page.tsx
+17	1	app/dashboard/new/page.tsx
+31	0	app/dashboard/page.tsx
+0	64	app/login/page.tsx
+0	45	app/pricing/page.tsx
+65	30	app/privacy/page.tsx
+149	0	app/profile/page.tsx
+64	3	app/s/[token]/page.tsx
+92	27	app/terms/page.tsx
+-	-	lib/.DS_Store
+35	16	lib/mail/send.ts
+41	0	lib/mail/templates/base.ts
+27	0	lib/mail/templates/final.ts
+38	0	lib/mail/templates/invite.ts
+37	0	lib/mail/templates/magicLink.ts
+9	0	lib/security/owner.ts
+17	0	lib/security/profile.ts
+128	100	supabase/schema.sql
+
+2026-01-19 a337fe4 DAS Latam Fix rpc typing: replace .catch with try/catch and error check
+17	4	app/api/sign/route.ts
+
+2026-01-19 6820b7b DAS Latam Fix typedRoutes params promise for signing-request route
+69	43	app/api/signing-request/[token]/route.ts
+
+2026-01-19 95af9df DAS Latam Release: FDS complete flow
+33	22	README.md
+-	-	app/.DS_Store
+-	-	app/api/.DS_Store
+50	0	app/api/audit/route.ts
+67	0	app/api/download/route.ts
+124	0	app/api/invite/route.ts
+12	0	app/api/logout/route.ts
+246	0	app/api/sign/route.ts
+79	0	app/api/signing-request/[token]/route.ts
+71	0	app/api/upload/route.ts
+171	0	app/dashboard/doc/[id]/invite-panel.tsx
+187	0	app/dashboard/doc/[id]/page.tsx
+86	0	app/dashboard/new/page.tsx
+53	43	app/dashboard/page.tsx
+4	0	app/globals.css
+24	0	app/icon.tsx
+120	85	app/page.tsx
+45	0	app/pricing/page.tsx
+57	0	app/privacy/page.tsx
+199	0	app/s/[token]/page.tsx
+63	0	app/terms/page.tsx
+-	-	lib/.DS_Store
+34	0	lib/audit/logEvent.ts
+13	0	lib/mail/resendClient.ts
+47	0	lib/mail/send.ts
+103	0	lib/pdf/finalizePdf.ts
+9	0	lib/utils/crypto.ts
+6	6	package.json
+57	18	supabase/schema.sql
+8	5	types/react-signature-canvas.d.ts
+
+2026-01-19 4f5d99e DAS Latam Fix corrupted postcss.config.mjs
+1	1	next-env.d.ts
+0	2	postcss.config.mjs
+
+2026-01-19 b74a773 DAS Latam "Remove package.json postcss override (use postcss.config.mjs for Tailwind v4)"
+603	2	package-lock.json
+6	11	package.json
+5	2	postcss.config.mjs
+
+2026-01-19 8705375 DAS Latam fix
+20	74	README.md
+-	-	app/.DS_Store
+-	-	app/api/.DS_Store
+0	13	app/api/download/route.ts
+0	75	app/api/invite/route.ts
+0	11	app/api/logout/route.ts
+0	125	app/api/sign/route.ts
+0	45	app/api/signing-request/[token]/route.ts
+0	81	app/api/upload/route.ts
+9	14	app/auth/callback/route.ts
+0	93	app/dashboard/UploadForm.tsx
+0	59	app/dashboard/doc/[id]/page.tsx
+0	90	app/dashboard/new/page.tsx
+13	32	app/dashboard/page.tsx
+3	3	app/globals.css
+58	7	app/layout.tsx
+10	20	app/login/page.tsx
+112	3	app/page.tsx
+0	103	app/s/[token]/page.tsx
+-	-	lib/.DS_Store
+0	64	lib/pdf/signPdf.ts
+2	2	lib/security/ratelimit.ts
+5	30	lib/supabase/admin.ts
+6	13	lib/supabase/browser.ts
+0	9	lib/supabase/client.ts
+1	20	lib/supabase/env.ts
+6	12	lib/supabase/server.ts
+12	55	middleware.ts
+1	1	next-env.d.ts
+2	2	next.config.ts
+703	734	package-lock.json
+24	19	package.json
+131	0	supabase/schema.sql
+8	22	tsconfig.json
+5	15	types/react-signature-canvas.d.ts
+
+2026-01-19 d45b561 DAS Latam Implement PDF upload to Supabase Storage + DB
+78	35	app/api/upload/route.ts
+14	5	app/dashboard/new/page.tsx
+
+2026-01-19 304634f DAS Latam "Fix PKCE verifier: use @supabase/ssr createBrowserClient on client"
+5	11	lib/supabase/browser.ts
+
+2026-01-19 75f1e78 DAS Latam "Make auth errors visible and avoid signup flow in OTP"
+8	3	app/auth/callback/route.ts
+6	5	app/login/page.tsx
+
+2026-01-19 1261c9b DAS Latam Stabilize auth: PKCE-only + single /auth/callback route
+3	11	app/auth/callback/route.ts
+3	9	app/login/page.tsx
+3	3	lib/supabase/browser.ts
+
+2026-01-19 aca6525 DAS Latam Remove conflicting /auth/callback page
+0	26	app/auth/callback/page.tsx
+
+2026-01-19 3d7c192 DAS Latam "Fix auth callback route/page conflict; add callback-client page"
+8	13	app/auth/callback/page.tsx
+7	3	app/auth/callback/route.ts
+
+2026-01-19 2def3f0 DAS Latam Make auth callback handle PKCE and implicit magic link flows
+31	0	app/auth/callback/page.tsx
+8	4	app/auth/callback/route.ts
+
+2026-01-19 2cc24d0 DAS Latam "Fix login page types and force absolute magiclink redirect"
+1	1	next-env.d.ts
+
+2026-01-19 2526029 DAS Latam Fix login page types and force absolute magiclink redirect
+24	15	app/login/page.tsx
+
+2026-01-19 6c4727b DAS Latam fix
+12	10	app/login/page.tsx
+
+2026-01-19 f809335 DAS Latam Force absolute magic link redirectTo using window.location.origin
+1	1	next-env.d.ts
+
+2026-01-19 0c5ddae DAS Latam Force absolute magic link redirectTo using window.location.origin
+9	17	app/login/page.tsx
+
+2026-01-19 a6ea656 DAS Latam Fix magic link redirectTo to absolute https URL
+15	4	app/login/page.tsx
+
+2026-01-19 78762ad DAS Latam Fix Supabase magic link redirectTo to app domain
+48	28	app/login/page.tsx
+
+2026-01-19 518ff6f DAS Latam Restore requiredEnv for edge/middleware without breaking NEXT_PUBLIC env
+9	9	lib/security/ratelimit.ts
+23	7	lib/supabase/browser.ts
+9	0	lib/supabase/client.ts
+38	3	lib/supabase/env.ts
+
+2026-01-19 8592371 DAS Latam Make supabase admin client lazy to avoid build-time env crashes
+8	0	.env.local
+1	1	app/api/logout/route.ts
+1	1	app/api/upload/route.ts
+59	0	app/dashboard/doc/[id]/page.tsx
+81	0	app/dashboard/new/page.tsx
+73	39	app/dashboard/page.tsx
+26	11	lib/supabase/admin.ts
+5	5	lib/supabase/server.ts
+19	6	middleware.ts
+
+2026-01-19 6ac1f8f DAS Latam Await createSupabaseServerClient in logout route
+9	6	app/api/logout/route.ts
+1	1	app/api/upload/route.ts
+1	1	lib/supabase/server.ts
+
+2026-01-19 6660ec4 DAS Latam Fix Next 16 async cookies in supabase server client
+1	1	app/dashboard/page.tsx
+31	25	lib/supabase/server.ts
+
+2026-01-19 ab61dbf DAS Latam Add TypeScript declarations for react-signature-canvas
+1	1	tsconfig.json
+30	0	types/react-signature-canvas.d.ts
+
+2026-01-19 c5474fb DAS Latam Fix auth callback cookie typing for Next 16
+8	4	app/auth/callback/route.ts
+
+2026-01-19 0d67720 DAS Latam Fix Next 16 async cookies in auth callback
+34	28	app/auth/callback/route.ts
+
+2026-01-19 390e04a DAS Latam Fix supabase admin module + typed routes + alias
+29	0	.gitignore
+1	1	app/api/download/route.ts
+1	1	app/api/invite/route.ts
+1	1	app/api/sign/route.ts
+6	10	app/api/signing-request/[token]/route.ts
+1	1	app/api/upload/route.ts
+19	12	lib/supabase/admin.ts
+2	0	next-env.d.ts
+7056	0	package-lock.json
+5	5	package.json
+34	3	tsconfig.json
+
+2026-01-19 4d77d2b DAS Latam fix
+15	14	lib/supabase/admin.ts
+
+2026-01-18 a044367 DAS Latam fix
+40	18	app/api/signing-request/[token]/route.ts
+4	6	next.config.ts
+
+2026-01-18 386ffcd DAS Latam v1
+89	2	README.md
+-	-	app/.DS_Store
+-	-	app/api/.DS_Store
+13	0	app/api/download/route.ts
+75	0	app/api/invite/route.ts
+8	0	app/api/logout/route.ts
+125	0	app/api/sign/route.ts
+27	0	app/api/signing-request/[token]/route.ts
+38	0	app/api/upload/route.ts
+34	0	app/auth/callback/route.ts
+93	0	app/dashboard/UploadForm.tsx
+57	0	app/dashboard/page.tsx
+9	0	app/globals.css
+17	0	app/layout.tsx
+45	0	app/login/page.tsx
+5	0	app/page.tsx
+103	0	app/s/[token]/page.tsx
+-	-	lib/.DS_Store
+64	0	lib/pdf/signPdf.ts
+15	0	lib/security/ratelimit.ts
+15	0	lib/supabase/admin.ts
+11	0	lib/supabase/browser.ts
+5	0	lib/supabase/env.ts
+28	0	lib/supabase/server.ts
+53	0	middleware.ts
+4	0	next-env.d.ts
+9	0	next.config.ts
+37	0	package.json
+5	0	postcss.config.mjs
+51	0	supabase.sql
+15	0	tsconfig.json
+
+2026-01-18 b487da9 DAS Latam Initial commit
+2	0	README.md

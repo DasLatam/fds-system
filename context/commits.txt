@@ -1,0 +1,165 @@
+2026-01-30 66675f4 Ariel Baudry Plans: plan free/pro + límite mensual (server-side)
+2026-01-30 2792f46 Ariel Baudry Marketing: home producto (qué es/qué no es + verificación + casos)
+2026-01-30 77ee64b Ariel Baudry Admin: unificar vistas + mantener Usuarios
+2026-01-30 9ac8c78 Ariel Baudry Admin: agregar pestaña Usuarios con actividad
+2026-01-30 b9352ef Ariel Baudry Admin: fix docs select + search query
+2026-01-30 05985cb Ariel Baudry Admin: server-render + filtros por query (sin hardcode de email)
+2026-01-30 10c7ff5 Ariel Baudry Admin: force refresh on query param changes
+2026-01-30 8b75c8a Ariel Baudry Admin: filtros via anchors + revalidate=0
+2026-01-30 4064d04 Ariel Baudry Admin: owner gate via env (FES_OWNER_EMAIL)
+2026-01-30 c96d13b Ariel Baudry Chore: ignore tmp artifacts
+2026-01-30 75c2d21 Ariel Baudry Admin: panel read-only para owner
+2026-01-30 a941d0a Ariel Baudry fix(audit): remove debug sign_should_finalize events
+2026-01-30 5d1b631 Ariel Baudry fix(sign): load encrypted PDFs with ignoreEncryption
+2026-01-30 4004d8e Ariel Baudry fix(build): remove debug audit block referencing sr before declaration
+2026-01-30 c2b33da Ariel Baudry chore(audit): debug sign finalize branch
+2026-01-30 7b1f710 Ariel Baudry fix(audit): record document_completed with basic audit insert
+2026-01-30 cd93f26 Ariel Baudry fix(email): use RESEND_FROM for completion email sender
+2026-01-30 7510f3c Ariel Baudry fix(api/sign): remove duplicate finalHashSha256 declaration
+2026-01-30 ff193d1 Ariel Baudry feat(audit): log document_completed on finalization
+2026-01-30 33cffe9 Ariel Baudry fix(ux): align New page header buttons
+2026-01-30 6165200 Ariel Baudry feat(ux): dashboard search + archive ui + disable final docs actions
+2026-01-29 3781266 Ariel Baudry feat(metrics): dashboard stats + recent activity + per-doc verifications
+2026-01-29 1fb75cd Ariel Baudry fix: filtrar destinatarios inválidos en email finalizado (Resend) + auditoría
+2026-01-29 31a068f Ariel Baudry fix: filtrar destinatarios inválidos en email finalizado (Resend) + auditoría
+2026-01-29 89940ab Ariel Baudry fix: filtrar destinatarios inválidos en email finalizado (Resend) + auditoría
+2026-01-29 902355d Ariel Baudry email: aviso final con Resend SDK + auditoría completion_email_*
+2026-01-29 73f1f44 Ariel Baudry fix: selector de PDF estable en /dashboard/new (sin script, sin doble picker)
+2026-01-29 0563549 Ariel Baudry email: aviso automático cuando el documento queda firmado por todos
+2026-01-29 9745ef7 Ariel Baudry pdf: constancia multipágina para muchas firmas
+2026-01-29 5497db8 Ariel Baudry ux: arreglar picker PDF y desmarcar 'Incluirme como firmante' por defecto
+2026-01-29 66446c3 Ariel Baudry ux: separar error de link vs error de firma en /s/[token]
+2026-01-29 c6c1ec3 Ariel Baudry metrics: registrar verificaciones públicas (verification_events)
+2026-01-29 f1fe61f Ariel Baudry pdf: marca en todas las páginas y aclaración bajo la firma
+2026-01-29 895d977 Ariel Baudry fix: usar consented_at en signing_requests (evita 500 Invalid column)
+2026-01-29 0dae502 Ariel Baudry chore: agregar typings de qrcode para build en Vercel
+2026-01-29 3f8b431 Ariel Baudry pdf: QR verificación en final.pdf + firma manuscrita 50% más chica
+2026-01-29 fdb157a Ariel Baudry pdf: agregar QR de verificación y achicar firma manuscrita 50%
+2026-01-29 01e7c6e Ariel Baudry fix: /api/sign acepta body del frontend y guarda audit_code + final_hash_sha256
+2026-01-29 d51a5a3 Ariel Baudry ux: pulido copys y mensajes en firma y verificación pública
+2026-01-29 bd80c67 Ariel Baudry feat: automatizar audit_code y final_hash_sha256 en finalize
+2026-01-29 ff712cb Ariel Baudry ux: pulido de validación pública (copy, badge, copiar hash, sin debug)
+2026-01-28 f4a851c Ariel Baudry mejoras
+2026-01-28 bd67e1f Ariel Baudry chore: add api ping route
+2026-01-28 d3f64e1 Ariel Baudry fix: build verificación pública (VerifyClient sin props)
+2026-01-28 9354f5c Ariel Baudry fix: obtener code desde router/useParams (fallback pathname)
+2026-01-28 04bcd1c Ariel Baudry fix: params.code en verificación pública (server page + client component)
+2026-01-28 19141cb Ariel Baudry fix: habilitar verificación con archivo aunque falle auditCode
+2026-01-28 2f30d85 Ariel Baudry fix: enviar audit_code correctamente en verificación pública
+2026-01-28 bde2de8 Ariel Baudry ux: mejorar botón de subida de PDF en verificación pública
+2026-01-28 5bbc78c Ariel Baudry feat: validación pública de documentos (/v/[audit_code])
+2026-01-28 50aff24 Ariel Baudry Fix download UX: force attachment filename on signed URL
+2026-01-28 4b46660 Ariel Baudry Relax rate limit for resend-invite during testing
+2026-01-28 0b0e566 Ariel Baudry Fix upload: generate document uuid and set original_path on insert
+2026-01-28 0dfe63c Ariel Baudry Add detailed errors to documents upload endpoint
+2026-01-28 9103aab Ariel Baudry Add POST /api/documents/upload endpoint
+2026-01-28 1152d3e Ariel Baudry Add documents upload endpoint and protect /api/documents
+2026-01-28 5a0ee13 Ariel Baudry Fix dashboard download prefetch + improve upload UI
+2026-01-28 5f0117f Ariel Baudry Fix logout: remove auth-helpers dependency and use 303 redirect
+2026-01-28 ff02661 Ariel Baudry Fix dashboard/new upload UI + add documents upload endpoint
+2026-01-28 0201a1e Ariel Baudry Sprint 3B: final PDF with signatures page + electronic mark
+2026-01-28 3def7cb Ariel Baudry Sprint 3B: generate final PDF with signatures and audit mark
+2026-01-28 9280029 DAS Latam Implement expiration check and audit event insertion
+2026-01-28 73d8a66 Ariel Baudry Fix resend-invite: avoid sending email if token update fails
+2026-01-28 c5d9447 DAS Latam Merge pull request #2 from DasLatam/sprint-2-token
+2026-01-28 c270bdc Ariel Baudry sprint2: fix signing link (remove replaced_by) + fix signature canvas typings
+2026-01-28 7b3162b Ariel Baudry sprint2: fix signing link (remove replaced_by) + fix signature canvas typings
+2026-01-28 482a818 Ariel Baudry sprint2: fix signing link (remove replaced_by) + fix signature canvas typings
+2026-01-28 5547608 Ariel Baudry sprint2: fix signing link (remove replaced_by) + fix signature canvas typings
+2026-01-28 13aba4f Ariel Baudry sprint2: fix signing link (remove replaced_by) + fix signature canvas typings
+2026-01-28 0d5b948 Ariel Baudry sprint2: fix signature canvas event typing
+2026-01-28 86077c7 Ariel Baudry sprint2: fix token page pdf preview and error copy
+2026-01-27 0fb617a DAS Latam Merge pull request #1 from DasLatam/sprint-1-login
+2026-01-27 dfd5a62 Ariel Baudry sprint1: remove duplicate auth callback routes
+2026-01-27 221d575 DAS Latam Refactor GET function to use async token extraction
+2026-01-27 3473ec6 DAS Latam Refactor invite route for cleaner code structure
+2026-01-27 042ec34 DAS Latam Refactor GET function to improve token handling
+2026-01-27 2247f38 DAS Latam Refactor preview normalization and validation logic
+2026-01-27 bf1b733 DAS Latam Update public and protected path checks in middleware
+2026-01-27 6421fc0 DAS Latam Refactor signing request handling in route.ts
+2026-01-27 6eb0dfa DAS Latam Improve token validation and error handling
+2026-01-27 85074eb DAS Latam Add normalizePreview function for data processing
+2026-01-26 4fc7898 DAS Latam Add cache-control header to error responses
+2026-01-26 b3fec99 DAS Latam Fix missing newline at end of route.ts
+2026-01-26 c447449 DAS Latam Improve error handling in preview route
+2026-01-26 721f8a0 DAS Latam Improve error handling and response messages
+2026-01-26 786426c DAS Latam Refactor SignPage component and improve validation
+2026-01-26 975a714 DAS Latam Refactor token validation and response structure
+2026-01-26 c4e2ff1 DAS Latam Enhance SignPage with improved input handling
+2026-01-26 ca48c32 DAS Latam Refactor signer input handling and validation logic
+2026-01-26 537f75b DAS Latam Refactor signing request handling and error responses
+2026-01-26 2181da0 DAS Latam Refactor GET handler and improve error messages
+2026-01-26 e8dbb08 DAS Latam preview
+2026-01-26 3425acd DAS Latam Improve signing request token validation logic
+2026-01-26 56747ee DAS Latam Refactor token expiration handling and comments
+2026-01-26 fa73e21 DAS Latam Refactor GET request handling for signing requests
+2026-01-26 14e7653 DAS Latam Refactor route.ts for cleaner code and updates
+2026-01-26 8185d4d DAS Latam Refactor SignPage to use useParams for token
+2026-01-26 c03679c DAS Latam Change response to redirect after resend invite
+2026-01-25 273c704 DAS Latam Add action type to email sent payload
+2026-01-25 f5258cf DAS Latam Add action type to resend invite error payload
+2026-01-24 4457145 DAS Latam Change event type from 'email_failed' to 'email_sent'
+2026-01-24 d620725 DAS Latam Change eventType to 'email_sent' with updated payload
+2026-01-24 5679e46 DAS Latam Refactor resend invite logic with retry mechanism
+2026-01-24 c121656 DAS Latam Improve email invite handling with error tracking
+2026-01-24 fdaba49 DAS Latam Add retry logic and timestamp formatting to email sends
+2026-01-24 5aa90e2 DAS Latam Implement Buenos Aires timestamp formatting function
+2026-01-24 da19435 DAS Latam Refactor DocumentPage and improve error handling
+2026-01-24 098b5c6 DAS Latam Implement document deletion and profile validation
+2026-01-23 cb8e99d DAS Latam fix
+2026-01-23 d9b8b98 DAS Latam fix: Next 16 route handler params typing for DELETE document
+2026-01-23 53c7281 DAS Latam fix
+2026-01-23 64c3537 DAS Latam chore: remove support bundle from repo and ignore
+2026-01-23 da9181e DAS Latam fix
+2026-01-20 5a0205e DAS Latam fix
+2026-01-20 5a81350 DAS Latam Fix callback-client: robust hash token capture + set-session
+2026-01-20 5dfc3b4 DAS Latam Remove duplicate auth set-session route; keep canonical /api/auth/set-session
+2026-01-20 9b27d6c DAS Latam Add /api/auth/set-session endpoint (set cookies from hash tokens)
+2026-01-20 c669941 DAS Latam Fix middleware cookie typing + allow auth set-session
+2026-01-20 6a5d6d6 DAS Latam Fix magic link redirect to callback-client
+2026-01-20 03659e4 DAS Latam Use callback-client for magic link redirects
+2026-01-20 8637003 DAS Latam Fix magic link: handle #access_token via callback-client + set-session cookies
+2026-01-20 22cbc32 DAS Latam Fix magic link flow: use OTP so callback receives ?code=
+2026-01-20 5bba564 DAS Latam Fix auth callback redirects (use app origin + safe next)
+2026-01-20 f5ccf38 DAS Latam fix
+2026-01-20 7b035b6 DAS Latam Fix magic link redirect_to: force https + new domain
+2026-01-20 9f3b75d DAS Latam Fix magic link delivery: Resend + Supabase fallback
+2026-01-20 208149c DAS Latam Rename product to Firma Electrónica Simple (FES)
+2026-01-20 2ca9fd6 DAS Latam Fix /profile build: wrap useSearchParams in Suspense via client component
+2026-01-20 f58bd8a DAS Latam Fix signing-request route (remove duplicates, typedRoutes, expiration)
+2026-01-20 ac1ec32 DAS Latam Fix duplicate now variable in signing-request route
+2026-01-20 d6f69ca DAS Latam fix
+2026-01-20 f6841a9 DAS Latam fix
+2026-01-20 beaf441 DAS Latam update
+2026-01-19 a337fe4 DAS Latam Fix rpc typing: replace .catch with try/catch and error check
+2026-01-19 6820b7b DAS Latam Fix typedRoutes params promise for signing-request route
+2026-01-19 95af9df DAS Latam Release: FDS complete flow
+2026-01-19 4f5d99e DAS Latam Fix corrupted postcss.config.mjs
+2026-01-19 b74a773 DAS Latam "Remove package.json postcss override (use postcss.config.mjs for Tailwind v4)"
+2026-01-19 8705375 DAS Latam fix
+2026-01-19 d45b561 DAS Latam Implement PDF upload to Supabase Storage + DB
+2026-01-19 304634f DAS Latam "Fix PKCE verifier: use @supabase/ssr createBrowserClient on client"
+2026-01-19 75f1e78 DAS Latam "Make auth errors visible and avoid signup flow in OTP"
+2026-01-19 1261c9b DAS Latam Stabilize auth: PKCE-only + single /auth/callback route
+2026-01-19 aca6525 DAS Latam Remove conflicting /auth/callback page
+2026-01-19 3d7c192 DAS Latam "Fix auth callback route/page conflict; add callback-client page"
+2026-01-19 2def3f0 DAS Latam Make auth callback handle PKCE and implicit magic link flows
+2026-01-19 2cc24d0 DAS Latam "Fix login page types and force absolute magiclink redirect"
+2026-01-19 2526029 DAS Latam Fix login page types and force absolute magiclink redirect
+2026-01-19 6c4727b DAS Latam fix
+2026-01-19 f809335 DAS Latam Force absolute magic link redirectTo using window.location.origin
+2026-01-19 0c5ddae DAS Latam Force absolute magic link redirectTo using window.location.origin
+2026-01-19 a6ea656 DAS Latam Fix magic link redirectTo to absolute https URL
+2026-01-19 78762ad DAS Latam Fix Supabase magic link redirectTo to app domain
+2026-01-19 518ff6f DAS Latam Restore requiredEnv for edge/middleware without breaking NEXT_PUBLIC env
+2026-01-19 8592371 DAS Latam Make supabase admin client lazy to avoid build-time env crashes
+2026-01-19 6ac1f8f DAS Latam Await createSupabaseServerClient in logout route
+2026-01-19 6660ec4 DAS Latam Fix Next 16 async cookies in supabase server client
+2026-01-19 ab61dbf DAS Latam Add TypeScript declarations for react-signature-canvas
+2026-01-19 c5474fb DAS Latam Fix auth callback cookie typing for Next 16
+2026-01-19 0d67720 DAS Latam Fix Next 16 async cookies in auth callback
+2026-01-19 390e04a DAS Latam Fix supabase admin module + typed routes + alias
+2026-01-19 4d77d2b DAS Latam fix
+2026-01-18 a044367 DAS Latam fix
+2026-01-18 386ffcd DAS Latam v1
+2026-01-18 b487da9 DAS Latam Initial commit
