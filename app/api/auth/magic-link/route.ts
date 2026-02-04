@@ -1,32 +1,22 @@
-import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-import { Resend } from "resend";
+import { NextResponse, type NextRequest } from "next/server";
+import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getResend } from "@/lib/mail/resendClient";
 
 export const runtime = "nodejs";
 
-function requiredEnv(name: string) {
-  const v = process.env[name];
-  if (!v) throw new Error(`Missing env: ${name}`);
-  return v;
+const BodySchema = z.object({
+  email: z.string().trim().email(),
+});
+
+function normalizeAppUrl(raw?: string) {
+  const v = (raw || "").trim();
+  if (!v) return "http://localhost:3000";
+  if (v.startsWith("http://") || v.startsWith("https://")) return v;
+  return `https://${v}`;
 }
 
-function requiredEnvOneOf(names: string[]) {
-  for (const n of names) {
-    const v = process.env[n];
-    if (v) return v;
-  }
-  throw new Error(`Missing env (one of): ${names.join(", ")}`);
-}
-
-function normalizeAppUrl(raw: string) {
-  if (!raw) return "http://localhost:3000";
-  if (raw.startsWith("http://") || raw.startsWith("https://")) return raw;
-  return `https://${raw}`;
-}
-
-function formatBuenosAiresTimestamp(d: Date) {
-  // YYYY/MM/DD HH:mm:ss
+function fmtBuenosAires(d: Date) {
   const parts = new Intl.DateTimeFormat("sv-SE", {
     timeZone: "America/Argentina/Buenos_Aires",
     year: "numeric",
@@ -44,174 +34,121 @@ function formatBuenosAiresTimestamp(d: Date) {
   return `${map.year}/${map.month}/${map.day} ${map.hour}:${map.minute}:${map.second}`;
 }
 
-function looksLikeUserNotFound(msg: string) {
-  return /user.*not found|not found/i.test(msg || "");
+function isAlreadyExistsError(msg?: string) {
+  const m = (msg || "").toLowerCase();
+  return m.includes("already registered") || m.includes("already exists") || m.includes("duplicate key");
 }
 
-function looksLikeSignupsDisabled(msg: string) {
-  return /signups?.*(disabled|not allowed)|signup.*(disabled|not allowed)/i.test(msg || "");
-}
-
-async function sendViaSupabaseOtpFallback(params: { email: string; redirectTo: string }) {
-  const supabase = createClient(
-    requiredEnv("NEXT_PUBLIC_SUPABASE_URL"),
-    requiredEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY"),
-    { auth: { persistSession: false } }
-  );
-
-  const { error: otpErr } = await supabase.auth.signInWithOtp({
-    email: params.email,
-    options: {
-      emailRedirectTo: params.redirectTo,
-      shouldCreateUser: true,
-    },
-  });
-
-  return { otpErr };
-}
-
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   const DEBUG = process.env.FES_DEBUG_AUTH === "1";
-  const ENABLE_SUPABASE_OTP_FALLBACK = process.env.FES_ENABLE_SUPABASE_OTP_FALLBACK === "1";
 
   try {
-    const body = (await req.json().catch(() => ({}))) as { email?: string };
-    const email = (body.email || "").trim().toLowerCase();
+    const body = BodySchema.parse(await req.json().catch(() => ({})));
+    const email = body.email.toLowerCase();
 
-    if (!email || !email.includes("@")) {
-      return NextResponse.json({ error: "Email inválido" }, { status: 400 });
-    }
-
-    const appUrl = normalizeAppUrl(process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000");
-
-    // ✅ callback client (lee #access_token)
+    const appUrl = normalizeAppUrl(process.env.NEXT_PUBLIC_APP_URL || "https://firmasimple.vercel.app");
     const redirectTo = `${appUrl}/auth/callback-client?next=/dashboard`;
 
     const admin = createAdminClient();
 
-    // 1) Generar link (NO envía mail)
-    let gen = await admin.auth.admin.generateLink({
+    // 1) Pre-provision: si el usuario NO existe, lo creamos.
+    // Si falla por "already exists", seguimos. Si falla por otra cosa, devolvemos diagnóstico.
+    const createRes = await admin.auth.admin.createUser({
+      email,
+      email_confirm: true,
+    });
+
+    if (createRes.error && !isAlreadyExistsError(createRes.error.message)) {
+      console.error("magic-link: createUser failed", createRes.error);
+
+      const payload: any = { error: "No se pudo generar el link de acceso.", code: "CREATE_USER_FAILED" };
+      if (DEBUG) payload.details = { createUser: createRes.error.message };
+      return NextResponse.json(payload, { status: 500 });
+    }
+
+    // 2) Generate magic link (action_link)
+    const gen = await admin.auth.admin.generateLink({
       type: "magiclink",
       email,
       options: { redirectTo },
     });
 
-    // 1b) Si falla por usuario inexistente o signups deshabilitados, auto-creamos user y reintentamos
-    if (gen.error && (looksLikeUserNotFound(gen.error.message) || looksLikeSignupsDisabled(gen.error.message))) {
-      try {
-        // createUser no envía mail; solo crea el user para poder generar el link
-        // email_confirm true: evita fricción en proyectos con confirmación estricta
-        await admin.auth.admin.createUser({ email, email_confirm: true });
-      } catch (e: any) {
-        // si ya existe, puede fallar con "already registered": lo ignoramos
-        if (DEBUG) console.warn("auto_provision_createUser_failed", e?.message || e);
-      }
+    const actionLink = gen.data?.properties?.action_link || null;
 
-      gen = await admin.auth.admin.generateLink({
-        type: "magiclink",
-        email,
-        options: { redirectTo },
-      });
-    }
+    if (gen.error || !actionLink) {
+      console.error("magic-link: generateLink failed", gen.error);
 
-    const actionLink = gen.data?.properties?.action_link;
+      const payload: any = { error: "No se pudo generar el link de acceso.", code: "GENERATE_LINK_FAILED" };
+      if (DEBUG) payload.details = { generateLink: gen.error?.message || "no_action_link" };
 
-    if (!actionLink || gen.error) {
-      const msg = gen.error?.message || "generateLink did not return action_link";
+      /**
+       * HINT importante:
+       * Si esto falla SOLO para emails nuevos, casi siempre es porque la creación del user revienta
+       * (trigger en auth.users -> profiles con NOT NULL / defaults / RLS).
+       */
+      payload.hint =
+        "Si falla solo con emails nuevos: revisá triggers de auth.users (handle_new_user) y constraints en public.profiles.";
 
-      // Fallback opcional (solo si lo activás por env)
-      if (ENABLE_SUPABASE_OTP_FALLBACK) {
-        const { otpErr } = await sendViaSupabaseOtpFallback({ email, redirectTo });
-
-        if (otpErr) {
-          const payload: any = {
-            error: "No se pudo generar ni enviar el link de acceso.",
-            code: "MAGIC_LINK_FAILED",
-          };
-          if (DEBUG) payload.details = { generateLink: msg, supabaseOtp: otpErr.message };
-          return NextResponse.json(payload, { status: 500 });
-        }
-
-        return NextResponse.json({ ok: true, provider: "supabase_fallback" });
-      }
-
-      const payload: any = {
-        error: "No se pudo generar el link de acceso.",
-        code: "MAGIC_LINK_GENERATE_FAILED",
-      };
-      if (DEBUG) payload.details = { generateLink: msg };
       return NextResponse.json(payload, { status: 500 });
     }
 
-    // ✅ Subject único para evitar threads en Gmail
-    const ts = formatBuenosAiresTimestamp(new Date());
+    // 3) Enviar por Resend
+    const ts = fmtBuenosAires(new Date());
     const subject = `Acceso seguro a Firma Electrónica Simple ${ts}`;
 
-    // 2) Enviar por Resend
-    try {
-      const resend = new Resend(requiredEnv("RESEND_API_KEY"));
-      const from = requiredEnvOneOf(["RESEND_FROM_EMAIL", "RESEND_FROM"]);
-
-      await resend.emails.send({
-        from,
-        to: email,
-        subject,
-        html: `
-          <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;max-width:560px;margin:0 auto;padding:24px">
-            <div style="border:1px solid #e5e7eb;border-radius:14px;padding:20px;background:#fff">
-              <h2 style="margin:0 0 10px 0;font-size:20px;color:#111">Ingresar a Firma Electrónica Simple</h2>
-              <p style="margin:0 0 12px 0;color:#333;line-height:1.4">
-                Usá este enlace para acceder a tu cuenta.
-              </p>
-              <ul style="margin:0 0 14px 18px;color:#333;line-height:1.4">
-                <li>🔐 Es un enlace <b>de un solo uso</b> por seguridad.</li>
-                <li>⏳ Expira automáticamente en pocos minutos.</li>
-              </ul>
-              <p style="margin:16px 0">
-                <a href="${actionLink}" style="display:inline-block;background:#111;color:#fff;text-decoration:none;padding:10px 14px;border-radius:10px;font-weight:600">
-                  Ingresar a mi cuenta
-                </a>
-              </p>
-              <p style="margin:14px 0 0 0;color:#6b7280;font-size:12px;line-height:1.4">
-                Solicitud: <b>${ts}</b> (Argentina)
-              </p>
-              <p style="margin:10px 0 0 0;color:#6b7280;font-size:12px;line-height:1.4">
-                Si no solicitaste este acceso, podés ignorar este correo.
-              </p>
-            </div>
-            <p style="margin:12px 0 0 0;color:#9ca3af;font-size:11px">
-              Firma Electrónica Simple • Acceso seguro
-            </p>
-          </div>
-        `,
-      });
-
-      return NextResponse.json({ ok: true, provider: "resend" });
-    } catch (resendErr: any) {
-      // 3) Si Resend falla, fallback OTP opcional (por env)
-      if (ENABLE_SUPABASE_OTP_FALLBACK) {
-        const { otpErr } = await sendViaSupabaseOtpFallback({ email, redirectTo });
-
-        if (otpErr) {
-          const payload: any = {
-            error: "No se pudo enviar el email de acceso (Resend y Supabase fallaron).",
-            code: "MAGIC_LINK_SEND_FAILED",
-          };
-          if (DEBUG) payload.details = { resend: resendErr?.message || String(resendErr), supabaseOtp: otpErr.message };
-          return NextResponse.json(payload, { status: 500 });
-        }
-
-        return NextResponse.json({ ok: true, provider: "supabase_fallback" });
-      }
-
-      const payload: any = {
-        error: "No se pudo enviar el email de acceso.",
-        code: "RESEND_FAILED",
-      };
-      if (DEBUG) payload.details = { resend: resendErr?.message || String(resendErr) };
+    const resend = getResend();
+    const from = process.env.RESEND_FROM;
+    if (!from) {
+      const payload: any = { error: "No se pudo enviar el email de acceso.", code: "RESEND_FROM_MISSING" };
+      if (DEBUG) payload.details = { env: "RESEND_FROM missing" };
       return NextResponse.json(payload, { status: 500 });
     }
+
+    const send = await resend.emails.send({
+      from,
+      to: email,
+      subject,
+      html: `
+        <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;max-width:560px;margin:0 auto;padding:24px">
+          <div style="border:1px solid #e5e7eb;border-radius:14px;padding:20px;background:#fff">
+            <h2 style="margin:0 0 10px 0;font-size:20px;color:#111">Ingresar a Firma Electrónica Simple</h2>
+            <p style="margin:0 0 12px 0;color:#333;line-height:1.4">Usá este enlace para acceder a tu cuenta.</p>
+            <ul style="margin:0 0 14px 18px;color:#333;line-height:1.4">
+              <li>🔐 Enlace de un solo uso.</li>
+              <li>⏳ Expira automáticamente.</li>
+            </ul>
+            <p style="margin:16px 0">
+              <a href="${actionLink}" style="display:inline-block;background:#111;color:#fff;text-decoration:none;padding:10px 14px;border-radius:10px;font-weight:600">
+                Ingresar a mi cuenta
+              </a>
+            </p>
+            <p style="margin:14px 0 0 0;color:#6b7280;font-size:12px;line-height:1.4">
+              Solicitud: <b>${ts}</b> (Argentina)
+            </p>
+            <p style="margin:10px 0 0 0;color:#6b7280;font-size:12px;line-height:1.4">
+              Si no solicitaste este acceso, podés ignorar este correo.
+            </p>
+          </div>
+        </div>
+      `,
+      text: `Ingresá a tu cuenta usando este enlace: ${actionLink}`,
+    });
+
+    // Resend SDK: si falla suele devolver { error }
+    if ((send as any)?.error) {
+      const msg = (send as any).error?.message || "Resend error";
+      console.error("magic-link: resend failed", send);
+
+      const payload: any = { error: "No se pudo enviar el email de acceso.", code: "RESEND_FAILED" };
+      if (DEBUG) payload.details = { resend: msg };
+      return NextResponse.json(payload, { status: 500 });
+    }
+
+    return NextResponse.json({ ok: true, provider: "resend" });
   } catch (e: any) {
-    return NextResponse.json({ error: e?.message || "Error enviando magic link" }, { status: 500 });
+    console.error("magic-link: unexpected", e);
+    const payload: any = { error: "No se pudo generar el link de acceso.", code: "UNEXPECTED" };
+    if (process.env.FES_DEBUG_AUTH === "1") payload.details = { message: e?.message || String(e) };
+    return NextResponse.json(payload, { status: 500 });
   }
 }
