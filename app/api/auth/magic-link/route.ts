@@ -30,7 +30,137 @@ function isEmailExistsError(err: any) {
   return code === "email_exists" || msg.toLowerCase().includes("already been registered");
 }
 
-async function sendMagicLinkEmail(params: { to: string; link: string }) {
+function formatSolicitudAR(date = new Date()) {
+  // Fecha/hora estilo: 2026/02/04 00:32:38 (Argentina)
+  try {
+    const fmt = new Intl.DateTimeFormat("es-AR", {
+      timeZone: "America/Argentina/Buenos_Aires",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    });
+
+    // Intl para es-AR devuelve con separadores locales, lo normalizamos a YYYY/MM/DD HH:mm:ss
+    const parts = fmt.formatToParts(date);
+    const get = (t: string) => parts.find((p) => p.type === t)?.value || "00";
+    const yyyy = get("year");
+    const mm = get("month");
+    const dd = get("day");
+    const hh = get("hour");
+    const mi = get("minute");
+    const ss = get("second");
+    return `${yyyy}/${mm}/${dd} ${hh}:${mi}:${ss} (Argentina)`;
+  } catch {
+    return `${date.toISOString().replace("T", " ").slice(0, 19)} (UTC)`;
+  }
+}
+
+function buildMagicLinkHtml(params: { link: string; solicitud: string; baseUrl: string }) {
+  // Preheader “oculto”
+  const preheader = "Enlace de un solo uso. Expira en pocos minutos.";
+
+  // HTML tipo “card” (similar al que mostrabas en el screenshot)
+  return `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Acceso seguro a Firma Electrónica Simple</title>
+  </head>
+  <body style="margin:0;padding:0;background:#f6f7f9;">
+    <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">
+      ${preheader}
+    </div>
+
+    <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background:#f6f7f9;padding:24px 12px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" cellpadding="0" cellspacing="0" width="640" style="max-width:640px;width:100%;">
+            <tr>
+              <td style="padding:0 0 14px 0;">
+                <div style="font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;color:#111;font-size:24px;font-weight:800;letter-spacing:-0.02em;">
+                  Ingresar a Firma Electrónica Simple
+                </div>
+              </td>
+            </tr>
+
+            <tr>
+              <td style="background:#ffffff;border:1px solid #e6e8ee;border-radius:18px;padding:26px;">
+                <div style="font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;color:#111;font-size:18px;font-weight:800;margin:0 0 6px 0;">
+                  Ingresar a Firma Electrónica Simple
+                </div>
+
+                <div style="font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;color:#444;font-size:14px;line-height:1.5;margin:0 0 16px 0;">
+                  Usá este enlace para acceder a tu cuenta.
+                </div>
+
+                <ul style="margin:0 0 18px 18px;padding:0;font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;color:#333;font-size:14px;line-height:1.5;">
+                  <li>🔐 Es un enlace de un solo uso por seguridad.</li>
+                  <li>⏳ Expira automáticamente en pocos minutos.</li>
+                </ul>
+
+                <div style="margin:18px 0 8px 0;">
+                  <a href="${params.link}"
+                     style="display:inline-block;background:#111;color:#fff;text-decoration:none;
+                            padding:12px 18px;border-radius:12px;font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+                            font-size:14px;font-weight:700;">
+                    Ingresar a mi cuenta
+                  </a>
+                </div>
+
+                <div style="margin-top:18px;border-top:1px solid #eee;padding-top:14px;">
+                  <div style="font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;color:#666;font-size:13px;">
+                    <strong>Solicitud:</strong> ${params.solicitud}
+                  </div>
+                  <div style="margin-top:10px;font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;color:#777;font-size:12px;line-height:1.45;">
+                    Si no solicitaste este acceso, podés ignorar este correo.
+                  </div>
+                </div>
+              </td>
+            </tr>
+
+            <tr>
+              <td style="padding:14px 4px 0 4px;">
+                <div style="font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;color:#888;font-size:12px;text-align:center;">
+                  Firma Electrónica Simple • Acceso seguro
+                </div>
+                <div style="font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;color:#bbb;font-size:11px;text-align:center;margin-top:6px;">
+                  ${params.baseUrl.replace(/^https?:\/\//, "")}
+                </div>
+              </td>
+            </tr>
+
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+}
+
+function buildMagicLinkText(params: { link: string; solicitud: string; baseUrl: string }) {
+  return [
+    "Ingresar a Firma Electrónica Simple",
+    "",
+    "Usá este enlace para acceder a tu cuenta:",
+    params.link,
+    "",
+    "- Es un enlace de un solo uso por seguridad.",
+    "- Expira automáticamente en pocos minutos.",
+    "",
+    `Solicitud: ${params.solicitud}`,
+    "",
+    "Si no solicitaste este acceso, podés ignorar este correo.",
+    "",
+    `Sitio: ${params.baseUrl}`,
+  ].join("\n");
+}
+
+async function sendMagicLinkEmail(params: { to: string; link: string; solicitud: string; baseUrl: string }) {
   const apiKey = process.env.RESEND_API_KEY;
   const from =
     process.env.FES_EMAIL_FROM || process.env.RESEND_FROM || process.env.FES_FROM_EMAIL || "";
@@ -41,24 +171,35 @@ async function sendMagicLinkEmail(params: { to: string; link: string }) {
 
   const resend = new Resend(apiKey);
 
-  const subject = "Tu link de acceso a Firma Simple";
-  const html = `
-  <div style="font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;">
-    <h2 style="margin:0 0 12px 0;">Ingresar a Firma Simple</h2>
-    <p style="margin:0 0 12px 0;">Hacé click para ingresar:</p>
-    <p style="margin:0 0 16px 0;">
-      <a href="${params.link}" style="display:inline-block;padding:10px 14px;border-radius:8px;background:#111;color:#fff;text-decoration:none;">
-        Ingresar
-      </a>
-    </p>
-    <p style="margin:0;color:#666;font-size:12px;">Si no pediste este email, podés ignorarlo.</p>
-  </div>`;
+  // ✅ Subject estable ayuda a que Gmail lo agrupe como “hilo”
+  const subject = process.env.FES_MAGIC_LINK_SUBJECT || "Acceso seguro a Firma Electrónica Simple";
+
+  const html = buildMagicLinkHtml({
+    link: params.link,
+    solicitud: params.solicitud,
+    baseUrl: params.baseUrl,
+  });
+
+  const text = buildMagicLinkText({
+    link: params.link,
+    solicitud: params.solicitud,
+    baseUrl: params.baseUrl,
+  });
+
+  // ✅ Headers opcionales para threading (Gmail suele respetar Subject + References)
+  const threadId = "<fes-magiclink@firmasimple.vercel.app>";
 
   await resend.emails.send({
     from,
     to: params.to,
     subject,
     html,
+    text,
+    headers: {
+      "In-Reply-To": threadId,
+      References: threadId,
+      "X-Entity-Ref-ID": `fes-magiclink:${params.to.toLowerCase()}`,
+    },
   });
 
   return { ok: true as const };
@@ -76,8 +217,7 @@ export async function POST(req: NextRequest) {
     const admin = createAdminClient();
 
     // 1) Asegurar existencia de usuario (para emails nuevos)
-    //    ✅ No usamos getUserByEmail (no existe en tu SDK).
-    //    ✅ Intentamos crear y si ya existe (email_exists) seguimos igual.
+    //    Intentamos crear y si ya existe (email_exists) seguimos igual.
     const createRes = await admin.auth.admin.createUser({
       email,
       email_confirm: false,
@@ -107,9 +247,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const solicitud = formatSolicitudAR(new Date());
+
     // 3) Enviar email vía Resend (si está configurado)
     try {
-      const sendRes = await sendMagicLinkEmail({ to: email, link: actionLink });
+      const sendRes = await sendMagicLinkEmail({ to: email, link: actionLink, solicitud, baseUrl });
       if (sendRes.ok) return NextResponse.json({ ok: true });
     } catch (e: any) {
       console.error("magic-link: resend send failed", e);
