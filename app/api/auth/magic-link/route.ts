@@ -160,6 +160,10 @@ function buildMagicLinkText(params: { link: string; solicitud: string; baseUrl: 
   ].join("\n");
 }
 
+function stripArgentinaSuffix(s: string) {
+  return s.replace(/\s*\(Argentina\)\s*$/, "").trim();
+}
+
 async function sendMagicLinkEmail(params: { to: string; link: string; solicitud: string; baseUrl: string }) {
   const apiKey = process.env.RESEND_API_KEY;
   const from =
@@ -171,8 +175,10 @@ async function sendMagicLinkEmail(params: { to: string; link: string; solicitud:
 
   const resend = new Resend(apiKey);
 
-  // ✅ Subject estable ayuda a que Gmail lo agrupe como “hilo”
-  const subject = process.env.FES_MAGIC_LINK_SUBJECT || "Acceso seguro a Firma Electrónica Simple";
+  // ✅ Subject con timestamp para evitar que Gmail lo agrupe
+  const base = process.env.FES_MAGIC_LINK_SUBJECT || "Acceso seguro a Firma Electrónica Simple";
+  const ts = stripArgentinaSuffix(params.solicitud);
+  const subject = `${base} ${ts}`;
 
   const html = buildMagicLinkHtml({
     link: params.link,
@@ -186,9 +192,6 @@ async function sendMagicLinkEmail(params: { to: string; link: string; solicitud:
     baseUrl: params.baseUrl,
   });
 
-  // ✅ Headers opcionales para threading (Gmail suele respetar Subject + References)
-  const threadId = "<fes-magiclink@firmasimple.vercel.app>";
-
   await resend.emails.send({
     from,
     to: params.to,
@@ -196,9 +199,8 @@ async function sendMagicLinkEmail(params: { to: string; link: string; solicitud:
     html,
     text,
     headers: {
-      "In-Reply-To": threadId,
-      References: threadId,
-      "X-Entity-Ref-ID": `fes-magiclink:${params.to.toLowerCase()}`,
+      // ✅ NO usar In-Reply-To / References si querés evitar threading
+      "X-Entity-Ref-ID": `fes-magiclink:${params.to.toLowerCase()}:${Date.now()}`,
     },
   });
 
