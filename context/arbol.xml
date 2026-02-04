@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <repo root="fds-system">
   <file name=".gitignore"/>
+  <file name=".vercelignore"/>
   <file name="README.md"/>
   <dir name="app">
     <dir name="admin">
@@ -24,19 +25,20 @@
           <file name="route.ts"/>
         </dir>
       </dir>
+      <dir name="claim">
+        <file name="route.ts"/>
+      </dir>
       <dir name="document">
         <dir name="[id]">
           <file name="route.ts"/>
         </dir>
         <dir name="upload">
           <file name="route.ts"/>
-          <file name="route.ts.bak_2026-01-30T185708284Z"/>
         </dir>
       </dir>
       <dir name="documents">
         <dir name="upload">
           <file name="route.ts"/>
-          <file name="route.ts.bak_2026-01-30T185708344Z"/>
         </dir>
       </dir>
       <dir name="download">
@@ -47,6 +49,9 @@
         <file name="route.ts.bak_2026-01-30T185708347Z"/>
       </dir>
       <dir name="logout">
+        <file name="route.ts"/>
+      </dir>
+      <dir name="onboarding">
         <file name="route.ts"/>
       </dir>
       <dir name="ping">
@@ -66,16 +71,6 @@
       </dir>
       <dir name="sign">
         <file name="route.ts"/>
-        <file name="route.ts.bak.20260130_010922"/>
-        <file name="route.ts.bak.20260130_012447"/>
-        <file name="route.ts.bak.20260130_012601"/>
-        <file name="route.ts.bak.20260130_012642"/>
-        <file name="route.ts.bak.20260130_014243"/>
-        <file name="route.ts.bak.20260130_015122"/>
-        <file name="route.ts.bak.20260130_100534"/>
-        <file name="route.ts.bak.20260130_101519"/>
-        <file name="route.ts.bak.20260130_103919"/>
-        <file name="route.ts.bak.20260130_105409"/>
       </dir>
       <dir name="signing-request">
         <dir name="[token]">
@@ -84,7 +79,6 @@
       </dir>
       <dir name="upload">
         <file name="route.ts"/>
-        <file name="route.ts.bak_2026-01-30T185708355Z"/>
       </dir>
       <dir name="verify">
         <file name="route.ts"/>
@@ -98,6 +92,9 @@
     </dir>
     <dir name="dashboard">
       <file name="DocumentsListClient.tsx"/>
+      <dir name="account">
+        <file name="page.tsx"/>
+      </dir>
       <dir name="doc">
         <dir name="[id]">
           <file name="invite-panel.tsx"/>
@@ -116,6 +113,10 @@
     <dir name="login">
       <file name="page.tsx"/>
     </dir>
+    <dir name="onboarding">
+      <file name="OnboardingForm.tsx"/>
+      <file name="page.tsx"/>
+    </dir>
     <file name="page.tsx"/>
     <dir name="pricing">
       <file name="page.tsx"/>
@@ -129,8 +130,12 @@
     </dir>
     <dir name="s">
       <dir name="[token]">
+        <file name="app_s_token_page.tsx"/>
         <file name="page.tsx"/>
       </dir>
+    </dir>
+    <dir name="signed">
+      <file name="page.tsx"/>
     </dir>
     <dir name="terms">
       <file name="page.tsx"/>
@@ -141,6 +146,26 @@
         <file name="page.tsx"/>
       </dir>
     </dir>
+  </dir>
+  <dir name="context">
+    <file name="PROMPT FES.txt"/>
+    <file name="arbol.xml"/>
+    <file name="commits-numstat.txt"/>
+    <file name="commits.patch"/>
+    <file name="commits.txt"/>
+    <file name="commits.xml"/>
+    <file name="context-arbol.sh"/>
+    <file name="context-commits.sh"/>
+    <file name="context-keyfiles.sh"/>
+    <file name="context-runtime.sh"/>
+    <file name="context-supabase-dump.sh"/>
+    <file name="context-tech.sh"/>
+    <file name="prompt-master-fes.md"/>
+    <dir name="supabase">
+      <file name="context-supabase.sql"/>
+      <file name="schema.json"/>
+    </dir>
+    <file name="tech.md"/>
   </dir>
   <dir name="lib">
     <file name="audit.ts"/>
