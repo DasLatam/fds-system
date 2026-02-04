@@ -30,27 +30,37 @@ function plus30Days() {
   return { start: now.toISOString(), end: end.toISOString() };
 }
 
+function isMissingColumnError(err: any) {
+  const code = String(err?.code || "");
+  if (code === "42703") return true; // undefined_column
+  const msg = String(err?.message || "");
+  return msg.toLowerCase().includes("column") && msg.toLowerCase().includes("does not exist");
+}
+
 async function getLatestPersonalAccountId(admin: ReturnType<typeof createAdminClient>, userId: string) {
-  const { data: rows } = await admin
-    .from("accounts")
-    .select("id, account_type, created_at")
-    .eq("account_type", "personal")
+  // ✅ Importante: NO buscar "la última personal del sistema".
+  // Buscamos cuentas del usuario vía account_members, y luego filtramos accounts.account_type = personal.
+  const { data: mems } = await admin
+    .from("account_members")
+    .select("account_id, status, created_at")
+    .eq("user_id", userId)
+    .eq("status", "active")
     .order("created_at", { ascending: false });
 
-  if (!rows || rows.length === 0) {
-    // fallback: membership
-    const { data: mem } = await admin
-      .from("account_members")
-      .select("account_id")
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    return mem?.account_id ?? null;
-  }
+  const ids = (mems || []).map((m: any) => m.account_id).filter(Boolean);
 
-  // puede existir más de una personal, elegimos la más nueva del sistema
-  return (rows[0] as any)?.id ?? null;
+  if (ids.length === 0) return null;
+
+  const { data: acc } = await admin
+    .from("accounts")
+    .select("id, account_type, created_at")
+    .in("id", ids)
+    .eq("account_type", "personal")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  return (acc as any)?.id ?? null;
 }
 
 async function setActiveSubscriptionPlan(
@@ -117,22 +127,33 @@ export async function POST(req: NextRequest) {
 
     // Upsert profile (identidad + onboarding + compat plan)
     const legacyPlan = body.plan === "free" ? "free" : "pro";
+    const nowIso = new Date().toISOString();
 
-    const profUp = await admin.from("profiles").upsert(
+    // Payload base que sabemos que existe por schema
+    const profBase: any = {
+      user_id: user.id,
+      email: user.email || null,
+      full_name: body.profile.fullName,
+      dni: body.profile.dni,
+      cuil: body.profile.cuil,
+      address: body.profile.address,
+      phone: body.profile.phone,
+      plan: legacyPlan,
+      updated_at: nowIso,
+    };
+
+    // Intento con onboarding_completed_at (si existe). Si no existe, reintento sin ese campo.
+    let profUp = await admin.from("profiles").upsert(
       {
-        user_id: user.id,
-        email: user.email || null,
-        full_name: body.profile.fullName,
-        dni: body.profile.dni,
-        cuil: body.profile.cuil,
-        address: body.profile.address,
-        phone: body.profile.phone,
-        plan: legacyPlan,
-        onboarding_completed_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+        ...profBase,
+        onboarding_completed_at: nowIso,
       } as any,
       { onConflict: "user_id" }
     );
+
+    if (profUp.error && isMissingColumnError(profUp.error)) {
+      profUp = await admin.from("profiles").upsert(profBase as any, { onConflict: "user_id" });
+    }
 
     if (profUp.error) throw profUp.error;
 
@@ -150,7 +171,7 @@ export async function POST(req: NextRequest) {
         .limit(1)
         .maybeSingle();
 
-      let companyAccountId = existing?.id as string | undefined;
+      let companyAccountId: string | null = (existing as any)?.id ?? null;
 
       if (!companyAccountId) {
         const insAcc = await admin
@@ -167,7 +188,7 @@ export async function POST(req: NextRequest) {
           .single();
 
         if (insAcc.error) throw insAcc.error;
-        companyAccountId = (insAcc.data as any).id;
+        companyAccountId = (insAcc.data as any)?.id ?? null;
       } else {
         // update empresa (por si corrigió datos)
         const updAcc = await admin
@@ -183,6 +204,14 @@ export async function POST(req: NextRequest) {
         if (updAcc.error) throw updAcc.error;
       }
 
+      // ✅ FIX: garantizamos string antes de seguir
+      if (!companyAccountId) {
+        return NextResponse.json(
+          { error: "No se pudo crear/obtener la cuenta empresa (companyAccountId vacío)." },
+          { status: 500 }
+        );
+      }
+
       // membership (owner) + rol representante
       const memIns = await admin.from("account_members").insert({
         account_id: companyAccountId,
@@ -195,7 +224,6 @@ export async function POST(req: NextRequest) {
       // si ya existía, ignoramos conflicto
       if (memIns.error && String(memIns.error.code) !== "23505") {
         // 23505 = unique violation
-        // si tu tabla no tiene unique constraint, esto no aplica, pero no rompe.
         throw memIns.error;
       }
 
