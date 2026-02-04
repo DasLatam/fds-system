@@ -19,12 +19,36 @@ export async function GET() {
 
   const { data: profile, error } = await supabase
     .from("profiles")
-    .select("user_id,email,full_name,dni,cuil,address,phone,is_paused,created_at,updated_at")
+    .select("user_id,email,full_name,dni,cuil,address,phone,is_paused,plan,default_account_id,created_at,updated_at")
     .eq("user_id", user.id)
     .maybeSingle();
 
   if (error) return NextResponse.json({ error: "db_error" }, { status: 500 });
-  return NextResponse.json({ profile: profile ?? null, email: user.email ?? null });
+
+  // Plan activo por cuenta activa (si RLS lo permite). Si falla, devolvemos null sin romper.
+  let activePlanCode: string | null = null;
+  const defaultAccountId = (profile as any)?.default_account_id as string | null | undefined;
+  if (defaultAccountId) {
+    const subRes = await supabase
+      .from("subscriptions")
+      .select("plan_code")
+      .eq("account_id", defaultAccountId)
+      .eq("status", "active")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!subRes.error) {
+      activePlanCode = (subRes.data as any)?.plan_code ?? null;
+    }
+  }
+
+  return NextResponse.json({
+    profile: profile ?? null,
+    email: user.email ?? null,
+    defaultAccountId: defaultAccountId ?? null,
+    activePlanCode,
+  });
 }
 
 export async function POST(req: Request) {

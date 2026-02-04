@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isProfileComplete } from "@/lib/security/profile";
+import { humanizeAuditEventType } from "@/lib/audit/labels";
 import InvitePanel from "./invite-panel";
 
 export const dynamic = "force-dynamic";
@@ -352,7 +353,9 @@ export default async function DocumentPage({
               {(audit as AuditRow[] | null)?.map((e) => (
                 <div key={e.id} className="px-4 py-3 text-sm">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="font-medium text-zinc-900">{e.event_type}</div>
+                    <div className="font-medium text-zinc-900" title={e.event_type}>
+                      {humanizeAuditEventType(e.event_type)}
+                    </div>
                     <div className="text-xs text-zinc-500">{formatDate(e.created_at)}</div>
                   </div>
                   <div className="text-xs text-zinc-600">{e.actor_email || "—"}</div>

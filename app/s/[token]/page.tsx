@@ -272,6 +272,9 @@ export default function SignPage() {
 
       setOk("Rechazo registrado. Se notificará al creador.");
       await refreshPreview();
+
+      // ✅ Post-rechazo: mismo flujo que post-firma
+      router.replace(`/signed?token=${encodeURIComponent(token)}`);
     } catch (e: any) {
       setActionErr(e?.message || "Error inesperado");
     } finally {

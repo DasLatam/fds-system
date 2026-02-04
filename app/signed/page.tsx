@@ -53,10 +53,39 @@ export default async function SignedPage({ searchParams }: { searchParams: { tok
 
   const preview = await loadPreview(token);
 
-  const title = preview?.title || "Documento";
-  const email = preview?.email || "—";
-  const st = preview?.status || "signed";
+  if (!preview) {
+    return (
+      <div className="mx-auto max-w-3xl px-4 py-10">
+        <div className="rounded-2xl border border-zinc-200 p-6">
+          <div className="text-sm text-zinc-600">Firma Electrónica Simple</div>
+          <h1 className="mt-1 text-2xl font-semibold">No se pudo abrir el enlace</h1>
+          <p className="mt-2 text-sm text-zinc-600">
+            Este enlace puede haber vencido o haber sido reemplazado por un reenvío.
+          </p>
+          <div className="mt-6 flex gap-2">
+            <Link href="/" className="rounded-md border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-900">
+              Ir al inicio
+            </Link>
+            <Link href="/login" className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white">
+              Ingresar
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const title = preview.title || "Documento";
+  const email = preview.email || "—";
+  const st = preview.status || "signed";
   const isSigned = st === "signed";
+
+  // ✅ Si el firmante ya tiene cuenta/sesión, lo mandamos directo al panel.
+  // (El panel es el mejor lugar para ver su historial de documentos firmados/rechazados.)
+  if (user) {
+    const qs = new URLSearchParams({ from: "signed", token, status: st });
+    redirect(`/dashboard?${qs.toString()}`);
+  }
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-10">
@@ -92,20 +121,17 @@ export default async function SignedPage({ searchParams }: { searchParams: { tok
         <div className="mt-6 rounded-xl border border-zinc-200 p-4">
           <div className="text-sm font-semibold">Guardá tu historial</div>
           <p className="mt-1 text-sm text-zinc-600">
-            Si te registrás (gratis), vas a poder ver todos tus documentos firmados históricos y precargar tus datos para futuras
+            Si te registrás (gratis), vas a poder ver tu historial de documentos firmados/rechazados y precargar tus datos para futuras
             firmas o solicitudes.
           </p>
 
           <div className="mt-4 flex flex-wrap gap-2">
-            {user ? (
-              <Link href="/dashboard" className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white">
-                Ir a mi Dashboard
-              </Link>
-            ) : (
-              <Link href="/login?next=/dashboard" className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white">
-                Crear cuenta / Ingresar
-              </Link>
-            )}
+            <Link
+              href={`/login?next=${encodeURIComponent(`/dashboard?from=signed&token=${encodeURIComponent(token)}&status=${encodeURIComponent(st)}`)}&email=${encodeURIComponent(email)}`}
+              className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white"
+            >
+              Crear cuenta gratis (Magic Link)
+            </Link>
 
             <Link href="/" className="rounded-md border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-900">
               Ir al inicio

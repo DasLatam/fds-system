@@ -1,11 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import "./globals.css";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { isAdminEmail } from "@/lib/security/admin.server";
 
 export const metadata: Metadata = {
   title: "Firma Electrónica Simple",
   description: "Firma electrónica simple, segura y legal en Argentina (Ley 25.506).",
 };
+
+export const dynamic = "force-dynamic";
 
 function NavLink({ href, children }: { href: string; children: React.ReactNode }) {
   return (
@@ -15,7 +19,15 @@ function NavLink({ href, children }: { href: string; children: React.ReactNode }
   );
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const email = (user?.email || "").toLowerCase();
+  const isAdmin = Boolean(email) && isAdminEmail(email);
+
   return (
     <html lang="es">
       <body>
@@ -28,11 +40,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <NavLink href="/pricing">Planes</NavLink>
               <NavLink href="/terms">Términos</NavLink>
               <NavLink href="/privacy">Privacidad</NavLink>
+
+              {user ? <NavLink href="/dashboard">Dashboard</NavLink> : null}
+              {isAdmin ? <NavLink href="/admin">Admin</NavLink> : null}
+
               <Link
-                href="/login"
+                href={user ? "/dashboard" : "/login"}
                 className="rounded-md bg-black px-3 py-1.5 text-sm font-medium text-white"
               >
-                Ingresar
+                {user ? "Ir al panel" : "Ingresar"}
               </Link>
             </nav>
           </div>
