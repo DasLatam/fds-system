@@ -17,6 +17,52 @@ function fmt(n: number) {
   }
 }
 
+function parseEnvInt(name: string, fallback: number) {
+  const n = Number(process.env[name] || "");
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
+function planLimitFromPlanCode(planCode: string) {
+  const p = (planCode || "").toLowerCase();
+  if (p.includes("company") && p.includes("pro")) return parseEnvInt("FES_COMPANY_PRO_DOCS_PER_MONTH", 30);
+  if (p.includes("individual") && p.includes("pro")) return parseEnvInt("FES_INDIVIDUAL_PRO_DOCS_PER_MONTH", 20);
+  if (p.includes("pro")) return parseEnvInt("FES_INDIVIDUAL_PRO_DOCS_PER_MONTH", 20);
+  return parseEnvInt("FES_FREE_DOCS_PER_MONTH", 5);
+}
+
+function planLabel(planCode: string) {
+  const p = (planCode || "").toLowerCase();
+  if (p.includes("company") && p.includes("pro")) return "Empresa PRO";
+  if (p.includes("individual") && p.includes("pro")) return "Personal PRO";
+  if (p.includes("pro")) return "PRO";
+  return "Gratuito";
+}
+
+function normalizePlanCode(planCode: string | null | undefined, legacyProfilePlan: string | null | undefined) {
+  const p = (planCode || "").trim();
+  if (p) return p;
+  const legacy = (legacyProfilePlan || "").toLowerCase();
+  if (legacy === "pro") return "individual_pro";
+  return "individual_free";
+}
+
+function getBuenosAiresMonthRangeUTC(d = new Date()) {
+  // BA (UTC-3): inicio/fin de mes local BA => 03:00 UTC
+  const year = d.getUTCFullYear();
+  const month = d.getUTCMonth();
+  const start = new Date(Date.UTC(year, month, 1, 3, 0, 0));
+  const end = new Date(Date.UTC(year, month + 1, 1, 3, 0, 0));
+  return { startISO: start.toISOString(), endISO: end.toISOString(), year, month };
+}
+
+function monthLabelEs(year: number, month0: number) {
+  const names = [
+    "enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre",
+  ];
+  const m = names[month0] || String(month0 + 1);
+  return `${m} ${year}`;
+}
+
 async function deleteDocumentAction(formData: FormData) {
   "use server";
 
@@ -70,7 +116,7 @@ export default async function DashboardPage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("user_id,email,full_name,dni,cuil,address,phone,is_paused,default_account_id")
+    .select("user_id,email,full_name,dni,cuil,address,phone,is_paused,plan,default_account_id")
     .eq("user_id", user.id)
     .maybeSingle();
 
@@ -80,83 +126,123 @@ export default async function DashboardPage() {
   const showAdmin = isOwnerEmail(user.email);
 
   // =========================
-  // Sprint A: Claim automático (requiere sesión; NO funciona en SQL editor)
+  // Plan activo + uso mensual
   // =========================
-  let claimed = 0;
-  let claimError: string | null = null;
-
-  try {
-    const { data: claimedCount, error } = await supabase.rpc("claim_signatures");
-    if (error) {
-      claimError = error.message || "No se pudo vincular firmas previas.";
-    } else if (typeof claimedCount === "number") {
-      claimed = claimedCount;
-    } else if (claimedCount != null && !Number.isNaN(Number(claimedCount))) {
-      claimed = Number(claimedCount);
-    }
-  } catch (e: any) {
-    claimError = e?.message || "No se pudo vincular firmas previas.";
-  }
-
-  // =========================
-  // Docs del usuario / cuenta (Sprint B)
-  // - preferir account_id, pero mantener fallback a created_by para docs viejos
-  // =========================
-  const accountId = (profile as any)?.default_account_id as string | null;
-
-  const docsQuery = supabase
-    .from("documents")
-    .select("id,title,status,signing_mode,total_signers,signed_count,final_path,audit_code,created_at,completed_at,account_id,created_by,created_by_user_id")
-    .order("created_at", { ascending: false });
-
-  const orParts: string[] = [];
-  if (accountId) orParts.push(`account_id.eq.${accountId}`);
-  orParts.push(`created_by.eq.${user.id}`);
-  orParts.push(`created_by_user_id.eq.${user.id}`);
-
-  const { data: docs } = await docsQuery.or(orParts.join(","));
-
-  // =========================
-  // Sprint A: Documentos que firmé
-  // =========================
-  type SignedReqRow = {
-    document_id: string;
-    signed_at: string | null;
-    signer_full_name: string | null;
-    signer_capacity?: string | null;
-    signer_company_name?: string | null;
-    signer_company_role?: string | null;
-  };
-
-  let signedReqs: SignedReqRow[] = [];
-  try {
-    const { data: sr, error: srErr } = await supabase
-      .from("signing_requests")
-      .select("document_id,signed_at,signer_full_name,signer_capacity,signer_company_name,signer_company_role")
-      .eq("signer_user_id", user.id)
-      .eq("status", "signed")
-      .order("signed_at", { ascending: false })
-      .limit(50);
-
-    if (!srErr) signedReqs = (sr || []) as SignedReqRow[];
-  } catch {
-    signedReqs = [];
-  }
-
   const admin = createAdminClient();
 
-  // Metadatos docs firmados (título / audit_code)
-  const signedDocIds = Array.from(new Set((signedReqs || []).map((r) => r.document_id).filter(Boolean)));
-  const signedDocsById = new Map<string, any>();
+  // Resolver cuenta activa (si falta en profile, usamos el membership más nuevo)
+  let activeAccountId: string | null = (profile as any)?.default_account_id ?? null;
 
-  if (signedDocIds.length > 0) {
-    const { data: sd } = await admin
+  if (!activeAccountId) {
+    const { data: mem } = await admin
+      .from("account_members")
+      .select("account_id,status,created_at")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (mem?.account_id && mem?.status === "active") activeAccountId = mem.account_id as any;
+  } else {
+    // Validar que el usuario sea miembro activo de esa cuenta (defensa)
+    const { data: mem } = await admin
+      .from("account_members")
+      .select("account_id,status")
+      .eq("user_id", user.id)
+      .eq("account_id", activeAccountId)
+      .maybeSingle();
+    if (!mem || mem.status !== "active") activeAccountId = null;
+  }
+
+  let activeAccountType: string | null = null;
+  let activeAccountName: string | null = null;
+
+  if (activeAccountId) {
+    const { data: acc } = await admin
+      .from("accounts")
+      .select("id,account_type,name,company_name")
+      .eq("id", activeAccountId)
+      .maybeSingle();
+
+    activeAccountType = (acc as any)?.account_type ?? null;
+    activeAccountName = (acc as any)?.company_name ?? (acc as any)?.name ?? null;
+  }
+
+  const { year, month, startISO, endISO } = getBuenosAiresMonthRangeUTC(new Date());
+  const periodLabel = monthLabelEs(year, month);
+
+  let activePlanCode: string = normalizePlanCode(null, (profile as any)?.plan ?? null);
+
+  if (activeAccountId) {
+    const { data: sub } = await admin
+      .from("subscriptions")
+      .select("plan_code,status,created_at")
+      .eq("account_id", activeAccountId)
+      .eq("status", "active")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    activePlanCode = normalizePlanCode((sub as any)?.plan_code ?? null, (profile as any)?.plan ?? null);
+  }
+
+  const activeLimit = planLimitFromPlanCode(activePlanCode);
+
+  // Conteo del mes (por cuenta activa)
+  let usedThisMonth = 0;
+
+  if (activeAccountId) {
+    const q = admin
       .from("documents")
-      .select("id,title,status,audit_code,completed_at,created_at")
-      .in("id", signedDocIds)
-      .limit(200);
+      .select("id", { head: true, count: "exact" })
+      .gte("created_at", startISO)
+      .lt("created_at", endISO);
 
-    for (const d of sd || []) signedDocsById.set(d.id, d);
+    if ((activeAccountType || "").toLowerCase() === "company") {
+      q.eq("account_id", activeAccountId);
+    } else {
+      // personal: cuenta + legacy docs sin account_id
+      q.or(`account_id.eq.${activeAccountId},and(account_id.is.null,created_by.eq.${user.id})`);
+    }
+
+    const { count } = await q;
+    usedThisMonth = count ?? 0;
+  } else {
+    // fallback
+    const { count } = await admin
+      .from("documents")
+      .select("id", { head: true, count: "exact" })
+      .eq("created_by", user.id)
+      .gte("created_at", startISO)
+      .lt("created_at", endISO);
+    usedThisMonth = count ?? 0;
+  }
+
+  // =========================
+  // Documentos listados (por cuenta activa)
+  // =========================
+  let docs: any[] = [];
+
+  if (activeAccountId) {
+    const q = admin
+      .from("documents")
+      .select("id,title,status,signing_mode,total_signers,signed_count,final_path,audit_code,created_at,completed_at,created_by,account_id")
+      .order("created_at", { ascending: false });
+
+    if ((activeAccountType || "").toLowerCase() === "company") {
+      q.eq("account_id", activeAccountId);
+    } else {
+      q.or(`account_id.eq.${activeAccountId},and(account_id.is.null,created_by.eq.${user.id})`);
+    }
+
+    const { data } = await q;
+    docs = (data || []) as any[];
+  } else {
+    // fallback: RLS por usuario
+    const { data } = await supabase
+      .from("documents")
+      .select("id,title,status,signing_mode,total_signers,signed_count,final_path,audit_code,created_at,completed_at")
+      .order("created_at", { ascending: false });
+    docs = (data || []) as any[];
   }
 
   // =========================
@@ -252,46 +338,80 @@ export default async function DashboardPage() {
         <div>
           <h1 className="text-2xl font-semibold">Dashboard</h1>
           <p className="mt-1 text-sm text-zinc-600">Creá una nueva firma, invitá firmantes y seguí el estado.</p>
-          {accountId ? (
-            <p className="mt-1 text-xs text-zinc-500">Cuenta activa: {accountId}</p>
-          ) : (
-            <p className="mt-1 text-xs text-zinc-500">Cuenta activa: (sin default_account_id aún)</p>
-          )}
         </div>
         <div className="flex items-center gap-3">
-          <Link href="/profile?next=/dashboard" className="rounded-md border border-zinc-200 px-4 py-2 text-sm font-medium">
+          <Link
+            href="/profile?next=/dashboard"
+            className="rounded-md border border-zinc-200 px-4 py-2 text-sm font-medium"
+          >
             Mis datos
           </Link>
+
+          <Link
+            href="/dashboard/account"
+            className="rounded-md border border-zinc-200 px-4 py-2 text-sm font-medium"
+          >
+            Cuenta y plan
+          </Link>
+
           {showAdmin ? (
             <Link href="/admin" className="rounded-md border border-zinc-200 px-4 py-2 text-sm font-medium">
               Admin
             </Link>
           ) : null}
+
           <Link
             href="/dashboard/new"
             className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
           >
             Nueva Firma
           </Link>
+
           <form action="/api/logout" method="post">
             <button className="rounded-md border border-zinc-200 px-4 py-2 text-sm font-medium">Salir</button>
           </form>
         </div>
       </div>
 
-      {/* Claim banner */}
-      {claimError ? (
-        <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          No se pudo vincular tu historial de firmas automáticamente: <span className="font-medium">{claimError}</span>
-        </div>
-      ) : claimed > 0 ? (
-        <div className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
-          Se vincularon <span className="font-semibold">{fmt(claimed)}</span> firma(s) previa(s) a tu cuenta.
-        </div>
-      ) : null}
+      {/* Plan + uso del mes */}
+      <div className="mt-6 rounded-xl border border-zinc-200 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="text-sm">
+            <div className="text-zinc-900">
+              <span className="font-medium">Cuenta activa:</span>{" "}
+              <span className="font-mono text-xs">{activeAccountId || "—"}</span>
+              {activeAccountType ? (
+                <span className="ml-2 rounded-md border border-zinc-200 bg-zinc-50 px-2 py-0.5 text-xs">
+                  {(activeAccountType || "").toLowerCase() === "company" ? "Empresa" : "Personal"}
+                </span>
+              ) : null}
+            </div>
+            <div className="mt-1 text-xs text-zinc-600">
+              <span className="font-medium">Plan activo:</span> {planLabel(activePlanCode)}{" "}
+              <span className="text-zinc-400">({activePlanCode})</span>
+              {activeAccountName ? <span className="ml-2 text-zinc-500">· {activeAccountName}</span> : null}
+            </div>
+          </div>
 
-      {/* Métricas */}
-      <div className="mt-8 grid gap-4 lg:grid-cols-4">
+          <div className="text-right">
+            <div className="text-sm text-zinc-900">
+              <span className="font-medium">Uso del mes ({periodLabel}):</span>{" "}
+              {fmt(usedThisMonth)}/{fmt(activeLimit)}
+            </div>
+            <div className="mt-1">
+              <Link
+                href="/dashboard/account"
+                className="inline-flex rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium hover:bg-zinc-50"
+              >
+                Cambiar plan / cuenta activa
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Métricas (Sprint 1) */}
+      <div className="mt-6 grid gap-4 lg:grid-cols-4">
         <div className="rounded-xl border border-zinc-200 p-4">
           <div className="text-xs text-zinc-500">Documentos</div>
           <div className="mt-1 text-2xl font-semibold">{fmt(totalDocs)}</div>
@@ -323,58 +443,12 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      {/* Docs que firmé */}
-      <div className="mt-6 rounded-xl border border-zinc-200">
-        <div className="border-b border-zinc-200 px-4 py-3">
-          <h2 className="text-sm font-medium">Documentos que firmé</h2>
-          <p className="mt-1 text-xs text-zinc-500">
-            Historial asociado a tu cuenta (por email). Se vincula automáticamente al iniciar sesión.
-          </p>
-        </div>
-
-        <div className="divide-y divide-zinc-200">
-          {signedReqs.length === 0 ? (
-            <div className="px-4 py-6 text-sm text-zinc-600">Todavía no tenés documentos firmados asociados a tu cuenta.</div>
-          ) : (
-            signedReqs.map((r) => {
-              const d = signedDocsById.get(r.document_id);
-              const title = d?.title || r.document_id;
-
-              const cap = r.signer_capacity || null;
-              const rep =
-                cap === "representing"
-                  ? `${r.signer_company_name || "Empresa"}${r.signer_company_role ? ` · ${r.signer_company_role}` : ""}`
-                  : null;
-
-              return (
-                <div key={`${r.document_id}-${r.signed_at || ""}`} className="px-4 py-3 text-sm">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="font-medium text-zinc-900">{title}</div>
-                    <div className="text-xs text-zinc-500">{formatDate(r.signed_at)}</div>
-                  </div>
-
-                  <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-zinc-600">
-                    <span>Firmante: {r.signer_full_name || "—"}</span>
-                    {rep ? <span>Representación: {rep}</span> : null}
-                    {d?.audit_code ? (
-                      <Link href={`/v/${d.audit_code}`} className="underline text-zinc-700">
-                        Verificación pública
-                      </Link>
-                    ) : null}
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
-      </div>
-
-      {/* Tus documentos */}
+      {/* Tus documentos (arriba) */}
       <div className="mt-6">
         <DocumentsListClient docs={safeDocs} deleteAction={deleteDocumentAction} />
       </div>
 
-      {/* Actividad */}
+      {/* Actividad reciente (abajo) */}
       <div className="mt-6 rounded-xl border border-zinc-200">
         <div className="border-b border-zinc-200 px-4 py-3">
           <h2 className="text-sm font-medium">Actividad reciente (últimos 25)</h2>
