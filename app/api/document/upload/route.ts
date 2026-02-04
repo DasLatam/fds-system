@@ -24,6 +24,24 @@ function getBuenosAiresMonthRangeUTC() {
   return { startIso: startUtc.toISOString(), endIso: endUtc.toISOString() };
 }
 
+function parseLimit(v: string | undefined, fallback: number) {
+  const n = Number(v);
+  return Number.isFinite(n) && n >= 0 ? n : fallback;
+}
+
+function resolveDocsLimitFromPlan(planCodeRaw: string | null) {
+  const planCode = (planCodeRaw || "").toLowerCase().trim();
+
+  const free = parseLimit(process.env.FES_FREE_DOCS_PER_MONTH, 5);
+  const indivPro = parseLimit(process.env.FES_INDIVIDUAL_PRO_DOCS_PER_MONTH, 999999);
+  const companyPro = parseLimit(process.env.FES_COMPANY_PRO_DOCS_PER_MONTH, 999999);
+
+  if (planCode.includes("company") && planCode.includes("pro")) return { limit: companyPro, planCode };
+  if (planCode.includes("individual") && planCode.includes("pro")) return { limit: indivPro, planCode };
+  if (planCode.includes("pro")) return { limit: indivPro, planCode };
+  return { limit: free, planCode: planCode || "individual_free" };
+}
+
 async function resolveAccountId(admin: ReturnType<typeof createAdminClient>, userId: string) {
   const prof = await admin.from("profiles").select("default_account_id").eq("user_id", userId).maybeSingle();
   if (!prof.error) {
@@ -60,24 +78,23 @@ async function resolvePlanCode(admin: ReturnType<typeof createAdminClient>, user
   }
 
   const prof = await admin.from("profiles").select("plan").eq("user_id", userId).maybeSingle();
-  if (!prof.error && (prof.data as any)?.plan) return String((prof.data as any).plan);
+  if (!prof.error && (prof.data as any)?.plan) {
+    const p = String((prof.data as any).plan);
+    return p === "pro" ? "individual_pro" : "individual_free";
+  }
 
-  return "free";
+  return "individual_free";
 }
 
-function isProPlan(planCode: string | null) {
-  const p = (planCode || "").toLowerCase();
-  return p.includes("pro");
-}
-
-async function enforceFreeLimitOrThrow(args: {
+async function enforceDocsLimitOrReturn(args: {
   admin: ReturnType<typeof createAdminClient>;
   userId: string;
   accountId: string | null;
   planCode: string | null;
 }) {
-  const FREE_LIMIT = Number(process.env.FES_FREE_DOCS_PER_MONTH || "5");
-  if (isProPlan(args.planCode)) return null;
+  const { limit, planCode } = resolveDocsLimitFromPlan(args.planCode);
+
+  if (limit >= 999999) return null;
 
   const { startIso, endIso } = getBuenosAiresMonthRangeUTC();
 
@@ -88,7 +105,6 @@ async function enforceFreeLimitOrThrow(args: {
     .lt("created_at", endIso);
 
   if (args.accountId) {
-    // cuenta + fallback legacy sin account_id
     q.or(`account_id.eq.${args.accountId},and(account_id.is.null,created_by.eq.${args.userId})`);
   } else {
     q.eq("created_by", args.userId);
@@ -97,15 +113,19 @@ async function enforceFreeLimitOrThrow(args: {
   const { count, error } = await q;
   if (error) {
     console.warn("plan_limit_count_failed", error);
-    return null; // fail-open para no cortar prod
+    return null;
   }
 
-  if ((count || 0) >= FREE_LIMIT) {
+  if ((count || 0) >= limit) {
     return NextResponse.json(
       {
-        error: "Alcanzaste el límite mensual del plan Free. Actualizá a Pro para crear más documentos.",
+        error:
+          planCode.includes("free")
+            ? "Alcanzaste el límite mensual del plan Free. Actualizá a Pro para crear más documentos."
+            : "Alcanzaste el límite mensual de tu plan.",
         code: "PLAN_LIMIT_REACHED",
-        limit: FREE_LIMIT,
+        limit,
+        planCode,
       },
       { status: 402 }
     );
@@ -130,7 +150,7 @@ export async function POST(req: NextRequest) {
     const accountId = await resolveAccountId(admin, user.id);
     const planCode = await resolvePlanCode(admin, user.id, accountId);
 
-    const limitResp = await enforceFreeLimitOrThrow({ admin, userId: user.id, accountId, planCode });
+    const limitResp = await enforceDocsLimitOrReturn({ admin, userId: user.id, accountId, planCode });
     if (limitResp) return limitResp;
 
     const form = await req.formData();
