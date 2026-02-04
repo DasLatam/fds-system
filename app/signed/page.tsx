@@ -16,20 +16,25 @@ type Preview = {
   pdfUrl: string;
 };
 
-function getBaseUrl() {
-  const h = headers();
+async function getBaseUrl() {
+  // ✅ Next 16: headers() es async
+  const h = await headers();
+
   const host = h.get("x-forwarded-host") ?? h.get("host");
   const proto = h.get("x-forwarded-proto") ?? "https";
   if (!host) return null;
+
   return `${proto}://${host}`;
 }
 
 async function loadPreview(token: string): Promise<Preview | null> {
   try {
-    const base = getBaseUrl();
+    const base = await getBaseUrl();
     if (!base) return null;
+
     const res = await fetch(`${base}/api/signing-request/${token}`, { cache: "no-store" });
     if (!res.ok) return null;
+
     const data = (await res.json().catch(() => null)) as Preview | null;
     return data;
   } catch {
@@ -65,7 +70,13 @@ export default async function SignedPage({ searchParams }: { searchParams: { tok
           <div className="mt-1 text-xs text-zinc-600">
             Estado:{" "}
             <span className="font-medium">
-              {st === "signed" ? "Firmado" : st === "pending" ? "Pendiente" : st === "rejected" ? "Rechazado" : "Vencido"}
+              {st === "signed"
+                ? "Firmado"
+                : st === "pending"
+                ? "Pendiente"
+                : st === "rejected"
+                ? "Rechazado"
+                : "Vencido"}
             </span>
           </div>
 
