@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -15,9 +16,19 @@ type Preview = {
   pdfUrl: string;
 };
 
+function getBaseUrl() {
+  const h = headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host");
+  const proto = h.get("x-forwarded-proto") ?? "https";
+  if (!host) return null;
+  return `${proto}://${host}`;
+}
+
 async function loadPreview(token: string): Promise<Preview | null> {
   try {
-    const res = await fetch(`/api/signing-request/${token}`, { cache: "no-store" });
+    const base = getBaseUrl();
+    if (!base) return null;
+    const res = await fetch(`${base}/api/signing-request/${token}`, { cache: "no-store" });
     if (!res.ok) return null;
     const data = (await res.json().catch(() => null)) as Preview | null;
     return data;
@@ -26,11 +37,7 @@ async function loadPreview(token: string): Promise<Preview | null> {
   }
 }
 
-export default async function SignedPage({
-  searchParams,
-}: {
-  searchParams: { token?: string; status?: string };
-}) {
+export default async function SignedPage({ searchParams }: { searchParams: { token?: string } }) {
   const token = String(searchParams?.token || "");
   if (!token) redirect("/");
 
@@ -44,7 +51,6 @@ export default async function SignedPage({
   const title = preview?.title || "Documento";
   const email = preview?.email || "—";
   const st = preview?.status || "signed";
-
   const isSigned = st === "signed";
 
   return (

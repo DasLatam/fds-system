@@ -1,125 +1,156 @@
-import { NextResponse } from "next/server";
-import { randomUUID } from "crypto";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { sha256Hex } from "@/lib/utils/crypto";
-import { logEvent } from "@/lib/audit/logEvent";
+"use client";
 
-export const runtime = "nodejs";
+import Link from "next/link";
+import { useRef, useState } from "react";
 
-export async function POST(req: Request) {
-  const supabase = await createSupabaseServerClient();
+export default function UploadForm() {
+  const fileRef = useRef<HTMLInputElement | null>(null);
 
-// ===== FES: Plan/Límite (Free) =====
-const FREE_LIMIT = Number(process.env.FES_FREE_DOCS_PER_MONTH || "5");
-try {
-  // Obtener user id (server-side)
-  let userId: string | null = null;
-  // patrones comunes
-  // @ts-ignore
-  if (typeof user !== "undefined" && user?.id) userId = user.id;
-  // @ts-ignore
-  if (!userId && typeof session !== "undefined" && session?.user?.id) userId = session.user.id;
+  const [title, setTitle] = useState("");
+  const [fileName, setFileName] = useState("Ningún archivo seleccionado");
+  const [busy, setBusy] = useState(false);
 
-  // Si no tenemos user, no bloqueamos acá (auth middleware debería cubrir)
-  if (userId) {
-    // Buscar plan
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("plan")
-      .eq("user_id", userId)
-      .maybeSingle();
+  const [status, setStatus] = useState<string>("");
+  const [planLimitReached, setPlanLimitReached] = useState(false);
 
-    const plan = (profile?.plan || "free") as string;
+  function openPicker() {
+    // ✅ siempre desde un gesto del usuario (click real)
+    fileRef.current?.click();
+  }
 
-    if (plan !== "pro") {
-      // Contar documentos creados en el mes actual
-      const now = new Date();
-      const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1, 0, 0, 0));
-      const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1, 0, 0, 0));
+  function onFileChange() {
+    const f = fileRef.current?.files?.[0];
+    setFileName(f ? f.name : "Ningún archivo seleccionado");
+  }
 
-      const { count } = await supabase
-        .from("documents")
-        .select("id", { head: true, count: "exact" })
-        .eq("created_by", userId)
-        .gte("created_at", start.toISOString())
-        .lt("created_at", end.toISOString());
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setStatus("");
+    setPlanLimitReached(false);
 
-      if ((count || 0) >= FREE_LIMIT) {
-        return NextResponse.json(
-          {
-            error: "Alcanzaste el límite mensual del plan Free. Actualizá a Pro para crear más documentos.",
-            code: "PLAN_LIMIT_REACHED",
-            limit: FREE_LIMIT,
-          },
-          { status: 402 }
-        );
+    const f = fileRef.current?.files?.[0];
+    if (!title.trim()) {
+      setStatus("Ingresá un título.");
+      return;
+    }
+    if (!f) {
+      setStatus("Seleccioná un PDF.");
+      return;
+    }
+    if (f.type !== "application/pdf") {
+      setStatus("El archivo debe ser un PDF.");
+      return;
+    }
+
+    setBusy(true);
+    setStatus("Subiendo...");
+
+    try {
+      const fd = new FormData();
+      fd.set("title", title.trim());
+      fd.set("file", f);
+
+      const r = await fetch("/api/documents/upload", { method: "POST", body: fd });
+      const j = await r.json().catch(() => ({}));
+
+      if (!r.ok) {
+        // ✅ Caso producto: límite del plan Free
+        if (r.status === 402 && j?.code === "PLAN_LIMIT_REACHED") {
+          setPlanLimitReached(true);
+          setStatus(
+            j?.error ||
+              "Alcanzaste el límite mensual del plan Free. Actualizá a Pro para crear más documentos."
+          );
+          return;
+        }
+
+        setStatus(j?.error || "No se pudo subir el PDF.");
+        return;
       }
+
+      setStatus("Listo. Redirigiendo...");
+      if (j?.documentId) window.location.href = "/dashboard/doc/" + j.documentId;
+      else window.location.href = "/dashboard";
+    } catch {
+      setStatus("Error de red al subir.");
+    } finally {
+      setBusy(false);
     }
   }
-} catch (e) {
-  // Si falla el check, no rompemos creación (fail-open) para no cortar producción.
-  console.warn("plan_limit_check_failed", e);
-}
-// ===== end Plan/Límite =====
 
-  const admin = createAdminClient();
+  return (
+    <form className="space-y-4" onSubmit={onSubmit}>
+      <div>
+        <label className="mb-1 block text-sm font-medium">Título del documento</label>
+        <input
+          name="title"
+          type="text"
+          required
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="Ej: Constancia ARCA"
+          className="w-full rounded-md border border-zinc-200 px-3 py-2 text-sm"
+          disabled={busy}
+        />
+        <p className="mt-1 text-xs text-zinc-500">
+          Este título se mostrará en el dashboard y en la página de firma.
+        </p>
+      </div>
 
-  const { data: { user }, error: userErr } = await supabase.auth.getUser();
-  if (userErr || !user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      <div>
+        <label className="mb-1 block text-sm font-medium">Archivo PDF</label>
 
-  const form = await req.formData();
-  const title = String(form.get("title") || "").trim();
-  const file = form.get("file");
+        {/* ✅ input real oculto */}
+        <input
+          ref={fileRef}
+          name="file"
+          type="file"
+          accept="application/pdf"
+          className="hidden"
+          onChange={onFileChange}
+          disabled={busy}
+        />
 
-  if (!file || !(file instanceof File)) return NextResponse.json({ error: "Missing PDF file" }, { status: 400 });
-  if (file.type !== "application/pdf") return NextResponse.json({ error: "File must be a PDF" }, { status: 400 });
+        {/* ✅ botón visible */}
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={openPicker}
+            className="rounded-md border border-zinc-200 bg-white px-4 py-2 text-sm font-medium hover:bg-zinc-50 disabled:opacity-60"
+            disabled={busy}
+          >
+            Elegir PDF…
+          </button>
+          <span className="text-sm text-zinc-600">{fileName}</span>
+        </div>
 
-  // Usage limits: MVP keeps everything free. Billing comes later.
+        <p className="mt-1 text-xs text-zinc-500">Solo PDF. Tamaño recomendado: hasta 10–20 MB.</p>
+      </div>
 
-  const docId = randomUUID();
-  const safeTitle = title || file.name || "Documento";
+      <div className="flex items-start gap-3 pt-2">
+        <button
+          type="submit"
+          className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+          disabled={busy}
+        >
+          {busy ? "Subiendo..." : "Subir y crear documento"}
+        </button>
 
-  const bytes = new Uint8Array(await file.arrayBuffer());
-  const originalHash = sha256Hex(bytes);
+        <div className="text-sm text-zinc-600">
+          {status ? <div>{status}</div> : null}
 
-  const originalPath = `${user.id}/${docId}/original/original.pdf`;
-
-  const up = await admin.storage.from("fds").upload(originalPath, bytes, {
-    contentType: "application/pdf",
-    upsert: false,
-  });
-
-  if (up.error) {
-    return NextResponse.json({ error: `Storage upload failed: ${up.error.message}` }, { status: 500 });
-  }
-
-  const ins = await supabase.from("documents").insert({
-    id: docId,
-    created_by: user.id,
-    title: safeTitle,
-    status: "pending",
-    signing_mode: "parallel",
-    total_signers: 0,
-    signed_count: 0,
-    original_path: originalPath,
-    final_path: null,
-    original_hash: originalHash,
-  });
-
-  if (ins.error) {
-    await admin.storage.from("fds").remove([originalPath]);
-    return NextResponse.json({ error: `DB insert failed: ${ins.error.message}` }, { status: 500 });
-  }
-
-  await logEvent({
-    documentId: docId,
-    actorUserId: user.id,
-    eventType: "pdf_uploaded",
-    ip: req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || null,
-    userAgent: req.headers.get("user-agent") || null,
-    payload: { title: safeTitle, originalPath },
-  });
-
-  return NextResponse.json({ documentId: docId });
+          {planLimitReached ? (
+            <div className="mt-2">
+              <Link
+                href="/pricing"
+                className="inline-flex rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium hover:bg-zinc-50"
+              >
+                Ver planes
+              </Link>
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </form>
+  );
 }

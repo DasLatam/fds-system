@@ -70,7 +70,7 @@ export default async function DashboardPage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("user_id,email,full_name,dni,cuil,address,phone,is_paused")
+    .select("user_id,email,full_name,dni,cuil,address,phone,is_paused,default_account_id")
     .eq("user_id", user.id)
     .maybeSingle();
 
@@ -80,7 +80,7 @@ export default async function DashboardPage() {
   const showAdmin = isOwnerEmail(user.email);
 
   // =========================
-  // Sprint A: Claim automático
+  // Sprint A: Claim automático (requiere sesión; NO funciona en SQL editor)
   // =========================
   let claimed = 0;
   let claimError: string | null = null;
@@ -98,10 +98,23 @@ export default async function DashboardPage() {
     claimError = e?.message || "No se pudo vincular firmas previas.";
   }
 
-  const { data: docs } = await supabase
+  // =========================
+  // Docs del usuario / cuenta (Sprint B)
+  // - preferir account_id, pero mantener fallback a created_by para docs viejos
+  // =========================
+  const accountId = (profile as any)?.default_account_id as string | null;
+
+  const docsQuery = supabase
     .from("documents")
-    .select("id,title,status,signing_mode,total_signers,signed_count,final_path,audit_code,created_at,completed_at")
+    .select("id,title,status,signing_mode,total_signers,signed_count,final_path,audit_code,created_at,completed_at,account_id,created_by,created_by_user_id")
     .order("created_at", { ascending: false });
+
+  const orParts: string[] = [];
+  if (accountId) orParts.push(`account_id.eq.${accountId}`);
+  orParts.push(`created_by.eq.${user.id}`);
+  orParts.push(`created_by_user_id.eq.${user.id}`);
+
+  const { data: docs } = await docsQuery.or(orParts.join(","));
 
   // =========================
   // Sprint A: Documentos que firmé
@@ -132,7 +145,7 @@ export default async function DashboardPage() {
 
   const admin = createAdminClient();
 
-  // Traer metadatos de documentos firmados (para títulos / audit_code)
+  // Metadatos docs firmados (título / audit_code)
   const signedDocIds = Array.from(new Set((signedReqs || []).map((r) => r.document_id).filter(Boolean)));
   const signedDocsById = new Map<string, any>();
 
@@ -239,6 +252,11 @@ export default async function DashboardPage() {
         <div>
           <h1 className="text-2xl font-semibold">Dashboard</h1>
           <p className="mt-1 text-sm text-zinc-600">Creá una nueva firma, invitá firmantes y seguí el estado.</p>
+          {accountId ? (
+            <p className="mt-1 text-xs text-zinc-500">Cuenta activa: {accountId}</p>
+          ) : (
+            <p className="mt-1 text-xs text-zinc-500">Cuenta activa: (sin default_account_id aún)</p>
+          )}
         </div>
         <div className="flex items-center gap-3">
           <Link href="/profile?next=/dashboard" className="rounded-md border border-zinc-200 px-4 py-2 text-sm font-medium">
@@ -261,7 +279,7 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      {/* Sprint A: Banner de claim */}
+      {/* Claim banner */}
       {claimError ? (
         <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           No se pudo vincular tu historial de firmas automáticamente: <span className="font-medium">{claimError}</span>
@@ -272,7 +290,7 @@ export default async function DashboardPage() {
         </div>
       ) : null}
 
-      {/* Métricas (Sprint 1) */}
+      {/* Métricas */}
       <div className="mt-8 grid gap-4 lg:grid-cols-4">
         <div className="rounded-xl border border-zinc-200 p-4">
           <div className="text-xs text-zinc-500">Documentos</div>
@@ -305,7 +323,7 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      {/* Sprint A: Documentos que firmé */}
+      {/* Docs que firmé */}
       <div className="mt-6 rounded-xl border border-zinc-200">
         <div className="border-b border-zinc-200 px-4 py-3">
           <h2 className="text-sm font-medium">Documentos que firmé</h2>
@@ -351,12 +369,12 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      {/* Tus documentos (arriba) */}
+      {/* Tus documentos */}
       <div className="mt-6">
         <DocumentsListClient docs={safeDocs} deleteAction={deleteDocumentAction} />
       </div>
 
-      {/* Actividad reciente (abajo) */}
+      {/* Actividad */}
       <div className="mt-6 rounded-xl border border-zinc-200">
         <div className="border-b border-zinc-200 px-4 py-3">
           <h2 className="text-sm font-medium">Actividad reciente (últimos 25)</h2>

@@ -198,7 +198,6 @@ export default function SignPage() {
     try {
       const signatureDataUrl = sigRef.current.getTrimmedCanvas().toDataURL("image/png");
 
-      // ✅ body retro-compatible (evita Invalid body con cambios de schema)
       const res = await fetch(`/api/sign`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -208,9 +207,9 @@ export default function SignPage() {
           consent,
           signer,
 
-          // NUEVO (P1): capacidad de firma + empresa
+          // P1: capacidad de firma + empresa (compat)
           signerCapacity,
-          signer_capacity: signerCapacity, // alias legacy/DB
+          signer_capacity: signerCapacity,
           signerCompanyName: company.companyName || null,
           signer_company_name: company.companyName || null,
           signerCompanyCuit: company.companyCuit || null,
@@ -220,7 +219,7 @@ export default function SignPage() {
           signerCompanyRole: company.companyRole || null,
           signer_company_role: company.companyRole || null,
 
-          // legacy/compat (por si el backend esperaba campos sueltos)
+          // legacy/compat
           full_name: signer.fullName,
           dni: signer.dni,
           cuil: signer.cuil,
@@ -241,11 +240,8 @@ export default function SignPage() {
       setOk("La firma fue registrada correctamente.");
       await refreshPreview();
 
-      // ✅ post-firma: ir a pantalla “invitar a registrarse / ver historial”
-      const qs =
-        `token=${encodeURIComponent(token)}` +
-        (data?.status ? `&status=${encodeURIComponent(String(data.status))}` : "");
-      router.replace(`/signed?${qs}`);
+      // ✅ Post-firma: invitación a registrarse / claim de historial
+      router.replace(`/signed?token=${encodeURIComponent(token)}`);
     } catch (e: any) {
       setActionErr(e?.message || "Error inesperado");
     } finally {
@@ -285,7 +281,6 @@ export default function SignPage() {
 
   if (loading) return <div className="mx-auto max-w-3xl p-6 text-sm text-zinc-600">Cargando…</div>;
 
-  // ✅ solo error de carga del link
   if (loadErr) {
     return (
       <div className="mx-auto max-w-3xl p-6">
@@ -415,7 +410,7 @@ export default function SignPage() {
               />
             </div>
 
-            {/* P1: Capacidad de firma */}
+            {/* Capacidad de firma */}
             <div className="mt-5 rounded-lg border border-zinc-200 p-3">
               <div className="text-sm font-semibold">Capacidad de firma</div>
               <p className="mt-1 text-xs text-zinc-600">
@@ -535,7 +530,6 @@ export default function SignPage() {
               <div className="mt-2 text-xs text-zinc-600">{sigDirty ? "✅ Firma capturada" : "Dibujá tu firma en el recuadro."}</div>
             </div>
 
-            {/* ✅ errores de acción acá (no pantalla de link inválido) */}
             {actionErr ? (
               <div className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{actionErr}</div>
             ) : null}
