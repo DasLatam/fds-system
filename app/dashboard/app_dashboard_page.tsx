@@ -79,76 +79,16 @@ export default async function DashboardPage() {
 
   const showAdmin = isOwnerEmail(user.email);
 
-  // =========================
-  // Sprint A: Claim automático
-  // =========================
-  let claimed = 0;
-  let claimError: string | null = null;
-
-  try {
-    const { data: claimedCount, error } = await supabase.rpc("claim_signatures");
-    if (error) {
-      claimError = error.message || "No se pudo vincular firmas previas.";
-    } else if (typeof claimedCount === "number") {
-      claimed = claimedCount;
-    } else if (claimedCount != null && !Number.isNaN(Number(claimedCount))) {
-      claimed = Number(claimedCount);
-    }
-  } catch (e: any) {
-    claimError = e?.message || "No se pudo vincular firmas previas.";
-  }
-
   const { data: docs } = await supabase
     .from("documents")
     .select("id,title,status,signing_mode,total_signers,signed_count,final_path,audit_code,created_at,completed_at")
     .order("created_at", { ascending: false });
 
   // =========================
-  // Sprint A: Documentos que firmé
-  // =========================
-  type SignedReqRow = {
-    document_id: string;
-    signed_at: string | null;
-    signer_full_name: string | null;
-    signer_capacity?: string | null;
-    signer_company_name?: string | null;
-    signer_company_role?: string | null;
-  };
-
-  let signedReqs: SignedReqRow[] = [];
-  try {
-    const { data: sr, error: srErr } = await supabase
-      .from("signing_requests")
-      .select("document_id,signed_at,signer_full_name,signer_capacity,signer_company_name,signer_company_role")
-      .eq("signer_user_id", user.id)
-      .eq("status", "signed")
-      .order("signed_at", { ascending: false })
-      .limit(50);
-
-    if (!srErr) signedReqs = (sr || []) as SignedReqRow[];
-  } catch {
-    signedReqs = [];
-  }
-
-  const admin = createAdminClient();
-
-  // Traer metadatos de documentos firmados (para títulos / audit_code)
-  const signedDocIds = Array.from(new Set((signedReqs || []).map((r) => r.document_id).filter(Boolean)));
-  const signedDocsById = new Map<string, any>();
-
-  if (signedDocIds.length > 0) {
-    const { data: sd } = await admin
-      .from("documents")
-      .select("id,title,status,audit_code,completed_at,created_at")
-      .in("id", signedDocIds)
-      .limit(200);
-
-    for (const d of sd || []) signedDocsById.set(d.id, d);
-  }
-
-  // =========================
   // Métricas visibles (Sprint)
   // =========================
+  const admin = createAdminClient();
+
   const safeDocs = (docs || []) as any[];
   const docIds = safeDocs.map((d) => d.id).filter(Boolean);
   const auditCodes = safeDocs.map((d) => d.audit_code).filter(Boolean);
@@ -261,17 +201,6 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      {/* Sprint A: Banner de claim */}
-      {claimError ? (
-        <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          No se pudo vincular tu historial de firmas automáticamente: <span className="font-medium">{claimError}</span>
-        </div>
-      ) : claimed > 0 ? (
-        <div className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
-          Se vincularon <span className="font-semibold">{fmt(claimed)}</span> firma(s) previa(s) a tu cuenta.
-        </div>
-      ) : null}
-
       {/* Métricas (Sprint 1) */}
       <div className="mt-8 grid gap-4 lg:grid-cols-4">
         <div className="rounded-xl border border-zinc-200 p-4">
@@ -302,52 +231,6 @@ export default async function DashboardPage() {
           <div className="mt-2 text-xs text-zinc-600">
             {fmt(verif30Match)} OK · {fmt(verif30Fail)} NO
           </div>
-        </div>
-      </div>
-
-      {/* Sprint A: Documentos que firmé */}
-      <div className="mt-6 rounded-xl border border-zinc-200">
-        <div className="border-b border-zinc-200 px-4 py-3">
-          <h2 className="text-sm font-medium">Documentos que firmé</h2>
-          <p className="mt-1 text-xs text-zinc-500">
-            Historial asociado a tu cuenta (por email). Se vincula automáticamente al iniciar sesión.
-          </p>
-        </div>
-
-        <div className="divide-y divide-zinc-200">
-          {signedReqs.length === 0 ? (
-            <div className="px-4 py-6 text-sm text-zinc-600">Todavía no tenés documentos firmados asociados a tu cuenta.</div>
-          ) : (
-            signedReqs.map((r) => {
-              const d = signedDocsById.get(r.document_id);
-              const title = d?.title || r.document_id;
-
-              const cap = r.signer_capacity || null;
-              const rep =
-                cap === "representing"
-                  ? `${r.signer_company_name || "Empresa"}${r.signer_company_role ? ` · ${r.signer_company_role}` : ""}`
-                  : null;
-
-              return (
-                <div key={`${r.document_id}-${r.signed_at || ""}`} className="px-4 py-3 text-sm">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="font-medium text-zinc-900">{title}</div>
-                    <div className="text-xs text-zinc-500">{formatDate(r.signed_at)}</div>
-                  </div>
-
-                  <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-zinc-600">
-                    <span>Firmante: {r.signer_full_name || "—"}</span>
-                    {rep ? <span>Representación: {rep}</span> : null}
-                    {d?.audit_code ? (
-                      <Link href={`/v/${d.audit_code}`} className="underline text-zinc-700">
-                        Verificación pública
-                      </Link>
-                    ) : null}
-                  </div>
-                </div>
-              );
-            })
-          )}
         </div>
       </div>
 

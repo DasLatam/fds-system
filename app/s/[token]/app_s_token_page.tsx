@@ -2,7 +2,7 @@
 
 import SignatureCanvas from "react-signature-canvas";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 
 type Preview = {
   documentId: string;
@@ -20,7 +20,6 @@ type SignerCapacity = "self" | "representing";
 export default function SignPage() {
   const params = useParams<{ token: string }>();
   const token = params?.token || "";
-  const router = useRouter();
 
   const sigRef = useRef<SignatureCanvas | null>(null);
 
@@ -240,12 +239,6 @@ export default function SignPage() {
 
       setOk("La firma fue registrada correctamente.");
       await refreshPreview();
-
-      // ✅ post-firma: ir a pantalla “invitar a registrarse / ver historial”
-      const qs =
-        `token=${encodeURIComponent(token)}` +
-        (data?.status ? `&status=${encodeURIComponent(String(data.status))}` : "");
-      router.replace(`/signed?${qs}`);
     } catch (e: any) {
       setActionErr(e?.message || "Error inesperado");
     } finally {
@@ -532,16 +525,22 @@ export default function SignPage() {
                 />
               </div>
 
-              <div className="mt-2 text-xs text-zinc-600">{sigDirty ? "✅ Firma capturada" : "Dibujá tu firma en el recuadro."}</div>
+              <div className="mt-2 text-xs text-zinc-600">
+                {sigDirty ? "✅ Firma capturada" : "Dibujá tu firma en el recuadro."}
+              </div>
             </div>
 
             {/* ✅ errores de acción acá (no pantalla de link inválido) */}
             {actionErr ? (
-              <div className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{actionErr}</div>
+              <div className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+                {actionErr}
+              </div>
             ) : null}
 
             {ok ? (
-              <div className="mt-4 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{ok}</div>
+              <div className="mt-4 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+                {ok}
+              </div>
             ) : null}
 
             <div className="mt-4 flex flex-wrap gap-2">
