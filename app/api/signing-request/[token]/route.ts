@@ -1,8 +1,14 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createServerClient } from "@supabase/ssr";
 
 export const runtime = "nodejs";
+
+function requiredEnv(name: string) {
+  const v = process.env[name];
+  if (!v) throw new Error(`Missing env: ${name}`);
+  return v;
+}
 
 const TokenSchema = z.string().min(10);
 
@@ -10,106 +16,102 @@ function pickToken(req: NextRequest, paramsToken?: string) {
   const fromParams = String(paramsToken ?? "").trim();
   if (fromParams) return fromParams;
 
-  // fallback: si algún cliente usa querystring (legacy)
-  const qs = req.nextUrl.searchParams.get("token");
-  return String(qs ?? "").trim();
-}
+  // En producción vimos requests con query param `nxtPtoken` (prefetch/next internals).
+  // Aceptamos ambos para robustez.
+  const sp = req.nextUrl.searchParams;
+  const fromQuery = (sp.get("token") || "").trim();
+  if (fromQuery) return fromQuery;
 
-function safeNumber(v: unknown): number | null {
-  if (v === null || v === undefined) return null;
-  const n = Number(v);
-  return Number.isFinite(n) ? n : null;
+  const fromNextPrefetch = (sp.get("nxtPtoken") || "").trim();
+  if (fromNextPrefetch) return fromNextPrefetch;
+
+  // Último fallback: parsear del pathname.
+  // Ej: /api/signing-request/<token>
+  const parts = req.nextUrl.pathname.split("/").filter(Boolean);
+  const last = (parts[parts.length - 1] || "").trim();
+  if (last && last !== "signing-request") return last;
+
+  return "";
 }
 
 export async function GET(req: NextRequest, ctx: { params: { token?: string } }) {
-  const token = pickToken(req, ctx?.params?.token);
-
-  const parsed = TokenSchema.safeParse(token);
+  const tokenRaw = pickToken(req, ctx?.params?.token);
+  const parsed = TokenSchema.safeParse(tokenRaw);
   if (!parsed.success) {
     return NextResponse.json({ error: "invalid_token" }, { status: 400 });
   }
+  const token = parsed.data;
 
-  const admin = createAdminClient();
+  const res = NextResponse.next();
+  type CookieOptions = Parameters<typeof res.cookies.set>[2];
+  type CookieToSet = { name: string; value: string; options?: CookieOptions };
 
-  // 1) Lookup signing_request por token (public endpoint)
-  const srRes = await admin.from("signing_requests").select("*").eq("token", token).maybeSingle();
+  const supabase = createServerClient(
+    requiredEnv("NEXT_PUBLIC_SUPABASE_URL"),
+    requiredEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY"),
+    {
+      cookies: {
+        getAll() {
+          return req.cookies.getAll();
+        },
+        setAll(cookiesToSet: CookieToSet[]) {
+          cookiesToSet.forEach(({ name, value, options }: CookieToSet) => {
+            res.cookies.set(name, value, options);
+          });
+        },
+      },
+    }
+  );
 
-  if (srRes.error || !srRes.data) {
-    return NextResponse.json({ error: "Invalid link" }, { status: 400 });
-  }
-
-  const sr: any = srRes.data;
-  const documentId = String(sr.document_id ?? "");
-  if (!documentId) {
-    return NextResponse.json({ error: "Invalid link" }, { status: 400 });
-  }
-
-  // 2) Lookup documento (título + signing_mode + paths)
-  const docRes = await admin
-    .from("documents")
-    .select("id,title,signing_mode,original_path,status")
-    .eq("id", documentId)
+  // Nota: este endpoint debe funcionar sin sesión (firmantes externos)
+  // y se basa en el token de la tabla `signing_requests`.
+  const { data: sr, error } = await supabase
+    .from("signing_requests")
+    .select(
+      "id, document_id, email, status, signing_mode, position, expires_at, replaced_by, created_at"
+    )
+    .eq("token", token)
     .maybeSingle();
 
-  if (docRes.error || !docRes.data) {
-    return NextResponse.json({ error: "Document not found" }, { status: 404 });
+  if (error || !sr) {
+    return NextResponse.json({ error: "Invalid link" }, { status: 400 });
   }
 
-  const doc: any = docRes.data;
+  if (sr.replaced_by) {
+    return NextResponse.json({ error: "Invalid link" }, { status: 400 });
+  }
 
-  // 3) Estado / expiración (si existe columna expires_at)
   const now = Date.now();
-  const expiresAtRaw: string | null =
-    (sr.expires_at as string | null) ?? (sr.expiresAt as string | null) ?? null;
-
-  let status: "pending" | "signed" | "rejected" | "expired" = String(sr.status || "pending") as any;
-  if (status === "pending" && expiresAtRaw) {
-    const t = Date.parse(expiresAtRaw);
-    if (Number.isFinite(t) && t < now) status = "expired";
+  if (sr.expires_at && new Date(sr.expires_at).getTime() < now) {
+    return NextResponse.json({ error: "expired" }, { status: 400 });
   }
 
-  const email = String(sr.email ?? "").toLowerCase();
+  const { data: doc, error: docErr } = await supabase
+    .from("documents")
+    .select("id, title, storage_path_signed, storage_path_original")
+    .eq("id", sr.document_id)
+    .single();
 
-  // 4) Autofill (best-effort) por email del firmante
-  let prefill: any = null;
-  if (email) {
-    const profRes = await admin
-      .from("profiles")
-      .select("full_name,dni,cuil,address,phone")
-      .eq("email", email)
-      .maybeSingle();
-
-    if (!profRes.error && profRes.data) {
-      prefill = {
-        fullName: String((profRes.data as any).full_name ?? ""),
-        dni: String((profRes.data as any).dni ?? ""),
-        cuil: String((profRes.data as any).cuil ?? ""),
-        address: String((profRes.data as any).address ?? ""),
-        phone: String((profRes.data as any).phone ?? ""),
-      };
-    }
+  if (docErr || !doc) {
+    return NextResponse.json({ error: "Invalid link" }, { status: 400 });
   }
 
-  // 5) Signing mode / position
-  const signingMode = (String(doc.signing_mode ?? sr.signing_mode ?? "parallel") as any) as
-    | "parallel"
-    | "sequential";
-
-  const position =
-    safeNumber(sr.position) ?? safeNumber(sr.signing_order) ?? safeNumber(sr.order) ?? null;
-
-  // 6) PDF preview URL (ruta existente)
-  const pdfUrl = `/api/preview?token=${encodeURIComponent(token)}`;
+  // Siempre mostrar preview del último estado posible
+  const path = doc.storage_path_signed || doc.storage_path_original;
+  const pdfUrl = path
+    ? `/api/preview?token=${encodeURIComponent(token)}&v=${encodeURIComponent(
+        sr.created_at || ""
+      )}`
+    : "";
 
   return NextResponse.json({
-    documentId: String(doc.id),
-    title: String(doc.title ?? ""),
-    email,
-    status,
-    signingMode,
-    position,
-    expiresAt: expiresAtRaw,
+    documentId: doc.id,
+    title: doc.title,
+    email: sr.email,
+    status: sr.status,
+    signingMode: sr.signing_mode,
+    position: sr.position,
+    expiresAt: sr.expires_at,
     pdfUrl,
-    prefill,
   });
 }
