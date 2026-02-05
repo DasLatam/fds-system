@@ -1,269 +1,196 @@
-type CreateSimplePdfOpts = {
-  title: string;
-  bodyText: string;
-};
+import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 
-/**
- * Convierte HTML básico a texto plano:
- * - <br>, <p>, <div>, <li> => saltos de línea
- * - elimina tags restantes
- * - decodifica entidades HTML comunes
- */
-export function htmlToPlainText(html: string): string {
-  const input = String(html || "");
-
-  // Normalizar saltos típicos
-  let s = input
-    .replace(/\r\n/g, "\n")
-    .replace(/\r/g, "\n")
-    .replace(/<\s*br\s*\/?\s*>/gi, "\n")
-    .replace(/<\s*\/p\s*>/gi, "\n")
-    .replace(/<\s*p(\s+[^>]*)?>/gi, "")
-    .replace(/<\s*\/div\s*>/gi, "\n")
-    .replace(/<\s*div(\s+[^>]*)?>/gi, "")
-    .replace(/<\s*\/li\s*>/gi, "\n")
-    .replace(/<\s*li(\s+[^>]*)?>/gi, "• ")
-    .replace(/<\s*\/ul\s*>/gi, "\n")
-    .replace(/<\s*ul(\s+[^>]*)?>/gi, "")
-    .replace(/<\s*\/ol\s*>/gi, "\n")
-    .replace(/<\s*ol(\s+[^>]*)?>/gi, "");
-
-  // Strip tags restantes
-  s = s.replace(/<[^>]+>/g, "");
-
-  // Decode entidades comunes (sin depender de librerías)
-  const entities: Record<string, string> = {
-    "&nbsp;": " ",
-    "&amp;": "&",
-    "&lt;": "<",
-    "&gt;": ">",
-    "&quot;": '"',
-    "&#39;": "'",
-    "&apos;": "'",
+function decodeEntities(s: string): string {
+  const map: Record<string, string> = {
+    amp: "&",
+    lt: "<",
+    gt: ">",
+    quot: '"',
+    apos: "'",
+    nbsp: " ",
   };
 
-  s = s.replace(/&(nbsp|amp|lt|gt|quot|apos);|&#39;/g, (m) => entities[m] ?? m);
+  return String(s || "").replace(/&(#x[0-9a-fA-F]+|#\d+|[a-zA-Z]+);/g, (m, g1) => {
+    if (!g1) return m;
 
-  // Compactar whitespace
-  s = s
-    .replace(/[ \t]+\n/g, "\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
+    // numeric entities
+    if (g1.startsWith("#x") || g1.startsWith("#X")) {
+      const code = parseInt(g1.slice(2), 16);
+      if (Number.isFinite(code)) return String.fromCodePoint(code);
+      return m;
+    }
+    if (g1.startsWith("#")) {
+      const code = parseInt(g1.slice(1), 10);
+      if (Number.isFinite(code)) return String.fromCodePoint(code);
+      return m;
+    }
 
-  return s;
+    const key = String(g1).toLowerCase();
+    if (map[key] != null) return map[key];
+    return m;
+  });
 }
 
-function toUtf16BeHexPdfString(text: string): string {
-  const s = String(text ?? "");
-  // string vacío con BOM
-  if (!s) return "<FEFF>";
+export function htmlToPlainText(html: string): string {
+  let s = String(html || "");
+  s = s.replace(/\r\n?/g, "\n");
+  s = s.replace(/<\s*br\s*\/?>/gi, "\n");
+  s = s.replace(/<\/\s*(div|p|h1|h2|h3|h4|h5|h6)\s*>/gi, "\n");
+  s = s.replace(/<\s*li\b[^>]*>/gi, "• ");
+  s = s.replace(/<\/\s*li\s*>/gi, "\n");
+  s = s.replace(/<\/\s*(ul|ol)\s*>/gi, "\n");
 
-  // Node soporta utf16le. Convertimos a BE.
-  const le = Buffer.from(s, "utf16le");
-  const be = Buffer.alloc(le.length);
-  for (let i = 0; i < le.length; i += 2) {
-    be[i] = le[i + 1];
-    be[i + 1] = le[i];
-  }
-  return `<FEFF${be.toString("hex").toUpperCase()}>`;
+  // remove opening tags for common containers
+  s = s.replace(/<\s*(div|p|h1|h2|h3|h4|h5|h6|ul|ol)\b[^>]*>/gi, "");
+  s = s.replace(/<\s*span\b[^>]*>/gi, "");
+  s = s.replace(/<\/\s*span\s*>/gi, "");
+
+  // strip anything else
+  s = s.replace(/<[^>]+>/g, "");
+
+  s = decodeEntities(s);
+
+  // normalize spaces, keep newlines
+  s = s.replace(/[ \t]+\n/g, "\n");
+  s = s.replace(/\n{3,}/g, "\n\n");
+  s = s.replace(/[ \t]{2,}/g, " ");
+
+  return s.trim();
 }
 
-function wrapTextByChars(paragraph: string, maxChars: number): string[] {
-  const p = String(paragraph || "").trim();
-  if (!p) return [""];
+type FontLike = {
+  widthOfTextAtSize: (text: string, size: number) => number;
+};
 
-  const out: string[] = [];
-  const rawLines = p.split("\n").map((l) => l.trim());
+function wrapText(text: string, font: FontLike, fontSize: number, maxWidth: number): string[] {
+  const t = String(text || "");
+  if (!t.trim()) return [""];
 
-  for (const line of rawLines) {
-    if (!line) {
-      out.push("");
+  const words = t.split(/\s+/g);
+  const lines: string[] = [];
+  let line = "";
+
+  for (const w of words) {
+    const candidate = line ? `${line} ${w}` : w;
+
+    if (font.widthOfTextAtSize(candidate, fontSize) <= maxWidth) {
+      line = candidate;
       continue;
     }
-    const words = line.split(/\s+/).filter(Boolean);
-    let cur = "";
-    for (const w of words) {
-      if (!cur) {
-        cur = w;
-        continue;
-      }
-      if (cur.length + 1 + w.length <= maxChars) {
-        cur = `${cur} ${w}`;
+
+    if (line) lines.push(line);
+
+    // if single word is too long, hard-break it
+    if (font.widthOfTextAtSize(w, fontSize) <= maxWidth) {
+      line = w;
+      continue;
+    }
+
+    let chunk = "";
+    for (const ch of w) {
+      const c2 = chunk + ch;
+      if (font.widthOfTextAtSize(c2, fontSize) <= maxWidth) {
+        chunk = c2;
       } else {
-        out.push(cur);
-        cur = w;
+        if (chunk) lines.push(chunk);
+        chunk = ch;
       }
     }
-    if (cur) out.push(cur);
+    line = chunk;
   }
-  return out;
+
+  if (line) lines.push(line);
+  return lines.length ? lines : [t];
 }
 
-function formatXrefOffset(n: number): string {
-  return String(n).padStart(10, "0");
-}
+export async function createSimplePdfBytes(opts: { title: string; bodyText: string }): Promise<Uint8Array> {
+  const title = String(opts?.title || "").trim() || "Documento";
+  const bodyText = String(opts?.bodyText || "").replace(/\r\n?/g, "\n").trim();
 
-/**
- * Generador PDF mínimo (Type1 Helvetica) pero **válido** para lectores estrictos y para pdf-lib.
- * - A4
- * - Título + cuerpo con wrapping básico
- * - Multi-página si excede el alto
- */
-export function createSimplePdfBytes(opts: CreateSimplePdfOpts): Uint8Array {
-  const title = String(opts?.title || "").trim();
-  const bodyText = String(opts?.bodyText || "").trim();
+  const pdf = await PDFDocument.create();
+  const fontRegular = await pdf.embedFont(StandardFonts.Helvetica);
+  const fontBold = await pdf.embedFont(StandardFonts.HelveticaBold);
 
-  // Layout
-  const pageW = 595;
-  const pageH = 842;
-  const marginX = 50;
-  const marginTop = 52;
-  const marginBottom = 52;
+  // A4 portrait
+  const pageWidth = 595.28;
+  const pageHeight = 841.89;
 
-  const titleFontSize = 18;
-  const bodyFontSize = 12;
-  const leading = 14;
+  const marginX = 56;
+  const marginTop = 56;
+  const marginBottom = 56;
+  const contentWidth = pageWidth - marginX * 2;
 
-  const maxCharsPerLine = 92; // aproximación para Helvetica 12pt en A4 con márgenes
-  const bodyLines = bodyText
-    .split("\n")
-    .flatMap((p) => wrapTextByChars(p, maxCharsPerLine));
+  const titleSize = 18;
+  const bodySize = 12;
+  const leading = 1.35;
 
-  const firstPageBodyYStart = pageH - marginTop - 2 * titleFontSize - 16; // debajo del título
-  const otherPageBodyYStart = pageH - marginTop - bodyFontSize;
+  let page = pdf.addPage([pageWidth, pageHeight]);
+  let y = pageHeight - marginTop;
 
-  const maxLinesFirst = Math.max(1, Math.floor((firstPageBodyYStart - marginBottom) / leading));
-  const maxLinesOther = Math.max(1, Math.floor((otherPageBodyYStart - marginBottom) / leading));
+  const ensureSpace = (needed: number) => {
+    if (y - needed >= marginBottom) return;
+    page = pdf.addPage([pageWidth, pageHeight]);
+    y = pageHeight - marginTop;
+  };
 
-  const chunks: string[][] = [];
-  if (bodyLines.length <= maxLinesFirst) {
-    chunks.push(bodyLines);
-  } else {
-    chunks.push(bodyLines.slice(0, maxLinesFirst));
-    let idx = maxLinesFirst;
-    while (idx < bodyLines.length) {
-      chunks.push(bodyLines.slice(idx, idx + maxLinesOther));
-      idx += maxLinesOther;
-    }
+  // Title
+  const titleLines = wrapText(title, fontBold, titleSize, contentWidth);
+  for (const line of titleLines) {
+    ensureSpace(titleSize * leading);
+    page.drawText(line, {
+      x: marginX,
+      y: y - titleSize,
+      size: titleSize,
+      font: fontBold,
+      color: rgb(0, 0, 0),
+    });
+    y -= titleSize * leading;
   }
 
-  const pageCount = Math.max(1, chunks.length);
+  y -= 8;
 
-  type PdfObj = { id: number; content: Buffer };
-  const objects: PdfObj[] = [];
+  const rawLines = bodyText ? bodyText.split("\n") : [];
+  const baseIndent = 0;
+  const bulletIndent = 14;
 
-  // Font: Helvetica
-  objects.push({
-    id: 3,
-    content: Buffer.from(
-      `3 0 obj\n<< /Type /Font /Subtype /Type1 /Name /F1 /BaseFont /Helvetica >>\nendobj\n`,
-      "utf8"
-    ),
-  });
-
-  const pageObjStart = 4;
-  const contentObjStart = pageObjStart + pageCount;
-
-  const pageIds: number[] = [];
-  for (let p = 0; p < pageCount; p++) {
-    const pageId = pageObjStart + p;
-    const contentId = contentObjStart + p;
-    pageIds.push(pageId);
-
-    const lines = chunks[p] ?? [];
-
-    const parts: string[] = [];
-
-    if (p === 0) {
-      // Title
-      parts.push("BT");
-      parts.push(`/F1 ${titleFontSize} Tf`);
-      parts.push(`${marginX} ${pageH - marginTop - titleFontSize} Td`);
-      parts.push(`${toUtf16BeHexPdfString(title || "Documento")} Tj`);
-      parts.push("ET");
+  for (const raw of rawLines) {
+    const trimmed = raw.replace(/\s+$/g, "");
+    if (!trimmed.trim()) {
+      y -= bodySize * 0.8;
+      continue;
     }
 
-    // Body
-    parts.push("BT");
-    parts.push(`/F1 ${bodyFontSize} Tf`);
-    const startY = p === 0 ? firstPageBodyYStart : otherPageBodyYStart;
-    parts.push(`${marginX} ${startY} Td`);
-    parts.push(`${leading} TL`);
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i] ?? "";
-      parts.push(`${toUtf16BeHexPdfString(line)} Tj`);
-      if (i !== lines.length - 1) parts.push("T*");
-    }
-    parts.push("ET");
+    const isBullet = trimmed.trim().startsWith("• ");
+    const lineText = isBullet ? trimmed.trim().slice(2).trim() : trimmed;
+    const indent = isBullet ? bulletIndent : baseIndent;
+    const maxW = contentWidth - indent;
 
-    const stream = parts.join("\n") + "\n";
-    const streamBuf = Buffer.from(stream, "utf8");
+    const wrapped = wrapText(lineText, fontRegular, bodySize, maxW);
 
-    const contentObj = Buffer.concat([
-      Buffer.from(`${contentId} 0 obj\n<< /Length ${streamBuf.length} >>\nstream\n`, "utf8"),
-      streamBuf,
-      Buffer.from("endstream\nendobj\n", "utf8"),
-    ]);
+    wrapped.forEach((wline, idx) => {
+      ensureSpace(bodySize * leading);
 
-    const pageObj = Buffer.from(
-      `${pageId} 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageW} ${pageH}] /Resources << /Font << /F1 3 0 R >> >> /Contents ${contentId} 0 R >>\nendobj\n`,
-      "utf8"
-    );
+      if (isBullet && idx === 0) {
+        page.drawText("•", {
+          x: marginX,
+          y: y - bodySize,
+          size: bodySize,
+          font: fontRegular,
+          color: rgb(0, 0, 0),
+        });
+      }
 
-    objects.push({ id: contentId, content: contentObj });
-    objects.push({ id: pageId, content: pageObj });
+      page.drawText(wline, {
+        x: marginX + indent,
+        y: y - bodySize,
+        size: bodySize,
+        font: fontRegular,
+        color: rgb(0, 0, 0),
+      });
+
+      y -= bodySize * leading;
+    });
   }
 
-  // Pages (2 0) con Kids como ARRAY (esto evita PDFs “en blanco” y errores de pdf-lib)
-  const kids = pageIds.map((id) => `${id} 0 R`).join(" ");
-  objects.push({
-    id: 2,
-    content: Buffer.from(
-      `2 0 obj\n<< /Type /Pages /Kids [${kids}] /Count ${pageCount} >>\nendobj\n`,
-      "utf8"
-    ),
-  });
-
-  // Catalog (1 0)
-  objects.push({
-    id: 1,
-    content: Buffer.from(`1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n`, "utf8"),
-  });
-
-  // Sort by object id
-  objects.sort((a, b) => a.id - b.id);
-
-  // Assemble PDF
-  const header = Buffer.from("%PDF-1.4\n%\xE2\xE3\xCF\xD3\n", "binary");
-
-  const maxId = objects[objects.length - 1]?.id ?? 0;
-  const offsets: number[] = Array.from({ length: maxId + 1 }, () => 0);
-
-  const parts: Buffer[] = [header];
-  let cursor = header.length;
-
-  for (const obj of objects) {
-    offsets[obj.id] = cursor;
-    parts.push(obj.content);
-    cursor += obj.content.length;
-  }
-
-  const xrefOffset = cursor;
-
-  const size = maxId + 1;
-
-  let xref = "xref\n";
-  xref += `0 ${size}\n`;
-  xref += "0000000000 65535 f \n";
-  for (let i = 1; i < size; i++) {
-    xref += `${formatXrefOffset(offsets[i])} 00000 n \n`;
-  }
-
-  const trailer =
-    `trailer\n<< /Size ${size} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`;
-
-  parts.push(Buffer.from(xref, "utf8"));
-  parts.push(Buffer.from(trailer, "utf8"));
-
-  return Buffer.concat(parts);
+  return pdf.save();
 }

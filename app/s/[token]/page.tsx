@@ -13,6 +13,14 @@ type Preview = {
   position: number | null;
   expiresAt: string | null;
   pdfUrl: string; // suele ser "/api/preview?token=..."
+  prefill?: {
+    fullName?: string | null;
+    dni?: string | null;
+    cuil?: string | null;
+    address?: string | null;
+    phone?: string | null;
+    email?: string | null;
+  } | null;
 };
 
 type SignerCapacity = "self" | "representing";
@@ -81,6 +89,39 @@ export default function SignPage() {
     return { companyName, companyCuit, companyAddress, companyRole };
   }
 
+  function applyPrefill(prefill: any) {
+    if (!prefill) return;
+
+    const setIfEmpty = (ref: any, value: any, digitsOnly = false) => {
+      const el = ref?.current as HTMLInputElement | null;
+      if (!el) return;
+      const current = String(el.value || "").trim();
+      if (current) return;
+
+      let v = value == null ? "" : String(value).trim();
+      if (!v) return;
+      if (digitsOnly) v = onlyDigits(v);
+      if (!v) return;
+
+      el.value = v;
+    };
+
+    setIfEmpty(fullNameRef, prefill.fullName ?? prefill.full_name ?? null, false);
+    setIfEmpty(dniRef, prefill.dni ?? null, true);
+    setIfEmpty(cuilRef, prefill.cuil ?? null, true);
+    setIfEmpty(addressRef, prefill.address ?? null, false);
+    setIfEmpty(phoneRef, prefill.phone ?? null, true);
+
+    // empresa si viniera (no es requisito)
+    setIfEmpty(companyNameRef, prefill.companyName ?? prefill.company_name ?? null, false);
+    setIfEmpty(companyCuitRef, prefill.companyCuit ?? prefill.company_cuit ?? null, true);
+    setIfEmpty(companyAddressRef, prefill.companyAddress ?? prefill.company_address ?? null, false);
+    setIfEmpty(companyRoleRef, prefill.companyRole ?? prefill.company_role ?? null, false);
+
+    setTimeout(() => bump(), 0);
+  }
+
+
   useEffect(() => {
     if (!token) return;
 
@@ -98,6 +139,7 @@ export default function SignPage() {
 
         if (mounted) {
           setPreview(data as Preview);
+          applyPrefill((data as any)?.prefill);
           setTimeout(() => bump(), 50);
         }
       } catch (e: any) {
@@ -111,56 +153,6 @@ export default function SignPage() {
       mounted = false;
     };
   }, [token]);
-  // ✅ Autocompletar (si el firmante está logueado y su email coincide con la invitación)
-  useEffect(() => {
-    if (!preview || preview.status !== "pending") return;
-
-    const expectedEmail = (preview.email || "").trim().toLowerCase();
-    if (!expectedEmail) return;
-
-    let cancelled = false;
-
-    (async () => {
-      try {
-        const res = await fetch("/api/profile", { cache: "no-store", credentials: "include" });
-        if (!res.ok) return;
-
-        const data = await res.json().catch(() => ({} as any));
-        const profile = (data as any)?.profile || null;
-
-        const actualEmail = String((data as any)?.email || profile?.email || "")
-          .trim()
-          .toLowerCase();
-
-        if (!actualEmail || actualEmail !== expectedEmail) return;
-        if (cancelled) return;
-
-        const setIfEmpty = (el: HTMLInputElement | null, value: string) => {
-          if (!el) return;
-          if (el.value && el.value.trim()) return;
-          const v = String(value || "").trim();
-          if (!v) return;
-          el.value = v;
-        };
-
-        setIfEmpty(fullNameRef.current, profile?.full_name || "");
-        setIfEmpty(dniRef.current, profile?.dni || "");
-        setIfEmpty(cuilRef.current, profile?.cuil || "");
-        setIfEmpty(addressRef.current, profile?.address || "");
-        setIfEmpty(phoneRef.current, profile?.phone || "");
-
-        // Disparar validación y re-render
-        bump();
-      } catch {
-        // silencioso: es opcional
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [preview?.email, preview?.status]);
-
 
   const canSign = useMemo(() => {
     if (!preview || preview.status !== "pending") return false;
@@ -198,7 +190,10 @@ export default function SignPage() {
   async function refreshPreview() {
     const p = await fetch(`/api/signing-request/${token}`, { cache: "no-store" });
     const pdata = await p.json().catch(() => null);
-    if (p.ok && pdata) setPreview(pdata as Preview);
+    if (p.ok && pdata) {
+      setPreview(pdata as Preview);
+      applyPrefill((pdata as any)?.prefill);
+    }
   }
 
   async function submit() {
