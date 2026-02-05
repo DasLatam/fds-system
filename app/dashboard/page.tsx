@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isProfileComplete } from "@/lib/security/profile";
-import { isOwnerEmail } from "@/lib/security/owner";
+import { humanizeAuditEventType } from "@/lib/audit/labels";
 import DocumentsListClient from "./DocumentsListClient";
 
 export const dynamic = "force-dynamic";
@@ -122,8 +122,6 @@ export default async function DashboardPage() {
 
   if (profile?.is_paused) redirect("/profile?paused=1");
   if (!isProfileComplete(profile as any)) redirect("/profile?next=/dashboard");
-
-  const showAdmin = isOwnerEmail(user.email);
 
   // =========================
   // Plan activo + uso mensual
@@ -339,38 +337,7 @@ export default async function DashboardPage() {
           <h1 className="text-2xl font-semibold">Dashboard</h1>
           <p className="mt-1 text-sm text-zinc-600">Creá una nueva firma, invitá firmantes y seguí el estado.</p>
         </div>
-        <div className="flex items-center gap-3">
-          <Link
-            href="/profile?next=/dashboard"
-            className="rounded-md border border-zinc-200 px-4 py-2 text-sm font-medium"
-          >
-            Mis datos
-          </Link>
-
-          <Link
-            href="/dashboard/account"
-            className="rounded-md border border-zinc-200 px-4 py-2 text-sm font-medium"
-          >
-            Cuenta y plan
-          </Link>
-
-          {showAdmin ? (
-            <Link href="/admin" className="rounded-md border border-zinc-200 px-4 py-2 text-sm font-medium">
-              Admin
-            </Link>
-          ) : null}
-
-          <Link
-            href="/dashboard/new"
-            className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
-          >
-            Nueva Firma
-          </Link>
-
-          <form action="/api/logout" method="post">
-            <button className="rounded-md border border-zinc-200 px-4 py-2 text-sm font-medium">Salir</button>
-          </form>
-        </div>
+        <div className="text-sm text-zinc-600">Accedé a las acciones principales desde el menú superior.</div>
       </div>
 
       {/* Plan + uso del mes */}
@@ -461,8 +428,8 @@ export default async function DashboardPage() {
             activity.map((e) => (
               <div key={e.id} className="px-4 py-3 text-sm">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="font-medium text-zinc-900">
-                    {e.event_type}{" "}
+                  <div className="font-medium text-zinc-900" title={e.event_type}>
+                    {humanizeAuditEventType(e.event_type)}{" "}
                     <span className="ml-2 text-xs font-normal text-zinc-500">
                       {titleById.get(e.document_id) || e.document_id}
                     </span>

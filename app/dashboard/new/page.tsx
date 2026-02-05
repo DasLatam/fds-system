@@ -2,7 +2,6 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isProfileComplete } from "@/lib/security/profile";
-import { isOwnerEmail } from "@/lib/security/owner";
 import UploadForm from "./UploadForm";
 
 export const dynamic = "force-dynamic";
@@ -23,8 +22,6 @@ export default async function DashboardNewPage() {
   if (profile?.is_paused) redirect("/profile?paused=1");
   if (!isProfileComplete(profile as any)) redirect("/profile?next=/dashboard/new");
 
-  const showAdmin = isOwnerEmail(user.email);
-
   return (
     <div className="mx-auto max-w-3xl px-4 py-10">
       {/* Header + botonera (alineado como dashboard) */}
@@ -36,24 +33,10 @@ export default async function DashboardNewPage() {
           </p>
         </div>
 
-        <div className="shrink-0 flex flex-wrap items-center justify-end gap-3">
+        <div className="shrink-0 flex items-center justify-end">
           <Link href="/dashboard" className="rounded-md border border-zinc-200 px-4 py-2 text-sm font-medium">
-            Volver
+            Volver al dashboard
           </Link>
-          <Link
-            href="/profile?next=/dashboard/new"
-            className="rounded-md border border-zinc-200 px-4 py-2 text-sm font-medium"
-          >
-            Mis datos
-          </Link>
-          {showAdmin ? (
-            <Link href="/admin" className="rounded-md border border-zinc-200 px-4 py-2 text-sm font-medium">
-              Admin
-            </Link>
-          ) : null}
-          <form action="/api/logout" method="post">
-            <button className="rounded-md border border-zinc-200 px-4 py-2 text-sm font-medium">Salir</button>
-          </form>
         </div>
       </div>
 
