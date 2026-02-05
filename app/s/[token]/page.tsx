@@ -14,12 +14,11 @@ type Preview = {
   expiresAt: string | null;
   pdfUrl: string; // suele ser "/api/preview?token=..."
   prefill?: {
-    fullName?: string | null;
-    dni?: string | null;
-    cuil?: string | null;
-    address?: string | null;
-    phone?: string | null;
-    email?: string | null;
+    fullName: string;
+    dni: string;
+    cuil: string;
+    address: string;
+    phone: string;
   } | null;
 };
 
@@ -68,6 +67,19 @@ export default function SignPage() {
     setTick((t) => t + 1);
   }
 
+
+function applyPrefill(p: Preview | any) {
+  const pf = p?.prefill;
+  if (!pf) return;
+
+  // Solo completa campos vacíos (no pisa lo que el usuario ya tipeó)
+  if (fullNameRef.current && !fullNameRef.current.value) fullNameRef.current.value = pf.fullName || "";
+  if (dniRef.current && !dniRef.current.value) dniRef.current.value = pf.dni || "";
+  if (cuilRef.current && !cuilRef.current.value) cuilRef.current.value = pf.cuil || "";
+  if (addressRef.current && !addressRef.current.value) addressRef.current.value = pf.address || "";
+  if (phoneRef.current && !phoneRef.current.value) phoneRef.current.value = pf.phone || "";
+}
+
   function onlyDigits(s: string) {
     return (s || "").replace(/\D/g, "");
   }
@@ -89,39 +101,6 @@ export default function SignPage() {
     return { companyName, companyCuit, companyAddress, companyRole };
   }
 
-  function applyPrefill(prefill: any) {
-    if (!prefill) return;
-
-    const setIfEmpty = (ref: any, value: any, digitsOnly = false) => {
-      const el = ref?.current as HTMLInputElement | null;
-      if (!el) return;
-      const current = String(el.value || "").trim();
-      if (current) return;
-
-      let v = value == null ? "" : String(value).trim();
-      if (!v) return;
-      if (digitsOnly) v = onlyDigits(v);
-      if (!v) return;
-
-      el.value = v;
-    };
-
-    setIfEmpty(fullNameRef, prefill.fullName ?? prefill.full_name ?? null, false);
-    setIfEmpty(dniRef, prefill.dni ?? null, true);
-    setIfEmpty(cuilRef, prefill.cuil ?? null, true);
-    setIfEmpty(addressRef, prefill.address ?? null, false);
-    setIfEmpty(phoneRef, prefill.phone ?? null, true);
-
-    // empresa si viniera (no es requisito)
-    setIfEmpty(companyNameRef, prefill.companyName ?? prefill.company_name ?? null, false);
-    setIfEmpty(companyCuitRef, prefill.companyCuit ?? prefill.company_cuit ?? null, true);
-    setIfEmpty(companyAddressRef, prefill.companyAddress ?? prefill.company_address ?? null, false);
-    setIfEmpty(companyRoleRef, prefill.companyRole ?? prefill.company_role ?? null, false);
-
-    setTimeout(() => bump(), 0);
-  }
-
-
   useEffect(() => {
     if (!token) return;
 
@@ -139,7 +118,6 @@ export default function SignPage() {
 
         if (mounted) {
           setPreview(data as Preview);
-          applyPrefill((data as any)?.prefill);
           setTimeout(() => bump(), 50);
         }
       } catch (e: any) {
@@ -190,10 +168,7 @@ export default function SignPage() {
   async function refreshPreview() {
     const p = await fetch(`/api/signing-request/${token}`, { cache: "no-store" });
     const pdata = await p.json().catch(() => null);
-    if (p.ok && pdata) {
-      setPreview(pdata as Preview);
-      applyPrefill((pdata as any)?.prefill);
-    }
+    if (p.ok && pdata) setPreview(pdata as Preview);
   }
 
   async function submit() {
