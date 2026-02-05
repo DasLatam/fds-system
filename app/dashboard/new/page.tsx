@@ -24,7 +24,7 @@ export default async function DashboardNewPage() {
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-10">
-      {/* Header + botonera (alineado como dashboard) */}
+      {/* Header + botonera (alineado como panel) */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex-1 min-w-0 max-w-xl">
           <h1 className="text-2xl font-semibold">Nueva Firma</h1>
@@ -35,7 +35,7 @@ export default async function DashboardNewPage() {
 
         <div className="shrink-0 flex items-center justify-end">
           <Link href="/dashboard" className="rounded-md border border-zinc-200 px-4 py-2 text-sm font-medium">
-            Volver al dashboard
+            Volver al panel
           </Link>
         </div>
       </div>

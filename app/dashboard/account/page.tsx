@@ -112,12 +112,12 @@ export default async function AccountPage() {
         <div>
           <h1 className="text-2xl font-semibold">Cuenta y plan</h1>
           <p className="mt-1 text-sm text-zinc-600">
-            Elegí la cuenta activa para el dashboard y el límite mensual. Podés cambiar el plan desde onboarding.
+            Elegí la cuenta activa para el panel y el límite mensual. Podés cambiar el plan desde onboarding.
           </p>
         </div>
         <div className="flex items-center gap-3">
           <Link href="/dashboard" className="rounded-md border border-zinc-200 px-4 py-2 text-sm font-medium">
-            Volver al Dashboard
+            Volver al panel
           </Link>
           <Link
             href="/onboarding?next=/dashboard/account"
@@ -186,19 +186,27 @@ export default async function AccountPage() {
       </div>
 
       <div className="mt-8 rounded-xl border border-zinc-200 p-4">
-        <div className="text-sm font-medium">Notas</div>
-        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-zinc-600">
-          <li>
-            El dashboard usa <span className="font-mono text-xs">profiles.default_account_id</span> como “cuenta activa”.
-          </li>
-          <li>
-            El plan activo se lee desde <span className="font-mono text-xs">subscriptions.plan_code</span> (status{" "}
-            <span className="font-mono text-xs">active</span>) de esa cuenta.
-          </li>
-          <li>
-            El límite mensual se controla con variables de entorno de Vercel (requiere redeploy cuando cambian).
-          </li>
-        </ul>
+        <div className="text-sm font-medium">Cómo funciona la cuenta activa</div>
+        <p className="mt-2 text-sm text-zinc-600 leading-relaxed">
+          La <span className="font-medium">cuenta activa</span> define desde qué cuenta se crean los documentos y qué plan/límite mensual se
+          aplica al crear documentos e invitar firmantes. Si pertenecés a más de una cuenta (por ejemplo Personal y Empresa), elegí acá cuál
+          querés usar.
+        </p>
+
+        <details className="mt-3">
+          <summary className="cursor-pointer text-xs font-medium text-zinc-600 hover:text-zinc-800">
+            Ver detalles técnicos
+          </summary>
+          <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-zinc-600">
+            <li>
+              La cuenta activa se guarda en <span className="font-mono">profiles.default_account_id</span>.
+            </li>
+            <li>
+              El plan se obtiene de la suscripción activa: <span className="font-mono">subscriptions.plan_code</span>.
+            </li>
+            <li>Los límites mensuales se configuran con variables de entorno en Vercel (requieren redeploy al cambiar).</li>
+          </ul>
+        </details>
       </div>
     </div>
   );

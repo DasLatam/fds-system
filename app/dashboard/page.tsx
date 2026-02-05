@@ -334,7 +334,7 @@ export default async function DashboardPage() {
     <div className="mx-auto max-w-5xl px-4 py-10">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold">Dashboard</h1>
+          <h1 className="text-2xl font-semibold">Panel</h1>
           <p className="mt-1 text-sm text-zinc-600">Creá una nueva firma, invitá firmantes y seguí el estado.</p>
         </div>
         <div className="text-sm text-zinc-600">Accedé a las acciones principales desde el menú superior.</div>

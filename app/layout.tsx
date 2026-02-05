@@ -58,14 +58,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <nav className="flex flex-wrap items-center justify-end gap-3">
               {user ? (
                 <>
-                  <NavLink href="/dashboard">Dashboard</NavLink>
+                  <NavLink href="/dashboard">Panel</NavLink>
                   <NavPrimaryLink href="/dashboard/new">Nueva firma</NavPrimaryLink>
                   <NavLink href="/dashboard/account">Cuenta</NavLink>
                   <NavLink href="/profile?next=/dashboard">Perfil</NavLink>
                   {isAdmin ? <NavLink href="/admin">Admin</NavLink> : null}
-                  <NavLink href="/pricing">Planes</NavLink>
-                  <NavLink href="/terms">Términos</NavLink>
-                  <NavLink href="/privacy">Privacidad</NavLink>
                   <form action="/api/logout" method="post" className="ml-1">
                     <button className="rounded-md border border-zinc-200 px-3 py-1.5 text-sm font-medium hover:bg-zinc-50">
                       Salir
