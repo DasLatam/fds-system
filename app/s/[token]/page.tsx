@@ -4,6 +4,14 @@ import SignatureCanvas from "react-signature-canvas";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 
+type Prefill = {
+  fullName?: string | null;
+  dni?: string | null;
+  cuil?: string | null;
+  address?: string | null;
+  phone?: string | null;
+};
+
 type Preview = {
   documentId: string;
   title: string;
@@ -12,14 +20,8 @@ type Preview = {
   signingMode: "parallel" | "sequential";
   position: number | null;
   expiresAt: string | null;
-  pdfUrl: string; // suele ser "/api/preview?token=..."
-  prefill?: {
-    fullName: string;
-    dni: string;
-    cuil: string;
-    address: string;
-    phone: string;
-  } | null;
+  pdfUrl: string;
+  prefill?: Prefill | null;
 };
 
 type SignerCapacity = "self" | "representing";
@@ -67,19 +69,6 @@ export default function SignPage() {
     setTick((t) => t + 1);
   }
 
-
-function applyPrefill(p: Preview | any) {
-  const pf = p?.prefill;
-  if (!pf) return;
-
-  // Solo completa campos vacíos (no pisa lo que el usuario ya tipeó)
-  if (fullNameRef.current && !fullNameRef.current.value) fullNameRef.current.value = pf.fullName || "";
-  if (dniRef.current && !dniRef.current.value) dniRef.current.value = pf.dni || "";
-  if (cuilRef.current && !cuilRef.current.value) cuilRef.current.value = pf.cuil || "";
-  if (addressRef.current && !addressRef.current.value) addressRef.current.value = pf.address || "";
-  if (phoneRef.current && !phoneRef.current.value) phoneRef.current.value = pf.phone || "";
-}
-
   function onlyDigits(s: string) {
     return (s || "").replace(/\D/g, "");
   }
@@ -101,6 +90,19 @@ function applyPrefill(p: Preview | any) {
     return { companyName, companyCuit, companyAddress, companyRole };
   }
 
+  function applyPrefill(p?: Prefill | null) {
+    if (!p) return;
+
+    // Solo escribimos si el input está vacío (no pisamos lo que el usuario ya tipeó)
+    if (fullNameRef.current && !fullNameRef.current.value && p.fullName) fullNameRef.current.value = String(p.fullName);
+    if (dniRef.current && !dniRef.current.value && p.dni) dniRef.current.value = String(p.dni);
+    if (cuilRef.current && !cuilRef.current.value && p.cuil) cuilRef.current.value = String(p.cuil);
+    if (addressRef.current && !addressRef.current.value && p.address) addressRef.current.value = String(p.address);
+    if (phoneRef.current && !phoneRef.current.value && p.phone) phoneRef.current.value = String(p.phone);
+
+    bump();
+  }
+
   useEffect(() => {
     if (!token) return;
 
@@ -113,11 +115,13 @@ function applyPrefill(p: Preview | any) {
         setOk(null);
 
         const res = await fetch(`/api/signing-request/${token}`, { cache: "no-store" });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data?.error || "No se pudo cargar el documento.");
+        const data = (await res.json().catch(() => ({}))) as any;
+        if (!res.ok) throw new Error(data?.message || data?.error || "No se pudo cargar el documento.");
 
         if (mounted) {
           setPreview(data as Preview);
+          // Autofill inmediato
+          applyPrefill(data?.prefill);
           setTimeout(() => bump(), 50);
         }
       } catch (e: any) {
@@ -168,7 +172,10 @@ function applyPrefill(p: Preview | any) {
   async function refreshPreview() {
     const p = await fetch(`/api/signing-request/${token}`, { cache: "no-store" });
     const pdata = await p.json().catch(() => null);
-    if (p.ok && pdata) setPreview(pdata as Preview);
+    if (p.ok && pdata) {
+      setPreview(pdata as Preview);
+      applyPrefill((pdata as any)?.prefill);
+    }
   }
 
   async function submit() {
@@ -227,7 +234,7 @@ function applyPrefill(p: Preview | any) {
           consent,
           signer,
 
-          // P1: capacidad de firma + empresa (compat)
+          // capacidad de firma + empresa (compat)
           signerCapacity,
           signer_capacity: signerCapacity,
           signerCompanyName: company.companyName || null,
@@ -255,12 +262,11 @@ function applyPrefill(p: Preview | any) {
       });
 
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error || "No se pudo registrar la firma.");
+      if (!res.ok) throw new Error((data as any)?.error || "No se pudo registrar la firma.");
 
       setOk("La firma fue registrada correctamente.");
       await refreshPreview();
 
-      // ✅ Post-firma: invitación a registrarse / claim de historial
       // Post-acción: llevar a /dashboard (si no hay sesión, middleware envía a /login con next).
       router.replace(`/dashboard?from=signed&token=${encodeURIComponent(token)}&status=signed`);
     } catch (e: any) {
@@ -289,12 +295,11 @@ function applyPrefill(p: Preview | any) {
         body: JSON.stringify({ token, reason: rejectReason.trim() }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error || "No se pudo registrar el rechazo");
+      if (!res.ok) throw new Error((data as any)?.error || "No se pudo registrar el rechazo");
 
       setOk("Rechazo registrado. Se notificará al creador.");
       await refreshPreview();
 
-      // ✅ Post-rechazo: mismo flujo que post-firma
       // Post-acción: llevar a /dashboard (si no hay sesión, middleware envía a /login con next).
       router.replace(`/dashboard?from=signed&token=${encodeURIComponent(token)}&status=rejected`);
     } catch (e: any) {
@@ -539,56 +544,49 @@ function applyPrefill(p: Preview | any) {
                 </button>
               </div>
 
-              <div className="mt-2 rounded-md border border-zinc-200 overflow-hidden">
+              <div className="mt-2 rounded-xl border border-zinc-200 bg-white">
                 <SignatureCanvas
-                  ref={sigRef}
+                  ref={(r) => {
+                    sigRef.current = r;
+                  }}
                   penColor="black"
                   canvasProps={{
-                    className: "h-[160px] w-full bg-white",
-                    onMouseUp: onSigEnd,
-                    onTouchEnd: onSigEnd,
-                    onPointerUp: onSigEnd,
+                    className: "h-44 w-full rounded-xl",
                   }}
+                  onEnd={onSigEnd}
                 />
               </div>
-
-              <div className="mt-2 text-xs text-zinc-600">{sigDirty ? "✅ Firma capturada" : "Dibujá tu firma en el recuadro."}</div>
             </div>
 
-            {actionErr ? (
-              <div className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{actionErr}</div>
-            ) : null}
-
-            {ok ? (
-              <div className="mt-4 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{ok}</div>
-            ) : null}
+            {actionErr ? <p className="mt-3 text-sm text-red-700">{actionErr}</p> : null}
+            {ok ? <p className="mt-3 text-sm text-emerald-700">{ok}</p> : null}
 
             <div className="mt-4 flex flex-wrap gap-2">
               <button
                 type="button"
+                disabled={!canSign || busy || preview.status !== "pending"}
                 onClick={submit}
-                disabled={!canSign || busy}
-                className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
+                className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
               >
-                {busy ? "Firmando…" : "Firmar y finalizar"}
+                {busy ? "Enviando…" : "Firmar"}
               </button>
 
               <button
                 type="button"
-                onClick={reject}
                 disabled={busy || preview.status !== "pending"}
-                className="rounded-md border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-900 disabled:opacity-40"
+                onClick={reject}
+                className="rounded-md border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-900"
               >
                 Rechazar
               </button>
             </div>
 
-            <div className="mt-3">
-              <input
+            <div className="mt-4">
+              <textarea
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}
-                placeholder="Motivo de rechazo (mín. 3 caracteres)"
-                className="w-full rounded-md border border-zinc-200 px-3 py-2 text-sm"
+                placeholder="Motivo de rechazo (opcional, pero recomendado)"
+                className="min-h-[72px] w-full rounded-md border border-zinc-200 px-3 py-2 text-sm"
                 disabled={busy || preview.status !== "pending"}
               />
             </div>

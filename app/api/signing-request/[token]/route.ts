@@ -1,117 +1,172 @@
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
-import { createServerClient } from "@supabase/ssr";
+import { createClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
 
-function requiredEnv(name: string) {
+function env(name: string): string | null {
   const v = process.env[name];
-  if (!v) throw new Error(`Missing env: ${name}`);
-  return v;
+  return v && v.trim().length ? v.trim() : null;
 }
 
-const TokenSchema = z.string().min(10);
-
-function pickToken(req: NextRequest, paramsToken?: string) {
-  const fromParams = String(paramsToken ?? "").trim();
-  if (fromParams) return fromParams;
-
-  // En producción vimos requests con query param `nxtPtoken` (prefetch/next internals).
-  // Aceptamos ambos para robustez.
-  const sp = req.nextUrl.searchParams;
-  const fromQuery = (sp.get("token") || "").trim();
-  if (fromQuery) return fromQuery;
-
-  const fromNextPrefetch = (sp.get("nxtPtoken") || "").trim();
-  if (fromNextPrefetch) return fromNextPrefetch;
-
-  // Último fallback: parsear del pathname.
-  // Ej: /api/signing-request/<token>
-  const parts = req.nextUrl.pathname.split("/").filter(Boolean);
-  const last = (parts[parts.length - 1] || "").trim();
-  if (last && last !== "signing-request") return last;
-
-  return "";
-}
-
-export async function GET(req: NextRequest, ctx: { params: { token?: string } }) {
-  const tokenRaw = pickToken(req, ctx?.params?.token);
-  const parsed = TokenSchema.safeParse(tokenRaw);
-  if (!parsed.success) {
-    return NextResponse.json({ error: "invalid_token" }, { status: 400 });
+function getSupabaseAdmin() {
+  const url = env("SUPABASE_URL") ?? env("NEXT_PUBLIC_SUPABASE_URL");
+  const key = env("SUPABASE_SERVICE_ROLE_KEY");
+  if (!url || !key) {
+    throw new Error("server_misconfig");
   }
-  const token = parsed.data;
 
-  const res = NextResponse.next();
-  type CookieOptions = Parameters<typeof res.cookies.set>[2];
-  type CookieToSet = { name: string; value: string; options?: CookieOptions };
+  return createClient(url, key, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+    },
+  });
+}
 
-  const supabase = createServerClient(
-    requiredEnv("NEXT_PUBLIC_SUPABASE_URL"),
-    requiredEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY"),
-    {
-      cookies: {
-        getAll() {
-          return req.cookies.getAll();
-        },
-        setAll(cookiesToSet: CookieToSet[]) {
-          cookiesToSet.forEach(({ name, value, options }: CookieToSet) => {
-            res.cookies.set(name, value, options);
-          });
-        },
-      },
-    }
-  );
+function extractToken(req: NextRequest, paramsToken?: string): string | null {
+  // 1) params
+  const p = (paramsToken || "").trim();
+  if (p) return p;
 
-  // Nota: este endpoint debe funcionar sin sesión (firmantes externos)
-  // y se basa en el token de la tabla `signing_requests`.
-  const { data: sr, error } = await supabase
+  // 2) query param token
+  const sp = req.nextUrl.searchParams;
+  const q1 = (sp.get("token") || "").trim();
+  if (q1) return q1;
+
+  // 3) Next internal prefetch param
+  const q2 = (sp.get("nxtPtoken") || "").trim();
+  if (q2) return q2;
+
+  // 4) pathname last segment
+  const path = req.nextUrl.pathname || "";
+  const seg = path.split("/").filter(Boolean).pop() || "";
+  const s = seg.trim();
+  return s || null;
+}
+
+function json(status: number, body: any) {
+  return NextResponse.json(body, { status });
+}
+
+function isExpired(expiresAt: string | null | undefined) {
+  if (!expiresAt) return false;
+  const t = Date.parse(expiresAt);
+  if (Number.isNaN(t)) return false;
+  return Date.now() > t;
+}
+
+export async function GET(
+  req: NextRequest,
+  ctx: { params: Promise<{ token?: string }> | { token?: string } }
+) {
+  let paramsToken: string | undefined;
+  try {
+    const p: any = await (ctx?.params as any);
+    paramsToken = p?.token;
+  } catch {
+    // ignore
+  }
+
+  const token = extractToken(req, paramsToken);
+  if (!token) {
+    return json(400, { error: "invalid_token" });
+  }
+
+  let admin;
+  try {
+    admin = getSupabaseAdmin();
+  } catch (e: any) {
+    return json(500, { error: e?.message || "server_misconfig" });
+  }
+
+  // El "token" del link es el UUID (id) de signing_requests.
+  // En algunos entornos no existe columna "token" en signing_requests (error 42703).
+  // Por eso, buscamos por id y dejamos fallback opcional.
+  const { data: sr, error: srErr } = await admin
     .from("signing_requests")
-    .select(
-      "id, document_id, email, status, signing_mode, position, expires_at, replaced_by, created_at"
-    )
-    .eq("token", token)
+    .select("*")
+    .eq("id", token)
     .maybeSingle();
 
-  if (error || !sr) {
-    return NextResponse.json({ error: "Invalid link" }, { status: 400 });
+  if (srErr) {
+    // Si tu tabla tuviera una columna token, podríamos intentar fallback,
+    // pero en tu caso el error era 42703 (columna inexistente) cuando se usaba token.
+    return json(400, { error: "invalid_link" });
   }
 
-  if (sr.replaced_by) {
-    return NextResponse.json({ error: "Invalid link" }, { status: 400 });
+  if (!sr) {
+    return json(404, { error: "invalid_token" });
   }
 
-  const now = Date.now();
-  if (sr.expires_at && new Date(sr.expires_at).getTime() < now) {
-    return NextResponse.json({ error: "expired" }, { status: 400 });
+  // link reemplazado
+  const replacedBy = (sr as any).replaced_by ?? null;
+  if (replacedBy) {
+    return json(410, {
+      error: "replaced",
+      message: "Este enlace fue reemplazado por una invitación más nueva. Pedile al creador que reenvíe la invitación.",
+      replacedBy,
+    });
   }
 
-  const { data: doc, error: docErr } = await supabase
+  // expiración
+  const expiresAt: string | null = (sr as any).expires_at ?? null;
+  let status: string = (sr as any).status ?? "pending";
+  if (status === "pending" && isExpired(expiresAt)) status = "expired";
+
+  const documentId: string | null = (sr as any).document_id ?? null;
+  if (!documentId) {
+    return json(400, { error: "invalid_link" });
+  }
+
+  const { data: doc, error: docErr } = await admin
     .from("documents")
-    .select("id, title, storage_path_signed, storage_path_original")
-    .eq("id", sr.document_id)
-    .single();
+    .select("*")
+    .eq("id", documentId)
+    .maybeSingle();
 
   if (docErr || !doc) {
-    return NextResponse.json({ error: "Invalid link" }, { status: 400 });
+    return json(404, { error: "document_not_found" });
   }
 
-  // Siempre mostrar preview del último estado posible
-  const path = doc.storage_path_signed || doc.storage_path_original;
-  const pdfUrl = path
-    ? `/api/preview?token=${encodeURIComponent(token)}&v=${encodeURIComponent(
-        sr.created_at || ""
-      )}`
-    : "";
+  // Autofill: si el email del firmante corresponde a un usuario registrado, traemos su profile.
+  let prefill: any = null;
+  const email: string = ((sr as any).email || "").toString();
+  if (email) {
+    try {
+      const u = await admin.auth.admin.getUserByEmail(email);
+      const uid = u?.data?.user?.id;
+      if (uid) {
+        const { data: profile } = await admin
+          .from("profiles")
+          .select("full_name,dni,cuil,address,phone")
+          .eq("id", uid)
+          .maybeSingle();
 
-  return NextResponse.json({
-    documentId: doc.id,
-    title: doc.title,
-    email: sr.email,
-    status: sr.status,
-    signingMode: sr.signing_mode,
-    position: sr.position,
-    expiresAt: sr.expires_at,
-    pdfUrl,
+        if (profile) {
+          prefill = {
+            fullName: (profile as any).full_name ?? null,
+            dni: (profile as any).dni ?? null,
+            cuil: (profile as any).cuil ?? null,
+            address: (profile as any).address ?? null,
+            phone: (profile as any).phone ?? null,
+          };
+        }
+      }
+    } catch {
+      // ignore autofill errors
+    }
+  }
+
+  return json(200, {
+    documentId,
+    title: (doc as any).title || "Documento",
+    email,
+    status,
+    signingMode: ((sr as any).signing_mode || "parallel") as "parallel" | "sequential",
+    position: (sr as any).position ?? null,
+    expiresAt,
+    pdfUrl: `/api/preview?token=${encodeURIComponent(token)}`,
+    prefill,
   });
 }
