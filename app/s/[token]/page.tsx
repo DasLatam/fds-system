@@ -111,60 +111,54 @@ export default function SignPage() {
       mounted = false;
     };
   }, [token]);
-
-  // Autofill (si estás logueado) — completa datos del firmante con tu perfil
-  // Reglas:
-  // - Solo intenta una vez por carga de preview.
-  // - Solo autocompleta si el email de la sesión coincide con el email invitado (seguridad).
-  const autofillAttemptedRef = useRef(false);
-
+  // ✅ Autocompletar (si el firmante está logueado y su email coincide con la invitación)
   useEffect(() => {
     if (!preview || preview.status !== "pending") return;
-    if (autofillAttemptedRef.current) return;
 
-    autofillAttemptedRef.current = true;
+    const expectedEmail = (preview.email || "").trim().toLowerCase();
+    if (!expectedEmail) return;
 
     let cancelled = false;
+
     (async () => {
       try {
-        const res = await fetch("/api/profile", { cache: "no-store" });
+        const res = await fetch("/api/profile", { cache: "no-store", credentials: "include" });
         if (!res.ok) return;
 
-        const data = await res.json().catch(() => null);
-        if (!data) return;
+        const data = await res.json().catch(() => ({} as any));
+        const profile = (data as any)?.profile || null;
 
-        const p: any = data?.profile ?? data?.data?.profile ?? data;
+        const actualEmail = String((data as any)?.email || profile?.email || "")
+          .trim()
+          .toLowerCase();
 
-        const sessionEmail = String(data?.email ?? p?.email ?? "").toLowerCase().trim();
-        const invitedEmail = String(preview.email || "").toLowerCase().trim();
+        if (!actualEmail || actualEmail !== expectedEmail) return;
+        if (cancelled) return;
 
-        // Seguridad: no autocompletar si el usuario logueado no es el firmante invitado.
-        if (sessionEmail && invitedEmail && sessionEmail !== invitedEmail) return;
-
-        const setIfEmpty = (ref: { current: HTMLInputElement | null }, value: any) => {
+        const setIfEmpty = (el: HTMLInputElement | null, value: string) => {
+          if (!el) return;
+          if (el.value && el.value.trim()) return;
           const v = String(value || "").trim();
           if (!v) return;
-          if (!ref.current) return;
-          if ((ref.current.value || "").trim()) return;
-          ref.current.value = v;
+          el.value = v;
         };
 
-        setIfEmpty(fullNameRef, p?.full_name ?? p?.fullName);
-        setIfEmpty(dniRef, p?.dni);
-        setIfEmpty(cuilRef, p?.cuil);
-        setIfEmpty(addressRef, p?.address);
-        setIfEmpty(phoneRef, p?.phone);
+        setIfEmpty(fullNameRef.current, profile?.full_name || "");
+        setIfEmpty(dniRef.current, profile?.dni || "");
+        setIfEmpty(cuilRef.current, profile?.cuil || "");
+        setIfEmpty(addressRef.current, profile?.address || "");
+        setIfEmpty(phoneRef.current, profile?.phone || "");
 
-        if (!cancelled) bump();
+        // Disparar validación y re-render
+        bump();
       } catch {
-        // Silencioso: autofill es best-effort.
+        // silencioso: es opcional
       }
     })();
 
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [preview?.email, preview?.status]);
 
 

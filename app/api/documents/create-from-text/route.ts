@@ -1,255 +1,204 @@
-import { NextResponse, type NextRequest } from "next/server";
-import { z } from "zod";
+import { NextResponse } from "next/server";
 import crypto from "crypto";
-
+import { z } from "zod";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { sha256Hex } from "@/lib/utils/crypto";
-import { logEvent } from "@/lib/audit/logEvent";
 import { createSimplePdfBytes, htmlToPlainText } from "@/lib/pdf/simplePdf";
+import { getMonthlyCreateLimitFromPlanCode } from "@/lib/plans.server";
 
 export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
 
 const BodySchema = z.object({
-  title: z.string().trim().min(1),
-  html: z.string().optional().default(""),
+  title: z.string().min(3).max(120),
+  html: z.string().min(1),
 });
 
-const TitleSchema = z.string().min(3).max(120);
-
-function parseEnvInt(name: string, fallback: number) {
-  const n = Number(process.env[name] || "");
-  return Number.isFinite(n) && n > 0 ? n : fallback;
+function isMissingColumnError(err: any, column: string) {
+  const msg = String(err?.message || "").toLowerCase();
+  return msg.includes("column") && msg.includes(column.toLowerCase());
 }
 
-function planLimitFromPlanCode(planCode: string) {
-  const p = (planCode || "").toLowerCase();
-  if (p.includes("company") && p.includes("pro")) return parseEnvInt("FES_COMPANY_PRO_DOCS_PER_MONTH", 30);
-  if (p.includes("individual") && p.includes("pro")) return parseEnvInt("FES_INDIVIDUAL_PRO_DOCS_PER_MONTH", 20);
-  if (p.includes("pro")) return parseEnvInt("FES_INDIVIDUAL_PRO_DOCS_PER_MONTH", 20);
-  // Nota: si querés 4 exactos, definí FES_FREE_DOCS_PER_MONTH=4 en Vercel.
-  return parseEnvInt("FES_FREE_DOCS_PER_MONTH", 5);
-}
+function normalizePlanCode(planCode: string | null | undefined, legacyPlan: string | null | undefined) {
+  const pc = String(planCode || "").trim();
+  if (pc) return pc;
 
-function normalizePlanCode(planCode: string | null | undefined, legacyProfilePlan: string | null | undefined) {
-  const p = (planCode || "").trim();
-  if (p) return p;
+  const lp = String(legacyPlan || "").trim();
+  if (lp === "free") return "individual_free";
+  if (lp === "pro") return "individual_pro";
 
-  // compat (viejo)
-  const legacy = (legacyProfilePlan || "").toLowerCase();
-  if (legacy === "pro") return "individual_pro";
   return "individual_free";
 }
 
-function getBuenosAiresMonthRangeUTC(d = new Date()) {
-  // BA (UTC-3): tomamos inicio/fin de mes local BA y lo convertimos a UTC ISO
-  const year = d.getUTCFullYear();
-  const month = d.getUTCMonth();
-
-  // "medianoche BA" == 03:00 UTC (offset fijo)
-  const start = new Date(Date.UTC(year, month, 1, 3, 0, 0));
-  const end = new Date(Date.UTC(year, month + 1, 1, 3, 0, 0));
-  return { startISO: start.toISOString(), endISO: end.toISOString() };
-}
-
-function isMissingColumnError(err: any, col: string) {
-  const msg = String(err?.message || "").toLowerCase();
-  return msg.includes("column") && msg.includes(col.toLowerCase()) && msg.includes("does not exist");
-}
-
 async function resolveAccountContext(admin: ReturnType<typeof createAdminClient>, userId: string) {
-  // 1) profile (admin para evitar RLS en server)
-  const { data: profile, error: pErr } = await admin
+  // profiles.default_account_id define “cuenta activa”
+  const { data: profile, error: profileErr } = await admin
     .from("profiles")
-    .select("user_id, plan, default_account_id, onboarding_completed_at, full_name, dni, cuil, address, phone")
+    .select("default_account_id,plan")
     .eq("user_id", userId)
     .maybeSingle();
 
-  if (pErr) throw pErr;
+  if (profileErr) throw new Error("db_profile_error");
 
-  // 2) accountId (default primero, sino fallback a primer membership)
-  let accountId: string | null = (profile as any)?.default_account_id ?? null;
+  const activeAccountId = (profile?.default_account_id as string | null) ?? null;
 
-  if (!accountId) {
-    const { data: mem } = await admin
-      .from("account_members")
-      .select("account_id")
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false })
-      .limit(1)
+  // Determinar account_type (company/personal) por accounts
+  let accountType: "personal" | "company" = "personal";
+  if (activeAccountId) {
+    const { data: acc, error: accErr } = await admin
+      .from("accounts")
+      .select("type")
+      .eq("id", activeAccountId)
       .maybeSingle();
-    accountId = (mem as any)?.account_id ?? null;
+
+    if (!accErr && acc?.type) {
+      const t = String(acc.type).toLowerCase();
+      if (t === "company") accountType = "company";
+      if (t === "personal") accountType = "personal";
+    }
   }
 
-  // 3) account type
-  let accountType: string = "personal";
-  if (accountId) {
-    const { data: acc } = await admin.from("accounts").select("account_type").eq("id", accountId).maybeSingle();
-    accountType = ((acc as any)?.account_type as string) || "personal";
-  }
-
-  // 4) plan code desde subscriptions (active)
+  // Plan activo por subscriptions (status='active')
   let planCode: string | null = null;
-  if (accountId) {
-    const { data: sub } = await admin
+  if (activeAccountId) {
+    const { data: sub, error: subErr } = await admin
       .from("subscriptions")
       .select("plan_code")
-      .eq("account_id", accountId)
+      .eq("account_id", activeAccountId)
       .eq("status", "active")
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
-    planCode = ((sub as any)?.plan_code as string) || null;
+
+    if (!subErr) planCode = sub?.plan_code ?? null;
   }
 
-  const normalizedPlanCode = normalizePlanCode(planCode, (profile as any)?.plan || null);
+  const normalizedPlan = normalizePlanCode(planCode, (profile as any)?.plan ?? null);
 
   return {
-    profile,
-    accountId,
+    activeAccountId,
     accountType,
-    planCode: normalizedPlanCode,
+    planCode: normalizedPlan,
   };
 }
 
-function isOnboardingComplete(profile: any) {
-  // onboarding + identidad mínima
-  return Boolean(
-    profile?.onboarding_completed_at &&
-      profile?.full_name &&
-      profile?.dni &&
-      profile?.cuil &&
-      profile?.address &&
-      profile?.phone
-  );
+function monthWindowUTC(now = new Date()) {
+  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1, 0, 0, 0));
+  const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1, 0, 0, 0));
+  return { startISO: start.toISOString(), endISO: end.toISOString() };
 }
 
-export async function POST(req: NextRequest) {
-  try {
-    const supabase = await createSupabaseServerClient();
-    const admin = createAdminClient();
+export async function POST(req: Request) {
+  const supabase = await createSupabaseServerClient();
+  const admin = createAdminClient();
 
-    // Auth
-    const { data: { user }, error: userErr } = await supabase.auth.getUser();
-    if (userErr) return NextResponse.json({ error: "auth_error", details: userErr.message }, { status: 401 });
-    if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
 
-    // Parse JSON
-    const raw = await req.json().catch(() => null);
-    const parsed = BodySchema.safeParse(raw);
-    if (!parsed.success) return NextResponse.json({ error: "invalid_body" }, { status: 400 });
-
-    const rawTitle = String(parsed.data.title || "").trim();
-    const html = String(parsed.data.html || "");
-
-    const title = rawTitle ? TitleSchema.parse(rawTitle) : "Documento";
-    const bodyText = htmlToPlainText(html);
-    if (!bodyText) return NextResponse.json({ error: "Escribí el contenido del documento." }, { status: 400 });
-
-    // Contexto (cuenta / plan / onboarding)
-    const ctx = await resolveAccountContext(admin, user.id);
-    if (!isOnboardingComplete(ctx.profile)) {
-      return NextResponse.json(
-        { error: "Necesitás completar el registro (datos + plan) antes de crear documentos.", code: "ONBOARDING_REQUIRED" },
-        { status: 428 },
-      );
-    }
-
-    // Enforce límite por plan
-    const { startISO, endISO } = getBuenosAiresMonthRangeUTC(new Date());
-    const limit = planLimitFromPlanCode(ctx.planCode);
-
-    const q = admin.from("documents").select("id", { head: true, count: "exact" }).gte("created_at", startISO).lt("created_at", endISO);
-
-    if (ctx.accountId) {
-      if ((ctx.accountType || "").toLowerCase() === "company") {
-        q.eq("account_id", ctx.accountId);
-      } else {
-        // personal: cuenta + legacy docs sin account_id (si existieran)
-        q.or(`account_id.eq.${ctx.accountId},and(account_id.is.null,created_by.eq.${user.id})`);
-      }
-    } else {
-      q.eq("created_by", user.id);
-    }
-
-    const { count, error: cErr } = await q;
-    if (cErr) throw cErr;
-
-    if ((count || 0) >= limit) {
-      return NextResponse.json(
-        { error: `Alcanzaste el límite mensual de tu plan (${limit}).`, code: "PLAN_LIMIT_REACHED", limit, used: count || 0, planCode: ctx.planCode },
-        { status: 402 },
-      );
-    }
-
-    // Generar PDF
-    const documentId = crypto.randomUUID();
-    const originalPath = `${user.id}/${documentId}/original/original.pdf`;
-
-    const pdfBytes = createSimplePdfBytes({ title, bodyText });
-    const bytes = pdfBytes instanceof Uint8Array ? pdfBytes : new Uint8Array(pdfBytes as any);
-    const originalHash = sha256Hex(bytes);
-
-    // Storage
-    const up = await admin.storage.from("fds").upload(originalPath, bytes, { contentType: "application/pdf", upsert: true });
-    if (up.error) return NextResponse.json({ error: "Failed to upload PDF", details: up.error.message }, { status: 500 });
-
-    // Insert DB (alineado con /api/documents/upload)
-    const enriched = {
-      id: documentId,
-      created_by: user.id, // legacy
-      created_by_user_id: user.id,
-      account_id: ctx.accountId,
-      title,
-      status: "pending" as const,
-      original_path: originalPath,
-      signing_mode: "parallel" as const,
-      total_signers: 0,
-      signed_count: 0,
-      final_path: null,
-      original_hash: originalHash,
-    };
-
-    let ins = await admin.from("documents").insert(enriched as any);
-
-    if (ins.error) {
-      // fallback si tu schema todavía no tiene estas columnas
-      if (isMissingColumnError(ins.error, "created_by_user_id") || isMissingColumnError(ins.error, "account_id") || isMissingColumnError(ins.error, "original_hash")) {
-        const fallback = {
-          id: documentId,
-          created_by: user.id,
-          title,
-          status: "pending" as const,
-          original_path: originalPath,
-          signing_mode: "parallel" as const,
-          total_signers: 0,
-          signed_count: 0,
-          final_path: null,
-          original_hash: originalHash,
-        };
-        ins = await admin.from("documents").insert(fallback as any);
-      }
-    }
-
-    if (ins.error) {
-      await admin.storage.from("fds").remove([originalPath]);
-      return NextResponse.json({ error: "Failed to create document", details: ins.error.message }, { status: 500 });
-    }
-
-    // Auditoría: reutilizamos un event_type ya existente para no romper CHECKs
-    await logEvent({
-      documentId,
-      actorUserId: user.id,
-      eventType: "pdf_uploaded",
-      ip: req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || null,
-      userAgent: req.headers.get("user-agent") || null,
-      payload: { title, originalPath, source: "text", planCode: ctx.planCode, accountId: ctx.accountId },
-    });
-
-    return NextResponse.json({ ok: true, documentId });
-  } catch (e: any) {
-    console.error("documents/create-from-text: unexpected error", e);
-    return NextResponse.json({ error: e?.message || "Unexpected error" }, { status: 500 });
+  const json = await req.json().catch(() => null);
+  const parsed = BodySchema.safeParse(json);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "invalid_body" }, { status: 400 });
   }
+
+  const { title } = parsed.data;
+  const bodyText = htmlToPlainText(parsed.data.html);
+
+  // --- Plan/límite mensual (bloquea en creación, no en firma) ---
+  const ctx = await resolveAccountContext(admin, user.id);
+  const limit = getMonthlyCreateLimitFromPlanCode(ctx.planCode);
+  const { startISO, endISO } = monthWindowUTC();
+
+  if (limit > 0) {
+    // Cuenta company: por documents.account_id
+    // Cuenta personal: documents.account_id + fallback legacy (account_id null y created_by=user.id)
+    let q = admin
+      .from("documents")
+      .select("id", { count: "exact", head: true })
+      .gte("created_at", startISO)
+      .lt("created_at", endISO);
+
+    if (ctx.accountType === "company") {
+      q = q.eq("account_id", ctx.activeAccountId || "");
+    } else {
+      // personal
+      if (ctx.activeAccountId) {
+        q = q.or(`account_id.eq.${ctx.activeAccountId},and(account_id.is.null,created_by.eq.${user.id})`);
+      } else {
+        // fallback extremo (legacy)
+        q = q.or(`and(account_id.is.null,created_by.eq.${user.id})`);
+      }
+    }
+
+    const { count, error: countErr } = await q;
+    if (countErr) return NextResponse.json({ error: "db_error" }, { status: 500 });
+
+    if ((count ?? 0) >= limit) {
+      return NextResponse.json(
+        {
+          error: "monthly_limit_reached",
+          message: `Alcanzaste el límite mensual de ${limit} documentos para tu plan.`,
+        },
+        { status: 403 }
+      );
+    }
+  }
+
+  // --- PDF & storage ---
+  const documentId = crypto.randomUUID();
+  const originalPath = `${user.id}/${documentId}/original/original.pdf`;
+
+  const pdfBytes = createSimplePdfBytes({ title, bodyText });
+  const originalHash = crypto.createHash("sha256").update(Buffer.from(pdfBytes)).digest("hex");
+
+  const upload = await admin.storage.from("fds").upload(originalPath, pdfBytes, {
+    contentType: "application/pdf",
+    upsert: true,
+  });
+
+  if (upload.error) {
+    return NextResponse.json({ error: "No se pudo subir el PDF." }, { status: 500 });
+  }
+
+  // Insert documento (compatible con esquemas legacy: ignora columnas faltantes)
+  const basePayload: any = {
+    id: documentId,
+    title,
+    status: "pending",
+    signing_mode: "parallel",
+    total_signers: 0,
+    signed_count: 0,
+    created_by: user.id,
+    created_at: new Date().toISOString(),
+    account_id: ctx.activeAccountId || null,
+    original_path: originalPath,
+    final_path: null,
+    original_hash: originalHash,
+    created_by_user_id: user.id,
+  };
+
+  const tryInsert = async (payload: any) => admin.from("documents").insert(payload);
+
+  let ins = await tryInsert(basePayload);
+
+  if (ins.error) {
+    // Fallbacks por columnas legacy
+    let payload = { ...basePayload };
+    if (isMissingColumnError(ins.error, "created_by_user_id")) delete payload.created_by_user_id;
+    if (isMissingColumnError(ins.error, "original_hash")) delete payload.original_hash;
+    if (isMissingColumnError(ins.error, "final_path")) delete payload.final_path;
+
+    ins = await tryInsert(payload);
+  }
+
+  if (ins.error) {
+    // best-effort cleanup
+    try {
+      await admin.storage.from("fds").remove([originalPath]);
+    } catch {
+      // ignore
+    }
+    return NextResponse.json({ error: "No se pudo crear el documento." }, { status: 500 });
+  }
+
+  return NextResponse.json({ documentId }, { status: 200 });
 }
