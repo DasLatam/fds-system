@@ -1,20 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import crypto from "crypto";
-
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sha256Hex } from "@/lib/utils/crypto";
 import { logEvent } from "@/lib/audit/logEvent";
-import { createSimplePdfBytes, htmlToPlainText } from "@/lib/pdf/simplePdf";
 
 export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
-
-const BodySchema = z.object({
-  title: z.string().trim().min(1),
-  html: z.string().optional().default(""),
-});
 
 const TitleSchema = z.string().min(3).max(120);
 
@@ -28,7 +20,6 @@ function planLimitFromPlanCode(planCode: string) {
   if (p.includes("company") && p.includes("pro")) return parseEnvInt("FES_COMPANY_PRO_DOCS_PER_MONTH", 30);
   if (p.includes("individual") && p.includes("pro")) return parseEnvInt("FES_INDIVIDUAL_PRO_DOCS_PER_MONTH", 20);
   if (p.includes("pro")) return parseEnvInt("FES_INDIVIDUAL_PRO_DOCS_PER_MONTH", 20);
-  // Nota: si querés 4 exactos, definí FES_FREE_DOCS_PER_MONTH=4 en Vercel.
   return parseEnvInt("FES_FREE_DOCS_PER_MONTH", 5);
 }
 
@@ -47,7 +38,8 @@ function getBuenosAiresMonthRangeUTC(d = new Date()) {
   const year = d.getUTCFullYear();
   const month = d.getUTCMonth();
 
-  // "medianoche BA" == 03:00 UTC (offset fijo)
+  // “medianoche BA” == 03:00 UTC. Para evitar dependencias de TZ, usamos offset fijo.
+  // Inicio mes BA: (year, month, 1, 00:00 BA) => (year, month, 1, 03:00 UTC)
   const start = new Date(Date.UTC(year, month, 1, 3, 0, 0));
   const end = new Date(Date.UTC(year, month + 1, 1, 3, 0, 0));
   return { startISO: start.toISOString(), endISO: end.toISOString() };
@@ -59,7 +51,7 @@ function isMissingColumnError(err: any, col: string) {
 }
 
 async function resolveAccountContext(admin: ReturnType<typeof createAdminClient>, userId: string) {
-  // 1) profile (admin para evitar RLS en server)
+  // 1) profile
   const { data: profile, error: pErr } = await admin
     .from("profiles")
     .select("user_id, plan, default_account_id, onboarding_completed_at, full_name, dni, cuil, address, phone")
@@ -69,7 +61,7 @@ async function resolveAccountContext(admin: ReturnType<typeof createAdminClient>
   if (pErr) throw pErr;
 
   // 2) accountId (default primero, sino fallback a primer membership)
-  let accountId: string | null = (profile as any)?.default_account_id ?? null;
+  let accountId: string | null = profile?.default_account_id ?? null;
 
   if (!accountId) {
     const { data: mem } = await admin
@@ -79,14 +71,18 @@ async function resolveAccountContext(admin: ReturnType<typeof createAdminClient>
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
-    accountId = (mem as any)?.account_id ?? null;
+    accountId = mem?.account_id ?? null;
   }
 
   // 3) account type
   let accountType: string = "personal";
   if (accountId) {
-    const { data: acc } = await admin.from("accounts").select("account_type").eq("id", accountId).maybeSingle();
-    accountType = ((acc as any)?.account_type as string) || "personal";
+    const { data: acc } = await admin
+      .from("accounts")
+      .select("account_type")
+      .eq("id", accountId)
+      .maybeSingle();
+    accountType = (acc?.account_type as string) || "personal";
   }
 
   // 4) plan code desde subscriptions (active)
@@ -100,10 +96,10 @@ async function resolveAccountContext(admin: ReturnType<typeof createAdminClient>
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
-    planCode = ((sub as any)?.plan_code as string) || null;
+    planCode = (sub?.plan_code as string) || null;
   }
 
-  const normalizedPlanCode = normalizePlanCode(planCode, (profile as any)?.plan || null);
+  const normalizedPlanCode = normalizePlanCode(planCode, profile?.plan || null);
 
   return {
     profile,
@@ -131,36 +127,36 @@ export async function POST(req: NextRequest) {
     const admin = createAdminClient();
 
     // Auth
-    const { data: { user }, error: userErr } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error: userErr,
+    } = await supabase.auth.getUser();
+
     if (userErr) return NextResponse.json({ error: "auth_error", details: userErr.message }, { status: 401 });
     if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
-    // Parse JSON
-    const raw = await req.json().catch(() => null);
-    const parsed = BodySchema.safeParse(raw);
-    if (!parsed.success) return NextResponse.json({ error: "invalid_body" }, { status: 400 });
-
-    const rawTitle = String(parsed.data.title || "").trim();
-    const html = String(parsed.data.html || "");
-
-    const title = rawTitle ? TitleSchema.parse(rawTitle) : "Documento";
-    const bodyText = htmlToPlainText(html);
-    if (!bodyText) return NextResponse.json({ error: "Escribí el contenido del documento." }, { status: 400 });
-
     // Contexto (cuenta / plan / onboarding)
     const ctx = await resolveAccountContext(admin, user.id);
+
     if (!isOnboardingComplete(ctx.profile)) {
       return NextResponse.json(
-        { error: "Necesitás completar el registro (datos + plan) antes de crear documentos.", code: "ONBOARDING_REQUIRED" },
-        { status: 428 },
+        {
+          error: "Necesitás completar el registro (datos + plan) antes de crear documentos.",
+          code: "ONBOARDING_REQUIRED",
+        },
+        { status: 428 }
       );
     }
 
-    // Enforce límite por plan
+    // Enforce límite por plan (por creación de documentos, no por firmas completadas)
     const { startISO, endISO } = getBuenosAiresMonthRangeUTC(new Date());
     const limit = planLimitFromPlanCode(ctx.planCode);
 
-    const q = admin.from("documents").select("id", { head: true, count: "exact" }).gte("created_at", startISO).lt("created_at", endISO);
+    const q = admin
+      .from("documents")
+      .select("id", { head: true, count: "exact" })
+      .gte("created_at", startISO)
+      .lt("created_at", endISO);
 
     if (ctx.accountId) {
       if ((ctx.accountType || "").toLowerCase() === "company") {
@@ -178,33 +174,57 @@ export async function POST(req: NextRequest) {
 
     if ((count || 0) >= limit) {
       return NextResponse.json(
-        { error: `Alcanzaste el límite mensual de tu plan (${limit}).`, code: "PLAN_LIMIT_REACHED", limit, used: count || 0, planCode: ctx.planCode },
-        { status: 402 },
+        {
+          error: `Alcanzaste el límite mensual de tu plan (${limit}).`,
+          code: "PLAN_LIMIT_REACHED",
+          limit,
+          used: count || 0,
+          planCode: ctx.planCode,
+        },
+        { status: 402 }
       );
     }
 
-    // Generar PDF
+    // Parse form
+    const form = await req.formData();
+    const rawTitle = String(form.get("title") || "").trim();
+    const file = form.get("file");
+
+    const title = rawTitle ? TitleSchema.parse(rawTitle) : "Documento";
+
+    if (!file || !(file instanceof File)) {
+      return NextResponse.json({ error: "Missing PDF file" }, { status: 400 });
+    }
+    if (file.type !== "application/pdf") {
+      return NextResponse.json({ error: "Only PDF files are allowed" }, { status: 400 });
+    }
+
+    // Upload primero a storage
     const documentId = crypto.randomUUID();
     const originalPath = `${user.id}/${documentId}/original/original.pdf`;
 
-    const pdfBytes = createSimplePdfBytes({ title, bodyText });
-    const bytes = pdfBytes instanceof Uint8Array ? pdfBytes : new Uint8Array(pdfBytes as any);
+    const bytes = new Uint8Array(await file.arrayBuffer());
     const originalHash = sha256Hex(bytes);
 
-    // Storage
-    const up = await admin.storage.from("fds").upload(originalPath, bytes, { contentType: "application/pdf", upsert: true });
-    if (up.error) return NextResponse.json({ error: "Failed to upload PDF", details: up.error.message }, { status: 500 });
+    const up = await admin.storage.from("fds").upload(originalPath, bytes, {
+      contentType: "application/pdf",
+      upsert: true,
+    });
 
-    // Insert DB (alineado con /api/documents/upload)
+    if (up.error) {
+      return NextResponse.json({ error: "Failed to upload PDF", details: up.error.message }, { status: 500 });
+    }
+
+    // Insert DB (preferimos con account_id + created_by_user_id, con fallback si faltan columnas)
     const enriched = {
       id: documentId,
       created_by: user.id, // legacy
       created_by_user_id: user.id,
       account_id: ctx.accountId,
       title,
-      status: "pending" as const,
+      status: "pending",
       original_path: originalPath,
-      signing_mode: "parallel" as const,
+      signing_mode: "parallel",
       total_signers: 0,
       signed_count: 0,
       final_path: null,
@@ -215,19 +235,23 @@ export async function POST(req: NextRequest) {
 
     if (ins.error) {
       // fallback si tu schema todavía no tiene estas columnas
-      if (isMissingColumnError(ins.error, "created_by_user_id") || isMissingColumnError(ins.error, "account_id") || isMissingColumnError(ins.error, "original_hash")) {
+      if (
+        isMissingColumnError(ins.error, "created_by_user_id") ||
+        isMissingColumnError(ins.error, "account_id")
+      ) {
         const fallback = {
           id: documentId,
           created_by: user.id,
           title,
-          status: "pending" as const,
+          status: "pending",
           original_path: originalPath,
-          signing_mode: "parallel" as const,
+          signing_mode: "parallel",
           total_signers: 0,
           signed_count: 0,
           final_path: null,
           original_hash: originalHash,
         };
+
         ins = await admin.from("documents").insert(fallback as any);
       }
     }
@@ -237,19 +261,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Failed to create document", details: ins.error.message }, { status: 500 });
     }
 
-    // Auditoría: reutilizamos un event_type ya existente para no romper CHECKs
     await logEvent({
       documentId,
       actorUserId: user.id,
       eventType: "pdf_uploaded",
       ip: req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || null,
       userAgent: req.headers.get("user-agent") || null,
-      payload: { title, originalPath, source: "text", planCode: ctx.planCode, accountId: ctx.accountId },
+      payload: {
+        title,
+        originalPath,
+        planCode: ctx.planCode,
+        accountId: ctx.accountId,
+      },
     });
 
     return NextResponse.json({ ok: true, documentId });
   } catch (e: any) {
-    console.error("documents/create-from-text: unexpected error", e);
+    console.error("documents/upload: unexpected error", e);
     return NextResponse.json({ error: e?.message || "Unexpected error" }, { status: 500 });
   }
 }
