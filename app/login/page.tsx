@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 async function requestMagicLink(email: string) {
   const res = await fetch("/api/auth/magic-link", {
@@ -15,10 +16,18 @@ async function requestMagicLink(email: string) {
 }
 
 export default function LoginPage() {
+  const sp = useSearchParams();
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Prefill de email (por ejemplo desde /signed)
+  useEffect(() => {
+    const qEmail = (sp.get("email") || "").trim();
+    if (qEmail && !email) setEmail(qEmail);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sp]);
 
   async function sendLink(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { PLAN_DEFINITIONS, formatArs, planCodeFromChoice, type PlanChoice } from "@/lib/plans";
 
 type Props = {
   next: string;
@@ -14,8 +15,6 @@ type Props = {
     planHint: string; // "free" | "pro" (legacy)
   };
 };
-
-type PlanChoice = "free" | "individual_pro" | "company_pro";
 
 export default function OnboardingForm({ next, initial }: Props) {
   const defaultPlan: PlanChoice = useMemo(() => {
@@ -41,16 +40,25 @@ export default function OnboardingForm({ next, initial }: Props) {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string>("");
 
+  function onlyDigits(s: string) {
+    return (s || "").replace(/\D/g, "");
+  }
+
   function validateBasic() {
     if (!fullName.trim()) return "Ingresá tu nombre y apellido.";
-    if (!dni.trim()) return "Ingresá tu DNI.";
-    if (!cuil.trim()) return "Ingresá tu CUIL/CUIT.";
+
+    const dniD = onlyDigits(dni);
+    const cuilD = onlyDigits(cuil);
+    const phoneD = onlyDigits(phone);
+
+    if (!dniD) return "Ingresá tu DNI.";
+    if (!cuilD) return "Ingresá tu CUIL/CUIT.";
     if (!address.trim()) return "Ingresá tu domicilio.";
-    if (!phone.trim()) return "Ingresá tu teléfono.";
+    if (!phoneD) return "Ingresá tu teléfono.";
 
     if (plan === "company_pro") {
       if (!companyName.trim()) return "Ingresá la razón social.";
-      if (!companyCuit.trim()) return "Ingresá el CUIT de la empresa.";
+      if (!onlyDigits(companyCuit)) return "Ingresá el CUIT de la empresa.";
       if (!companyAddress.trim()) return "Ingresá el domicilio de la empresa.";
       if (!companyRole.trim()) return "Ingresá tu rol como representante (ej: Representante legal).";
     }
@@ -74,19 +82,20 @@ export default function OnboardingForm({ next, initial }: Props) {
     try {
       const payload: any = {
         plan,
+        planCode: planCodeFromChoice(plan),
         profile: {
           fullName: fullName.trim(),
-          dni: dni.trim(),
-          cuil: cuil.trim(),
+          dni: onlyDigits(dni),
+          cuil: onlyDigits(cuil),
           address: address.trim(),
-          phone: phone.trim(),
+          phone: onlyDigits(phone),
         },
       };
 
       if (plan === "company_pro") {
         payload.company = {
           name: companyName.trim(),
-          cuit: companyCuit.trim(),
+          cuit: onlyDigits(companyCuit),
           address: companyAddress.trim(),
           representativeRole: companyRole.trim(),
         };
@@ -114,60 +123,60 @@ export default function OnboardingForm({ next, initial }: Props) {
     }
   }
 
+  const plans = [PLAN_DEFINITIONS.individual_free, PLAN_DEFINITIONS.individual_pro, PLAN_DEFINITIONS.company_pro];
+
   return (
     <form className="space-y-6" onSubmit={onSubmit}>
       <div>
-        <div className="text-sm font-medium">Tipo de cuenta</div>
+        <div className="text-sm font-medium">Elegí tu tipo de cuenta</div>
+        <p className="mt-1 text-xs text-zinc-600">
+          No se realiza ningún cobro en este paso. Podés cambiar tu tipo de cuenta más adelante.
+        </p>
 
-        <div className="mt-2 space-y-2 text-sm">
-          <label className="flex items-start gap-2">
-            <input
-              type="radio"
-              name="plan"
-              value="free"
-              checked={plan === "free"}
-              onChange={() => setPlan("free")}
-              disabled={busy}
-            />
-            <span>
-              <div className="font-medium">Gratuito (Individual)</div>
-              <div className="text-xs text-zinc-600">Para uso personal ocasional.</div>
-            </span>
-          </label>
+        <div className="mt-3 grid gap-3 md:grid-cols-3">
+          {plans.map((p) => {
+            const active = planCodeFromChoice(plan) === p.code;
 
-          <label className="flex items-start gap-2">
-            <input
-              type="radio"
-              name="plan"
-              value="individual_pro"
-              checked={plan === "individual_pro"}
-              onChange={() => setPlan("individual_pro")}
-              disabled={busy}
-            />
-            <span>
-              <div className="font-medium">Personal PRO</div>
-              <div className="text-xs text-zinc-600">Más documentos por mes (sin cobro por ahora).</div>
-            </span>
-          </label>
+            return (
+              <button
+                key={p.code}
+                type="button"
+                disabled={busy}
+                onClick={() => setPlan(p.choice)}
+                className={
+                  "rounded-xl border p-4 text-left transition " +
+                  (active
+                    ? "border-black bg-zinc-50"
+                    : "border-zinc-200 bg-white hover:bg-zinc-50")
+                }
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-semibold text-zinc-900">{p.label}</div>
+                    <div className="mt-1 text-xs text-zinc-600">Hasta {p.defaultMonthlyCreateLimit} documentos/mes</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm font-semibold">
+                      {p.priceArs === 0 ? formatArs(0) : `${p.pricePrefix ? p.pricePrefix + " " : ""}${formatArs(p.priceArs)}`}
+                    </div>
+                    {p.listPriceArs ? (
+                      <div className="text-xs text-zinc-400 line-through">{formatArs(p.listPriceArs)}</div>
+                    ) : (
+                      <div className="text-xs text-zinc-400">&nbsp;</div>
+                    )}
+                  </div>
+                </div>
 
-          <label className="flex items-start gap-2">
-            <input
-              type="radio"
-              name="plan"
-              value="company_pro"
-              checked={plan === "company_pro"}
-              onChange={() => setPlan("company_pro")}
-              disabled={busy}
-            />
-            <span>
-              <div className="font-medium">Empresa PRO</div>
-              <div className="text-xs text-zinc-600">Cuenta de empresa + representante.</div>
-            </span>
-          </label>
-        </div>
+                <ul className="mt-3 space-y-1 text-xs text-zinc-700">
+                  {p.highlights.map((h) => (
+                    <li key={h}>• {h}</li>
+                  ))}
+                </ul>
 
-        <div className="mt-2 text-xs text-zinc-500">
-          Podés revisar los planes en /pricing (y si querés lo hacemos más explícito en la home).
+                {active ? <div className="mt-3 text-xs font-medium text-zinc-900">Seleccionado</div> : null}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -177,7 +186,7 @@ export default function OnboardingForm({ next, initial }: Props) {
         <div className="mt-3 grid gap-3">
           <input
             className="w-full rounded-md border border-zinc-200 px-3 py-2 text-sm"
-            placeholder="Ej: Juan Pérez"
+            placeholder="Nombre y apellido (ej: Juan Pérez)"
             value={fullName}
             onChange={(e) => setFullName(e.target.value)}
             disabled={busy}
@@ -186,7 +195,7 @@ export default function OnboardingForm({ next, initial }: Props) {
           <div className="grid gap-3 sm:grid-cols-2">
             <input
               className="w-full rounded-md border border-zinc-200 px-3 py-2 text-sm"
-              placeholder="DNI (ej: 12.345.678)"
+              placeholder="DNI (solo números)"
               value={dni}
               onChange={(e) => setDni(e.target.value)}
               disabled={busy}
@@ -195,16 +204,17 @@ export default function OnboardingForm({ next, initial }: Props) {
             />
             <input
               className="w-full rounded-md border border-zinc-200 px-3 py-2 text-sm"
-              placeholder="CUIL/CUIT (ej: 20-12345678-9)"
+              placeholder="CUIL/CUIT (solo números)"
               value={cuil}
               onChange={(e) => setCuil(e.target.value)}
               disabled={busy}
+              inputMode="numeric"
               autoComplete="off"
             />
           </div>
           <input
             className="w-full rounded-md border border-zinc-200 px-3 py-2 text-sm"
-            placeholder="Domicilio (ej: Av. Corrientes 1234, CABA)"
+            placeholder="Domicilio (ej: Av. Siempre Viva 123, CABA)"
             value={address}
             onChange={(e) => setAddress(e.target.value)}
             disabled={busy}
@@ -212,11 +222,11 @@ export default function OnboardingForm({ next, initial }: Props) {
           />
           <input
             className="w-full rounded-md border border-zinc-200 px-3 py-2 text-sm"
-            placeholder="Teléfono (ej: +54 11 5555-5555)"
+            placeholder="Teléfono (solo números)"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
             disabled={busy}
-            type="tel"
+            inputMode="numeric"
             autoComplete="tel"
           />
         </div>
@@ -229,37 +239,34 @@ export default function OnboardingForm({ next, initial }: Props) {
           <div className="mt-3 grid gap-3">
             <input
               className="w-full rounded-md border border-zinc-200 px-3 py-2 text-sm"
-              placeholder="Razón social (ej: ACME S.A.)"
+              placeholder="Razón social (ej: Ejemplo S.A.)"
               value={companyName}
               onChange={(e) => setCompanyName(e.target.value)}
               disabled={busy}
-              autoComplete="organization"
             />
             <div className="grid gap-3 sm:grid-cols-2">
               <input
                 className="w-full rounded-md border border-zinc-200 px-3 py-2 text-sm"
-                placeholder="CUIT empresa (ej: 30-12345678-9)"
+                placeholder="CUIT empresa (solo números)"
                 value={companyCuit}
                 onChange={(e) => setCompanyCuit(e.target.value)}
                 disabled={busy}
-                autoComplete="off"
+                inputMode="numeric"
               />
               <input
                 className="w-full rounded-md border border-zinc-200 px-3 py-2 text-sm"
-                placeholder="Rol del representante (ej: Apoderado / Representante legal)"
+                placeholder="Rol del representante (ej: Representante legal)"
                 value={companyRole}
                 onChange={(e) => setCompanyRole(e.target.value)}
                 disabled={busy}
-                autoComplete="organization-title"
               />
             </div>
             <input
               className="w-full rounded-md border border-zinc-200 px-3 py-2 text-sm"
-              placeholder="Domicilio empresa (ej: Bouchard 100, CABA)"
+              placeholder="Domicilio empresa"
               value={companyAddress}
               onChange={(e) => setCompanyAddress(e.target.value)}
               disabled={busy}
-              autoComplete="off"
             />
           </div>
         </div>

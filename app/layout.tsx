@@ -19,22 +19,6 @@ function NavLink({ href, children }: { href: string; children: React.ReactNode }
   );
 }
 
-function NavButtonLink({ href, children }: { href: string; children: React.ReactNode }) {
-  return (
-    <Link href={href} className="rounded-md bg-black px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-800">
-      {children}
-    </Link>
-  );
-}
-
-function NavPrimaryLink({ href, children }: { href: string; children: React.ReactNode }) {
-  return (
-    <Link href={href} className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-emerald-700">
-      {children}
-    </Link>
-  );
-}
-
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createSupabaseServerClient();
   const {
@@ -44,37 +28,44 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const email = (user?.email || "").toLowerCase();
   const isAdmin = Boolean(email) && isAdminEmail(email);
 
-  const brandHref = user ? "/dashboard" : "/";
-
   return (
     <html lang="es">
       <body>
         <header className="sticky top-0 z-20 border-b border-zinc-200 bg-white/80 backdrop-blur">
           <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-3">
-            <Link href={brandHref} className="font-semibold">
+            <Link href={user ? "/dashboard" : "/"} className="font-semibold">
               Firma Electrónica Simple
             </Link>
 
-            <nav className="flex flex-wrap items-center justify-end gap-3">
-              {user ? (
-                <>
-                  <NavLink href="/dashboard">Panel</NavLink>
-                  <NavPrimaryLink href="/dashboard/new">Nueva firma</NavPrimaryLink>
-                  <NavLink href="/dashboard/account">Cuenta</NavLink>
-                  <NavLink href="/profile?next=/dashboard">Perfil</NavLink>
-                  {isAdmin ? <NavLink href="/admin">Admin</NavLink> : null}
-                  <form action="/api/logout" method="post" className="ml-1">
-                    <button className="rounded-md border border-zinc-200 px-3 py-1.5 text-sm font-medium hover:bg-zinc-50">
-                      Salir
-                    </button>
-                  </form>
-                </>
-              ) : (
+            {/*
+              Menú inteligente:
+              - Sin sesión: marketing (Planes / Legal) + Ingresar
+              - Con sesión: navegación de producto + Salir
+            */}
+            <nav className="flex flex-wrap items-center justify-end gap-4">
+              {!user ? (
                 <>
                   <NavLink href="/pricing">Planes</NavLink>
                   <NavLink href="/terms">Términos</NavLink>
                   <NavLink href="/privacy">Privacidad</NavLink>
-                  <NavButtonLink href="/login">Ingresar</NavButtonLink>
+
+                  <Link href="/login" className="rounded-md bg-black px-3 py-1.5 text-sm font-medium text-white">
+                    Ingresar
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <NavLink href="/dashboard">Panel</NavLink>
+                  <NavLink href="/dashboard/new">Nuevo documento</NavLink>
+                  <NavLink href="/dashboard/account">Cuentas</NavLink>
+                  <NavLink href="/profile?next=/dashboard">Mis datos</NavLink>
+                  {isAdmin ? <NavLink href="/admin">Admin</NavLink> : null}
+
+                  <form action="/api/logout" method="post">
+                    <button className="rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium hover:bg-zinc-50">
+                      Salir
+                    </button>
+                  </form>
                 </>
               )}
             </nav>
@@ -100,8 +91,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               </div>
             </div>
             <p className="mt-3 leading-relaxed">
-              Este servicio implementa firma electrónica conforme a la Ley 25.506 (República Argentina). No constituye firma digital
-              certificada en los términos de la misma ley.
+              Este servicio implementa firma electrónica conforme a la Ley 25.506 (República Argentina). No constituye firma
+              digital certificada en los términos de la misma ley.
             </p>
           </div>
         </footer>

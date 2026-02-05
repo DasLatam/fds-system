@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isProfileComplete } from "@/lib/security/profile";
-import { humanizeAuditEventType } from "@/lib/audit/labels";
+import { planLabelFromCode } from "@/lib/plans";
+import { getMonthlyCreateLimitFromPlanCode } from "@/lib/plans.server";
 import DocumentsListClient from "./DocumentsListClient";
 
 export const dynamic = "force-dynamic";
@@ -17,28 +18,7 @@ function fmt(n: number) {
   }
 }
 
-function parseEnvInt(name: string, fallback: number) {
-  const n = Number(process.env[name] || "");
-  return Number.isFinite(n) && n > 0 ? n : fallback;
-}
-
-function planLimitFromPlanCode(planCode: string) {
-  const p = (planCode || "").toLowerCase();
-  if (p.includes("company") && p.includes("pro")) return parseEnvInt("FES_COMPANY_PRO_DOCS_PER_MONTH", 30);
-  if (p.includes("individual") && p.includes("pro")) return parseEnvInt("FES_INDIVIDUAL_PRO_DOCS_PER_MONTH", 20);
-  if (p.includes("pro")) return parseEnvInt("FES_INDIVIDUAL_PRO_DOCS_PER_MONTH", 20);
-  return parseEnvInt("FES_FREE_DOCS_PER_MONTH", 5);
-}
-
-function planLabel(planCode: string) {
-  const p = (planCode || "").toLowerCase();
-  if (p.includes("company") && p.includes("pro")) return "Empresa PRO";
-  if (p.includes("individual") && p.includes("pro")) return "Personal PRO";
-  if (p.includes("pro")) return "PRO";
-  return "Gratuito";
-}
-
-function normalizePlanCode(planCode: string | null | undefined, legacyProfilePlan: string | null | undefined) {
+ function normalizePlanCode(planCode: string | null | undefined, legacyProfilePlan: string | null | undefined) {
   const p = (planCode || "").trim();
   if (p) return p;
   const legacy = (legacyProfilePlan || "").toLowerCase();
@@ -183,7 +163,7 @@ export default async function DashboardPage() {
     activePlanCode = normalizePlanCode((sub as any)?.plan_code ?? null, (profile as any)?.plan ?? null);
   }
 
-  const activeLimit = planLimitFromPlanCode(activePlanCode);
+  const activeLimit = getMonthlyCreateLimitFromPlanCode(activePlanCode, (profile as any)?.plan);
 
   // Conteo del mes (por cuenta activa)
   let usedThisMonth = 0;
@@ -332,12 +312,9 @@ export default async function DashboardPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold">Panel</h1>
-          <p className="mt-1 text-sm text-zinc-600">Creá una nueva firma, invitá firmantes y seguí el estado.</p>
-        </div>
-        <div className="text-sm text-zinc-600">Accedé a las acciones principales desde el menú superior.</div>
+      <div>
+        <h1 className="text-2xl font-semibold">Panel</h1>
+        <p className="mt-1 text-sm text-zinc-600">Crea documentos, invita firmantes y segui el estado.</p>
       </div>
 
       {/* Plan + uso del mes */}
@@ -354,7 +331,7 @@ export default async function DashboardPage() {
               ) : null}
             </div>
             <div className="mt-1 text-xs text-zinc-600">
-              <span className="font-medium">Plan activo:</span> {planLabel(activePlanCode)}{" "}
+              <span className="font-medium">Plan activo:</span> {planLabelFromCode(activePlanCode)}{" "}
               <span className="text-zinc-400">({activePlanCode})</span>
               {activeAccountName ? <span className="ml-2 text-zinc-500">· {activeAccountName}</span> : null}
             </div>
@@ -428,8 +405,8 @@ export default async function DashboardPage() {
             activity.map((e) => (
               <div key={e.id} className="px-4 py-3 text-sm">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="font-medium text-zinc-900" title={e.event_type}>
-                    {humanizeAuditEventType(e.event_type)}{" "}
+                  <div className="font-medium text-zinc-900">
+                    {e.event_type}{" "}
                     <span className="ml-2 text-xs font-normal text-zinc-500">
                       {titleById.get(e.document_id) || e.document_id}
                     </span>

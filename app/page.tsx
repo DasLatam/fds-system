@@ -10,17 +10,17 @@ export default function HomePage() {
             <p className="text-sm font-medium text-zinc-600">Firma electrónica en Argentina</p>
 
             <h1 className="mt-3 text-4xl font-semibold tracking-tight md:text-5xl">
-              Firmá documentos online de forma simple y legal.
+              Firmá documentos online de forma simple, rápida y verificable.
             </h1>
 
             <p className="mt-4 text-base leading-relaxed text-zinc-600">
-              Firma Electrónica Simple conforme a la Ley 25.506 (Argentina). Invitá firmantes por email, capturá firma
-              manuscrita y generá un PDF final verificable con evidencia técnica (hash SHA-256, IP y timestamp).
+              Invitá firmantes por email, capturá firma manuscrita y generá un PDF final verificable con evidencia técnica
+              (hash, auditoría, IP y timestamps). También podés redactar documentos desde cero y reutilizar plantillas.
             </p>
 
             <div className="mt-7 flex flex-wrap items-center gap-3">
-              <Link href="/login?next=%2Fdashboard" className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white">
-                Crear una firma
+              <Link href="/login" className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white">
+                Empezar
               </Link>
 
               <Link href="#como-funciona" className="rounded-md border border-zinc-200 px-4 py-2 text-sm font-medium">
@@ -34,16 +34,16 @@ export default function HomePage() {
 
             <div className="mt-8 grid grid-cols-1 gap-3 text-sm text-zinc-600 sm:grid-cols-3">
               <div className="rounded-lg border border-zinc-200 p-3">
-                <div className="font-medium text-zinc-900">Firmantes sin costo</div>
-                <div className="mt-1">No necesitan cuenta.</div>
+                <div className="font-medium text-zinc-900">Firmantes sin fricción</div>
+                <div className="mt-1">Pueden firmar con o sin cuenta.</div>
               </div>
               <div className="rounded-lg border border-zinc-200 p-3">
                 <div className="font-medium text-zinc-900">Evidencia verificable</div>
                 <div className="mt-1">Hash + auditoría + timestamps.</div>
               </div>
               <div className="rounded-lg border border-zinc-200 p-3">
-                <div className="font-medium text-zinc-900">PDF final con QR</div>
-                <div className="mt-1">Verificación pública.</div>
+                <div className="font-medium text-zinc-900">Redactar o subir PDF</div>
+                <div className="mt-1">Editor + plantillas editables.</div>
               </div>
             </div>
           </div>
@@ -53,9 +53,7 @@ export default function HomePage() {
             <div className="absolute inset-0 -z-10 rounded-2xl bg-gradient-to-br from-zinc-50 to-zinc-100" />
             <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
               <div className="flex items-center gap-3">
-                <div className="grid size-10 place-items-center rounded-xl border border-zinc-200 bg-white text-2xl">
-                  ✍️
-                </div>
+                <div className="grid size-10 place-items-center rounded-xl border border-zinc-200 bg-white text-2xl">✍️</div>
                 <div>
                   <div className="text-sm font-medium">Firma Electrónica Simple</div>
                   <div className="text-xs text-zinc-600">Evidencia, trazabilidad y control.</div>
@@ -65,9 +63,9 @@ export default function HomePage() {
               <div className="mt-6 space-y-3">
                 <div className="rounded-lg border border-zinc-200 p-4">
                   <div className="text-xs text-zinc-500">Documento</div>
-                  <div className="mt-1 font-medium">Autorización / Contrato / Consentimiento</div>
+                  <div className="mt-1 font-medium">Contrato / Autorización / Consentimiento</div>
                   <div className="mt-2 text-xs text-zinc-600">
-                    Hash SHA-256: <span className="font-mono">a3f1…9c2b</span>
+                    Hash: <span className="font-mono">a3f1…9c2b</span>
                   </div>
                 </div>
 
@@ -75,11 +73,11 @@ export default function HomePage() {
                   <div className="text-xs text-zinc-500">Firmantes</div>
                   <ul className="mt-2 space-y-2 text-sm">
                     <li className="flex items-center justify-between">
-                      <span>usuario@…</span>
+                      <span>persona1@…</span>
                       <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700">Pendiente</span>
                     </li>
                     <li className="flex items-center justify-between">
-                      <span>cliente@…</span>
+                      <span>persona2@…</span>
                       <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">Firmado</span>
                     </li>
                   </ul>
@@ -87,13 +85,9 @@ export default function HomePage() {
 
                 <div className="rounded-lg border border-zinc-200 p-4">
                   <div className="text-xs text-zinc-500">Auditoría</div>
-                  <div className="mt-2 text-xs text-zinc-600">
-                    Eventos con IP, user-agent y timestamp. Verificación pública por QR.
-                  </div>
+                  <div className="mt-2 text-xs text-zinc-600">Eventos con IP, user-agent y timestamp.</div>
                 </div>
               </div>
-
-              {/* Nota legal: se muestra en el pie de página global para evitar duplicaciones. */}
             </div>
           </div>
         </div>
@@ -114,14 +108,14 @@ export default function HomePage() {
               <li>Firma electrónica válida en Argentina (Ley 25.506).</li>
               <li>Rápida y fácil, sin certificados digitales.</li>
               <li>Ideal para acuerdos, autorizaciones y consentimientos.</li>
-              <li>PDF final verificable con hash, auditoría y QR.</li>
+              <li>PDF final verificable con auditoría.</li>
             </ul>
           </div>
 
           <div className="rounded-xl border border-zinc-200 p-5">
             <div className="font-medium text-zinc-900">❌ FES no es</div>
             <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-zinc-700">
-              <li>No es firma digital certificada (no usa token/certificado).</li>
+              <li>No es firma digital certificada (token/certificado).</li>
               <li>No reemplaza escribano ni actos notariales.</li>
               <li>No aplica a trámites que exigen firma digital avanzada.</li>
             </ul>
@@ -129,14 +123,11 @@ export default function HomePage() {
         </div>
 
         <div className="mt-6 flex flex-wrap items-center gap-3">
-          <Link href="/login?next=%2Fdashboard" className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white">
+          <Link href="/login" className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white">
             Crear una firma
           </Link>
-          <Link href="/terms" className="text-sm text-zinc-700 hover:text-zinc-900">
-            Términos
-          </Link>
-          <Link href="/privacy" className="text-sm text-zinc-700 hover:text-zinc-900">
-            Privacidad
+          <Link href="/pricing" className="text-sm text-zinc-700 hover:text-zinc-900">
+            Ver planes
           </Link>
         </div>
       </section>
@@ -148,9 +139,9 @@ export default function HomePage() {
 
           <div className="mt-6 grid gap-4 md:grid-cols-4">
             {[
-              { t: "Subí el PDF", d: "Cargás tu documento en formato PDF." },
+              { t: "Subí o redactá", d: "Cargás un PDF o redactás el documento desde cero." },
+              { t: "Usá plantillas", d: "Partís de modelos editables para acelerar el proceso." },
               { t: "Invitá firmantes", d: "Reciben un enlace seguro por email." },
-              { t: "Firman online", d: "Firma manuscrita + consentimiento + datos." },
               { t: "Descargá el final", d: "PDF final con evidencia y auditoría." },
             ].map((s) => (
               <div key={s.t} className="rounded-xl border border-zinc-200 bg-white p-4">
@@ -160,34 +151,29 @@ export default function HomePage() {
             ))}
           </div>
 
-          <div className="mt-8 rounded-xl border border-zinc-200 bg-white p-5">
-            <div className="font-medium text-zinc-900">Verificación pública</div>
-            <p className="mt-2 text-sm leading-relaxed text-zinc-600">
-              El documento final incluye un código y un QR para verificación. Se valida integridad del archivo y coincidencia
-              del hash con el registro de auditoría.
-            </p>
+          <div className="mt-8 grid gap-4 md:grid-cols-2">
+            <div className="rounded-xl border border-zinc-200 bg-white p-5">
+              <div className="font-medium text-zinc-900">Verificación pública</div>
+              <p className="mt-2 text-sm leading-relaxed text-zinc-600">
+                El documento final incluye un código y un QR para verificación. Se valida integridad del archivo y
+                coincidencia del hash con el registro de auditoría.
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-zinc-200 bg-white p-5">
+              <div className="font-medium text-zinc-900">Seguridad</div>
+              <p className="mt-2 text-sm leading-relaxed text-zinc-600">
+                Almacenamiento privado, control de acceso y trazabilidad. Registramos eventos y metadatos técnicos para
+                respaldar integridad y disponibilidad del documento.
+              </p>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* CASOS DE USO / NO USAR */}
+      {/* CASOS DE USO */}
       <section className="mx-auto max-w-5xl px-4 py-14">
         <h2 className="text-2xl font-semibold">¿Para qué sirve?</h2>
-
-        <div className="mt-4 rounded-xl border border-zinc-200 bg-zinc-50 p-5">
-          <div className="font-medium text-zinc-900">Funciones</div>
-          <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-zinc-700">
-            <li>
-              <b>Subir PDF</b>, invitar firmantes por email y generar un <b>PDF final verificable</b>.
-            </li>
-            <li>
-              <b>Verificación pública</b> por QR/código con validación de integridad.
-            </li>
-            <li>
-              <b>Plantillas</b> y <b>redactor de documentos</b>: disponibles en forma progresiva (función en evolución).
-            </li>
-          </ul>
-        </div>
 
         <div className="mt-6 grid gap-4 md:grid-cols-2">
           <div className="rounded-xl border border-zinc-200 p-5">
@@ -197,8 +183,6 @@ export default function HomePage() {
               <li>Autorizaciones</li>
               <li>Consentimientos informados</li>
               <li>Contratos simples</li>
-              <li>Aceptaciones de términos</li>
-              <li>Documentación interna</li>
               <li>Aprobaciones comerciales</li>
             </ul>
           </div>
@@ -214,41 +198,20 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* LEGAL & CTA FINAL */}
+      {/* CTA FINAL */}
       <section className="border-t border-zinc-200 bg-zinc-50">
         <div className="mx-auto max-w-5xl px-4 py-14">
-          <h2 className="text-2xl font-semibold">Legal y seguridad</h2>
+          <h2 className="text-2xl font-semibold">Listo para empezar</h2>
+          <p className="mt-2 text-sm text-zinc-600">Creá tu primer documento y empezá a invitar firmantes.</p>
 
-          <div className="mt-4 grid gap-4 md:grid-cols-2">
-            <div className="rounded-xl border border-zinc-200 bg-white p-5">
-              <div className="font-medium">Cumplimiento</div>
-              <p className="mt-2 text-sm leading-relaxed text-zinc-600">
-                Implementamos firma electrónica conforme a la Ley 25.506. Generamos evidencia técnica para respaldar
-                integridad y trazabilidad (hash SHA-256, timestamps y auditoría de eventos).
-              </p>
-            </div>
-
-            <div className="rounded-xl border border-zinc-200 bg-white p-5">
-              <div className="font-medium">Protección de datos</div>
-              <p className="mt-2 text-sm leading-relaxed text-zinc-600">
-                PDFs en almacenamiento privado, acceso por URLs firmadas temporales y registros de auditoría. El acceso a la
-                evidencia está restringido y se maneja bajo políticas del servicio.
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-8 flex flex-wrap items-center gap-3">
-            <Link href="/login?next=%2Fdashboard" className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white">
+          <div className="mt-6 flex flex-wrap items-center gap-3">
+            <Link href="/login" className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white">
               Empezar ahora
             </Link>
-            <Link href="/terms" className="text-sm text-zinc-700 hover:text-zinc-900">
-              Términos
-            </Link>
-            <Link href="/privacy" className="text-sm text-zinc-700 hover:text-zinc-900">
-              Privacidad
+            <Link href="/pricing" className="rounded-md border border-zinc-200 px-4 py-2 text-sm font-medium">
+              Ver planes
             </Link>
           </div>
-
         </div>
       </section>
     </div>

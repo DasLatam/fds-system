@@ -132,8 +132,10 @@ export async function middleware(req: NextRequest) {
 
     const loginUrl = req.nextUrl.clone();
     loginUrl.pathname = "/login";
-		// Preservar query para que /login pueda devolver al lugar exacto.
-		loginUrl.searchParams.set("next", pathname + (req.nextUrl.search || ""));
+
+    // Mantener pathname + query para volver exactamente al lugar correcto
+    const nextPath = `${req.nextUrl.pathname}${req.nextUrl.search || ""}`;
+    loginUrl.searchParams.set("next", nextPath);
     return NextResponse.redirect(loginUrl);
   }
 

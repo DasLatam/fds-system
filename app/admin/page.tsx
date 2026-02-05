@@ -324,7 +324,7 @@ export default async function AdminPage({
                 className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-400"
                 name="q"
                 defaultValue={q}
-                placeholder={view === "users" ? "Ej: Juan / 24589462" : "Ej: DNI Juan"}
+                placeholder={view === "users" ? "Ej: Juan / 30123456" : "Ej: DNI 30123456"}
               />
               <button className="rounded-xl bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-800" type="submit">
                 Buscar

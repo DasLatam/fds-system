@@ -49,6 +49,9 @@ export default function SignPage() {
   const [rejectReason, setRejectReason] = useState("");
   const [consent, setConsent] = useState(false);
 
+  // Autofill (solo si hay sesión y el email coincide con el firmante)
+  const [autofillTried, setAutofillTried] = useState(false);
+
   // Capacidad de firma
   const [signerCapacity, setSignerCapacity] = useState<SignerCapacity>("self");
 
@@ -111,6 +114,60 @@ export default function SignPage() {
       mounted = false;
     };
   }, [token]);
+
+  // ✅ Autocompletar con datos del perfil (cuando el firmante está logueado)
+  useEffect(() => {
+    if (!preview?.email) return;
+    if (autofillTried) return;
+
+    let mounted = true;
+
+    const setIfEmpty = (ref: { current: HTMLInputElement | null }, value: string | null | undefined) => {
+      const el = ref.current;
+      if (!el) return;
+      if ((el.value || "").trim().length > 0) return;
+      const v = String(value || "").trim();
+      if (!v) return;
+      el.value = v;
+    };
+
+    const digits = (v: any) => String(v || "").replace(/\D/g, "");
+
+    (async () => {
+      try {
+        const res = await fetch("/api/profile", { cache: "no-store" });
+        if (!res.ok) return;
+        const json = await res.json().catch(() => null);
+        if (!json) return;
+
+        // Soportar varias formas de respuesta
+        const p: any = (json as any).profile ?? json;
+        const profileEmail = String(p?.email || (json as any)?.email || "").toLowerCase();
+        const signerEmail = String(preview.email || "").toLowerCase();
+
+        // Seguridad: solo autofill si coincide el email del perfil con el email del firmante
+        if (profileEmail && signerEmail && profileEmail !== signerEmail) return;
+
+        if (!mounted) return;
+
+        setIfEmpty(fullNameRef, p?.full_name ?? p?.fullName ?? p?.name);
+        setIfEmpty(dniRef, digits(p?.dni ?? p?.document_number));
+        setIfEmpty(cuilRef, digits(p?.cuil ?? p?.cuit));
+        setIfEmpty(addressRef, p?.address ?? p?.domicilio);
+        setIfEmpty(phoneRef, digits(p?.phone ?? p?.mobile ?? p?.celular));
+
+        bump();
+      } catch {
+        // ignore: si no hay sesión, middleware devuelve 401
+      } finally {
+        if (mounted) setAutofillTried(true);
+      }
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, [preview?.email, autofillTried]);
 
   const canSign = useMemo(() => {
     if (!preview || preview.status !== "pending") return false;

@@ -1,100 +1,62 @@
-// Mapeo centralizado de event_type -> label human-friendly (ES)
-//
-// Objetivo:
-// - UI no muestra claves crudas (email_sent, invite_created, etc.).
-// - Fallback decente si aparece un event_type nuevo.
-
 const EVENT_LABELS: Record<string, string> = {
-  // Invitaciones / workflow
+  // Invitaciones / emails
   invite_created: "Invitación creada",
-  invite_resent: "Invitación reenviada",
-  invite_opened: "Invitación abierta",
   email_sent: "Correo enviado",
-  completion_email_sent: "Aviso final enviado",
-  completion_email_failed: "Fallo al enviar aviso final",
+  invite_resent: "Invitación reenviada",
 
-  // Documentos / archivos
-  document_created: "Documento creado",
-  document_updated: "Documento actualizado",
+  // Acceso al link
+  link_opened: "Enlace abierto",
+  signer_opened: "Firmante abrió el enlace",
+
+  // PDF / archivos
   pdf_uploaded: "PDF subido",
-  pdf_downloaded: "PDF descargado",
-  document_completed: "Documento finalizado",
+  original_pdf_uploaded: "PDF original subido",
+  final_pdf_generated: "PDF final generado",
 
-  // Firma
-  signature_submitted: "Firma registrada",
-  signature_rejected: "Firma rechazada",
-  signer_signed: "Firmante firmó",
-  signer_rejected: "Firmante rechazó",
+  // Acciones de firma
+  signer_started: "Proceso de firma iniciado",
+  signer_submitted: "Firma enviada",
+  signed: "Documento firmado",
+  rejected: "Documento rechazado",
 
-  // Cuenta / planes
-  onboarding_completed: "Onboarding completado",
-  plan_changed: "Plan cambiado",
-  account_changed: "Cuenta activa cambiada",
+  // Verificación pública
+  verification_match: "Verificación: coincide",
+  verification_mismatch: "Verificación: no coincide",
+
+  // Sistema / seguridad
+  rate_limited: "Limitación de tasa (rate limit)",
+  auth_magic_link: "Magic Link enviado",
 };
 
-const WORD_TRANSLATIONS: Record<string, string> = {
-  // términos frecuentes en event_type
-  email: "correo",
-  sent: "enviado",
-  failed: "falló",
-  failure: "falló",
-  invite: "invitación",
-  invitation: "invitación",
-  created: "creada",
-  create: "crear",
-  resent: "reenviada",
-  opened: "abierta",
-  open: "abrir",
-  pdf: "PDF",
-  uploaded: "subido",
-  upload: "subir",
-  downloaded: "descargado",
-  download: "descargar",
-  document: "documento",
-  completed: "finalizado",
-  completion: "finalización",
-  signature: "firma",
-  submitted: "registrada",
-  rejected: "rechazada",
-  signer: "firmante",
-  onboarding: "onboarding",
-  plan: "plan",
-  account: "cuenta",
-  changed: "cambiada",
-  updated: "actualizado",
-};
-
-function capitalizeWord(w: string) {
-  if (!w) return w;
-  // si viene como "PDF" ya está
-  if (w.toUpperCase() === w && w.length <= 4) return w;
-  return w.charAt(0).toUpperCase() + w.slice(1);
+function titleCase(s: string) {
+  return s
+    .split(" ")
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
 }
 
-function fallbackHumanize(eventType: string) {
+/**
+ * Convierte event_type (crudo) a un label amigable en español.
+ * - Usa mapa centralizado.
+ * - Fallback: snake_case -> "Snake case" (title case)
+ */
+export function humanizeAuditEventType(eventType: string | null | undefined) {
   const raw = String(eventType || "").trim();
   if (!raw) return "Evento";
 
-  const parts = raw
-    .split(/[_\-\s]+/g)
-    .map((p) => p.trim())
-    .filter(Boolean);
+  const key = raw.toLowerCase();
+  if (EVENT_LABELS[key]) return EVENT_LABELS[key];
 
-  if (parts.length === 0) return "Evento";
+  // Fallback decente
+  const normalized = key
+    .replace(/\.+/g, " ")
+    .replace(/[\/:]+/g, " ")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 
-  const words = parts.map((p) => {
-    const key = p.toLowerCase();
-    const t = WORD_TRANSLATIONS[key];
-    return t ?? key;
-  });
-
-  // Title Case (pero preservando PDF)
-  return words.map(capitalizeWord).join(" ");
+  return titleCase(normalized);
 }
 
-export function humanizeAuditEventType(eventType: string) {
-  const key = String(eventType || "").trim();
-  if (!key) return "Evento";
-
-  return EVENT_LABELS[key] ?? fallbackHumanize(key);
-}
+export const AUDIT_EVENT_LABELS = EVENT_LABELS;
