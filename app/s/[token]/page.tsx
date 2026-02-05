@@ -49,9 +49,6 @@ export default function SignPage() {
   const [rejectReason, setRejectReason] = useState("");
   const [consent, setConsent] = useState(false);
 
-  // Autofill (solo si hay sesión y el email coincide con el firmante)
-  const [autofillTried, setAutofillTried] = useState(false);
-
   // Capacidad de firma
   const [signerCapacity, setSignerCapacity] = useState<SignerCapacity>("self");
 
@@ -115,59 +112,61 @@ export default function SignPage() {
     };
   }, [token]);
 
-  // ✅ Autocompletar con datos del perfil (cuando el firmante está logueado)
+  // Autofill (si estás logueado) — completa datos del firmante con tu perfil
+  // Reglas:
+  // - Solo intenta una vez por carga de preview.
+  // - Solo autocompleta si el email de la sesión coincide con el email invitado (seguridad).
+  const autofillAttemptedRef = useRef(false);
+
   useEffect(() => {
-    if (!preview?.email) return;
-    if (autofillTried) return;
+    if (!preview || preview.status !== "pending") return;
+    if (autofillAttemptedRef.current) return;
 
-    let mounted = true;
+    autofillAttemptedRef.current = true;
 
-    const setIfEmpty = (ref: { current: HTMLInputElement | null }, value: string | null | undefined) => {
-      const el = ref.current;
-      if (!el) return;
-      if ((el.value || "").trim().length > 0) return;
-      const v = String(value || "").trim();
-      if (!v) return;
-      el.value = v;
-    };
-
-    const digits = (v: any) => String(v || "").replace(/\D/g, "");
-
+    let cancelled = false;
     (async () => {
       try {
         const res = await fetch("/api/profile", { cache: "no-store" });
         if (!res.ok) return;
-        const json = await res.json().catch(() => null);
-        if (!json) return;
 
-        // Soportar varias formas de respuesta
-        const p: any = (json as any).profile ?? json;
-        const profileEmail = String(p?.email || (json as any)?.email || "").toLowerCase();
-        const signerEmail = String(preview.email || "").toLowerCase();
+        const data = await res.json().catch(() => null);
+        if (!data) return;
 
-        // Seguridad: solo autofill si coincide el email del perfil con el email del firmante
-        if (profileEmail && signerEmail && profileEmail !== signerEmail) return;
+        const p: any = data?.profile ?? data?.data?.profile ?? data;
 
-        if (!mounted) return;
+        const sessionEmail = String(data?.email ?? p?.email ?? "").toLowerCase().trim();
+        const invitedEmail = String(preview.email || "").toLowerCase().trim();
 
-        setIfEmpty(fullNameRef, p?.full_name ?? p?.fullName ?? p?.name);
-        setIfEmpty(dniRef, digits(p?.dni ?? p?.document_number));
-        setIfEmpty(cuilRef, digits(p?.cuil ?? p?.cuit));
-        setIfEmpty(addressRef, p?.address ?? p?.domicilio);
-        setIfEmpty(phoneRef, digits(p?.phone ?? p?.mobile ?? p?.celular));
+        // Seguridad: no autocompletar si el usuario logueado no es el firmante invitado.
+        if (sessionEmail && invitedEmail && sessionEmail !== invitedEmail) return;
 
-        bump();
+        const setIfEmpty = (ref: { current: HTMLInputElement | null }, value: any) => {
+          const v = String(value || "").trim();
+          if (!v) return;
+          if (!ref.current) return;
+          if ((ref.current.value || "").trim()) return;
+          ref.current.value = v;
+        };
+
+        setIfEmpty(fullNameRef, p?.full_name ?? p?.fullName);
+        setIfEmpty(dniRef, p?.dni);
+        setIfEmpty(cuilRef, p?.cuil);
+        setIfEmpty(addressRef, p?.address);
+        setIfEmpty(phoneRef, p?.phone);
+
+        if (!cancelled) bump();
       } catch {
-        // ignore: si no hay sesión, middleware devuelve 401
-      } finally {
-        if (mounted) setAutofillTried(true);
+        // Silencioso: autofill es best-effort.
       }
     })();
 
     return () => {
-      mounted = false;
+      cancelled = true;
     };
-  }, [preview?.email, autofillTried]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preview?.email, preview?.status]);
+
 
   const canSign = useMemo(() => {
     if (!preview || preview.status !== "pending") return false;
