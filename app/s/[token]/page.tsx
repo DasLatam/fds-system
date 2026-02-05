@@ -5,14 +5,15 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 
 type Prefill = {
-  fullName?: string | null;
-  dni?: string | null;
-  cuil?: string | null;
-  address?: string | null;
-  phone?: string | null;
+  fullName: string | null;
+  dni: string | null;
+  cuil: string | null;
+  address: string | null;
+  phone: string | null;
 };
 
 type Preview = {
+  signingRequestId?: string;
   documentId: string;
   title: string;
   email: string;
@@ -20,7 +21,8 @@ type Preview = {
   signingMode: "parallel" | "sequential";
   position: number | null;
   expiresAt: string | null;
-  pdfUrl: string;
+  replacedBy?: string | null;
+  pdfUrl: string; // suele ser "/api/preview?token=..."
   prefill?: Prefill | null;
 };
 
@@ -47,6 +49,35 @@ export default function SignPage() {
   const companyRoleRef = useRef<HTMLInputElement | null>(null);
 
   const [preview, setPreview] = useState<Preview | null>(null);
+
+  // Autofill (si el firmante tiene perfil)
+  useEffect(() => {
+    const p = preview?.prefill;
+    if (!p) return;
+
+    const digits = (v: string | null) => (v ?? "").replace(/\D+/g, "");
+
+    const fillIfEmpty = (
+      ref: { current: HTMLInputElement | null },
+      value: string | null,
+    ) => {
+      const el = ref.current;
+      if (!el) return;
+      const cur = (el.value ?? "").trim();
+      if (cur.length > 0) return; // no pisar
+      const next = (value ?? "").trim();
+      if (next.length == 0) return;
+      el.value = next;
+    };
+
+    fillIfEmpty(fullNameRef, p.fullName);
+    fillIfEmpty(dniRef, digits(p.dni));
+    fillIfEmpty(cuilRef, digits(p.cuil));
+    fillIfEmpty(addressRef, p.address);
+    fillIfEmpty(phoneRef, digits(p.phone));
+
+    bump();
+  }, [preview]);
   const [loading, setLoading] = useState(true);
 
   // ✅ separar errores
@@ -90,19 +121,6 @@ export default function SignPage() {
     return { companyName, companyCuit, companyAddress, companyRole };
   }
 
-  function applyPrefill(p?: Prefill | null) {
-    if (!p) return;
-
-    // Solo escribimos si el input está vacío (no pisamos lo que el usuario ya tipeó)
-    if (fullNameRef.current && !fullNameRef.current.value && p.fullName) fullNameRef.current.value = String(p.fullName);
-    if (dniRef.current && !dniRef.current.value && p.dni) dniRef.current.value = String(p.dni);
-    if (cuilRef.current && !cuilRef.current.value && p.cuil) cuilRef.current.value = String(p.cuil);
-    if (addressRef.current && !addressRef.current.value && p.address) addressRef.current.value = String(p.address);
-    if (phoneRef.current && !phoneRef.current.value && p.phone) phoneRef.current.value = String(p.phone);
-
-    bump();
-  }
-
   useEffect(() => {
     if (!token) return;
 
@@ -115,13 +133,11 @@ export default function SignPage() {
         setOk(null);
 
         const res = await fetch(`/api/signing-request/${token}`, { cache: "no-store" });
-        const data = (await res.json().catch(() => ({}))) as any;
-        if (!res.ok) throw new Error(data?.message || data?.error || "No se pudo cargar el documento.");
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data?.error || "No se pudo cargar el documento.");
 
         if (mounted) {
           setPreview(data as Preview);
-          // Autofill inmediato
-          applyPrefill(data?.prefill);
           setTimeout(() => bump(), 50);
         }
       } catch (e: any) {
@@ -172,10 +188,7 @@ export default function SignPage() {
   async function refreshPreview() {
     const p = await fetch(`/api/signing-request/${token}`, { cache: "no-store" });
     const pdata = await p.json().catch(() => null);
-    if (p.ok && pdata) {
-      setPreview(pdata as Preview);
-      applyPrefill((pdata as any)?.prefill);
-    }
+    if (p.ok && pdata) setPreview(pdata as Preview);
   }
 
   async function submit() {
@@ -234,7 +247,7 @@ export default function SignPage() {
           consent,
           signer,
 
-          // capacidad de firma + empresa (compat)
+          // P1: capacidad de firma + empresa (compat)
           signerCapacity,
           signer_capacity: signerCapacity,
           signerCompanyName: company.companyName || null,
@@ -262,11 +275,12 @@ export default function SignPage() {
       });
 
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error((data as any)?.error || "No se pudo registrar la firma.");
+      if (!res.ok) throw new Error(data?.error || "No se pudo registrar la firma.");
 
       setOk("La firma fue registrada correctamente.");
       await refreshPreview();
 
+      // ✅ Post-firma: invitación a registrarse / claim de historial
       // Post-acción: llevar a /dashboard (si no hay sesión, middleware envía a /login con next).
       router.replace(`/dashboard?from=signed&token=${encodeURIComponent(token)}&status=signed`);
     } catch (e: any) {
@@ -295,11 +309,12 @@ export default function SignPage() {
         body: JSON.stringify({ token, reason: rejectReason.trim() }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error((data as any)?.error || "No se pudo registrar el rechazo");
+      if (!res.ok) throw new Error(data?.error || "No se pudo registrar el rechazo");
 
       setOk("Rechazo registrado. Se notificará al creador.");
       await refreshPreview();
 
+      // ✅ Post-rechazo: mismo flujo que post-firma
       // Post-acción: llevar a /dashboard (si no hay sesión, middleware envía a /login con next).
       router.replace(`/dashboard?from=signed&token=${encodeURIComponent(token)}&status=rejected`);
     } catch (e: any) {
@@ -544,49 +559,56 @@ export default function SignPage() {
                 </button>
               </div>
 
-              <div className="mt-2 rounded-xl border border-zinc-200 bg-white">
+              <div className="mt-2 rounded-md border border-zinc-200 overflow-hidden">
                 <SignatureCanvas
-                  ref={(r) => {
-                    sigRef.current = r;
-                  }}
+                  ref={sigRef}
                   penColor="black"
                   canvasProps={{
-                    className: "h-44 w-full rounded-xl",
+                    className: "h-[160px] w-full bg-white",
+                    onMouseUp: onSigEnd,
+                    onTouchEnd: onSigEnd,
+                    onPointerUp: onSigEnd,
                   }}
-                  onEnd={onSigEnd}
                 />
               </div>
+
+              <div className="mt-2 text-xs text-zinc-600">{sigDirty ? "✅ Firma capturada" : "Dibujá tu firma en el recuadro."}</div>
             </div>
 
-            {actionErr ? <p className="mt-3 text-sm text-red-700">{actionErr}</p> : null}
-            {ok ? <p className="mt-3 text-sm text-emerald-700">{ok}</p> : null}
+            {actionErr ? (
+              <div className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{actionErr}</div>
+            ) : null}
+
+            {ok ? (
+              <div className="mt-4 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{ok}</div>
+            ) : null}
 
             <div className="mt-4 flex flex-wrap gap-2">
               <button
                 type="button"
-                disabled={!canSign || busy || preview.status !== "pending"}
                 onClick={submit}
-                className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                disabled={!canSign || busy}
+                className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
               >
-                {busy ? "Enviando…" : "Firmar"}
+                {busy ? "Firmando…" : "Firmar y finalizar"}
               </button>
 
               <button
                 type="button"
-                disabled={busy || preview.status !== "pending"}
                 onClick={reject}
-                className="rounded-md border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-900"
+                disabled={busy || preview.status !== "pending"}
+                className="rounded-md border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-900 disabled:opacity-40"
               >
                 Rechazar
               </button>
             </div>
 
-            <div className="mt-4">
-              <textarea
+            <div className="mt-3">
+              <input
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}
-                placeholder="Motivo de rechazo (opcional, pero recomendado)"
-                className="min-h-[72px] w-full rounded-md border border-zinc-200 px-3 py-2 text-sm"
+                placeholder="Motivo de rechazo (mín. 3 caracteres)"
+                className="w-full rounded-md border border-zinc-200 px-3 py-2 text-sm"
                 disabled={busy || preview.status !== "pending"}
               />
             </div>
