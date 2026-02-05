@@ -167,7 +167,7 @@ export default function OnboardingForm({ next, initial }: Props) {
         </div>
 
         <div className="mt-2 text-xs text-zinc-500">
-          Para más info, después podés ver planes en /pricing (si lo tenés) o lo agregamos.
+          Podés revisar los planes en /pricing (y si querés lo hacemos más explícito en la home).
         </div>
       </div>
 
@@ -177,40 +177,47 @@ export default function OnboardingForm({ next, initial }: Props) {
         <div className="mt-3 grid gap-3">
           <input
             className="w-full rounded-md border border-zinc-200 px-3 py-2 text-sm"
-            placeholder="Nombre y apellido"
+            placeholder="Ej: Juan Pérez"
             value={fullName}
             onChange={(e) => setFullName(e.target.value)}
             disabled={busy}
+            autoComplete="name"
           />
           <div className="grid gap-3 sm:grid-cols-2">
             <input
               className="w-full rounded-md border border-zinc-200 px-3 py-2 text-sm"
-              placeholder="DNI"
+              placeholder="DNI (ej: 12.345.678)"
               value={dni}
               onChange={(e) => setDni(e.target.value)}
               disabled={busy}
+              inputMode="numeric"
+              autoComplete="off"
             />
             <input
               className="w-full rounded-md border border-zinc-200 px-3 py-2 text-sm"
-              placeholder="CUIL/CUIT"
+              placeholder="CUIL/CUIT (ej: 20-12345678-9)"
               value={cuil}
               onChange={(e) => setCuil(e.target.value)}
               disabled={busy}
+              autoComplete="off"
             />
           </div>
           <input
             className="w-full rounded-md border border-zinc-200 px-3 py-2 text-sm"
-            placeholder="Domicilio"
+            placeholder="Domicilio (ej: Av. Corrientes 1234, CABA)"
             value={address}
             onChange={(e) => setAddress(e.target.value)}
             disabled={busy}
+            autoComplete="street-address"
           />
           <input
             className="w-full rounded-md border border-zinc-200 px-3 py-2 text-sm"
-            placeholder="Teléfono"
+            placeholder="Teléfono (ej: +54 11 5555-5555)"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
             disabled={busy}
+            type="tel"
+            autoComplete="tel"
           />
         </div>
       </div>
@@ -222,33 +229,37 @@ export default function OnboardingForm({ next, initial }: Props) {
           <div className="mt-3 grid gap-3">
             <input
               className="w-full rounded-md border border-zinc-200 px-3 py-2 text-sm"
-              placeholder="Razón social"
+              placeholder="Razón social (ej: ACME S.A.)"
               value={companyName}
               onChange={(e) => setCompanyName(e.target.value)}
               disabled={busy}
+              autoComplete="organization"
             />
             <div className="grid gap-3 sm:grid-cols-2">
               <input
                 className="w-full rounded-md border border-zinc-200 px-3 py-2 text-sm"
-                placeholder="CUIT empresa"
+                placeholder="CUIT empresa (ej: 30-12345678-9)"
                 value={companyCuit}
                 onChange={(e) => setCompanyCuit(e.target.value)}
                 disabled={busy}
+                autoComplete="off"
               />
               <input
                 className="w-full rounded-md border border-zinc-200 px-3 py-2 text-sm"
-                placeholder="Rol del representante (ej: Representante legal)"
+                placeholder="Rol del representante (ej: Apoderado / Representante legal)"
                 value={companyRole}
                 onChange={(e) => setCompanyRole(e.target.value)}
                 disabled={busy}
+                autoComplete="organization-title"
               />
             </div>
             <input
               className="w-full rounded-md border border-zinc-200 px-3 py-2 text-sm"
-              placeholder="Domicilio empresa"
+              placeholder="Domicilio empresa (ej: Bouchard 100, CABA)"
               value={companyAddress}
               onChange={(e) => setCompanyAddress(e.target.value)}
               disabled={busy}
+              autoComplete="off"
             />
           </div>
         </div>

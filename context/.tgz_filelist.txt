@@ -1,0 +1,10 @@
+middleware.ts
+app/layout.tsx
+app/page.tsx
+app/signed/page.tsx
+app/s/[token]/page.tsx
+app/profile/page.tsx
+app/profile/profile-client.tsx
+app/admin/page.tsx
+app/terms/page.tsx
+app/privacy/page.tsx

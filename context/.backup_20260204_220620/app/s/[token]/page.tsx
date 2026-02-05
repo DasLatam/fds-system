@@ -241,8 +241,7 @@ export default function SignPage() {
       await refreshPreview();
 
       // ✅ Post-firma: invitación a registrarse / claim de historial
-      // Post-acción: llevar a /dashboard (si no hay sesión, middleware envía a /login con next).
-      router.replace(`/dashboard?from=signed&token=${encodeURIComponent(token)}&status=signed`);
+      router.replace(`/signed?token=${encodeURIComponent(token)}`);
     } catch (e: any) {
       setActionErr(e?.message || "Error inesperado");
     } finally {
@@ -275,8 +274,7 @@ export default function SignPage() {
       await refreshPreview();
 
       // ✅ Post-rechazo: mismo flujo que post-firma
-      // Post-acción: llevar a /dashboard (si no hay sesión, middleware envía a /login con next).
-      router.replace(`/dashboard?from=signed&token=${encodeURIComponent(token)}&status=rejected`);
+      router.replace(`/signed?token=${encodeURIComponent(token)}`);
     } catch (e: any) {
       setActionErr(e?.message || "Error inesperado");
     } finally {

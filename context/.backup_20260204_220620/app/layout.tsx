@@ -19,14 +19,6 @@ function NavLink({ href, children }: { href: string; children: React.ReactNode }
   );
 }
 
-function NavButton({ href, children }: { href: string; children: React.ReactNode }) {
-  return (
-    <Link href={href} className="rounded-md bg-black px-3 py-1.5 text-sm font-medium text-white">
-      {children}
-    </Link>
-  );
-}
-
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createSupabaseServerClient();
   const {
@@ -45,30 +37,19 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               Firma Electrónica Simple
             </Link>
             <nav className="flex items-center gap-4">
-              {user ? (
-                <>
-                  <NavLink href="/dashboard">Dashboard</NavLink>
-                  <NavLink href="/dashboard/new">Nuevo</NavLink>
-                  <NavLink href="/dashboard/account">Cuentas</NavLink>
-                  {isAdmin ? <NavLink href="/admin">Admin</NavLink> : null}
-                  <NavLink href="/terms">Términos</NavLink>
-                  <NavLink href="/privacy">Privacidad</NavLink>
-                  <NavLink href="/pricing">Planes</NavLink>
-                  <a
-                    href="/api/logout"
-                    className="rounded-md bg-black px-3 py-1.5 text-sm font-medium text-white"
-                  >
-                    Salir
-                  </a>
-                </>
-              ) : (
-                <>
-                  <NavLink href="/pricing">Planes</NavLink>
-                  <NavLink href="/terms">Términos</NavLink>
-                  <NavLink href="/privacy">Privacidad</NavLink>
-                  <NavButton href="/login?next=%2Fdashboard">Ingresar</NavButton>
-                </>
-              )}
+              <NavLink href="/pricing">Planes</NavLink>
+              <NavLink href="/terms">Términos</NavLink>
+              <NavLink href="/privacy">Privacidad</NavLink>
+
+              {user ? <NavLink href="/dashboard">Dashboard</NavLink> : null}
+              {isAdmin ? <NavLink href="/admin">Admin</NavLink> : null}
+
+              <Link
+                href={user ? "/dashboard" : "/login"}
+                className="rounded-md bg-black px-3 py-1.5 text-sm font-medium text-white"
+              >
+                {user ? "Ir al panel" : "Ingresar"}
+              </Link>
             </nav>
           </div>
         </header>

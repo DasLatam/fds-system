@@ -19,7 +19,7 @@ export default function HomePage() {
             </p>
 
             <div className="mt-7 flex flex-wrap items-center gap-3">
-              <Link href="/login?next=%2Fdashboard" className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white">
+              <Link href="/login" className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white">
                 Crear una firma
               </Link>
 
@@ -75,7 +75,7 @@ export default function HomePage() {
                   <div className="text-xs text-zinc-500">Firmantes</div>
                   <ul className="mt-2 space-y-2 text-sm">
                     <li className="flex items-center justify-between">
-                      <span>usuario@…</span>
+                      <span>ariel@…</span>
                       <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700">Pendiente</span>
                     </li>
                     <li className="flex items-center justify-between">
@@ -93,7 +93,12 @@ export default function HomePage() {
                 </div>
               </div>
 
-              {/* Nota legal: se muestra en el pie de página global para evitar duplicaciones. */}
+              <div className="mt-6 rounded-lg border border-zinc-200 bg-zinc-50 p-4 text-xs text-zinc-700">
+                <div className="font-medium text-zinc-900">Importante</div>
+                <div className="mt-1">
+                  FES implementa firma electrónica. No es firma digital certificada (token/certificado).
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -129,7 +134,7 @@ export default function HomePage() {
         </div>
 
         <div className="mt-6 flex flex-wrap items-center gap-3">
-          <Link href="/login?next=%2Fdashboard" className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white">
+          <Link href="/login" className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white">
             Crear una firma
           </Link>
           <Link href="/terms" className="text-sm text-zinc-700 hover:text-zinc-900">
@@ -173,21 +178,6 @@ export default function HomePage() {
       {/* CASOS DE USO / NO USAR */}
       <section className="mx-auto max-w-5xl px-4 py-14">
         <h2 className="text-2xl font-semibold">¿Para qué sirve?</h2>
-
-        <div className="mt-4 rounded-xl border border-zinc-200 bg-zinc-50 p-5">
-          <div className="font-medium text-zinc-900">Funciones</div>
-          <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-zinc-700">
-            <li>
-              <b>Subir PDF</b>, invitar firmantes por email y generar un <b>PDF final verificable</b>.
-            </li>
-            <li>
-              <b>Verificación pública</b> por QR/código con validación de integridad.
-            </li>
-            <li>
-              <b>Plantillas</b> y <b>redactor de documentos</b>: disponibles en forma progresiva (función en evolución).
-            </li>
-          </ul>
-        </div>
 
         <div className="mt-6 grid gap-4 md:grid-cols-2">
           <div className="rounded-xl border border-zinc-200 p-5">
@@ -238,7 +228,7 @@ export default function HomePage() {
           </div>
 
           <div className="mt-8 flex flex-wrap items-center gap-3">
-            <Link href="/login?next=%2Fdashboard" className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white">
+            <Link href="/login" className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white">
               Empezar ahora
             </Link>
             <Link href="/terms" className="text-sm text-zinc-700 hover:text-zinc-900">
@@ -249,6 +239,10 @@ export default function HomePage() {
             </Link>
           </div>
 
+          <p className="mt-6 text-xs text-zinc-600">
+            Este servicio implementa firma electrónica conforme a la Ley 25.506 (República Argentina). No constituye firma
+            digital certificada.
+          </p>
         </div>
       </section>
     </div>

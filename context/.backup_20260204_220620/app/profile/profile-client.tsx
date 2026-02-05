@@ -289,7 +289,7 @@ export default function ProfileClient() {
       <div className="grid gap-4">
         <Field
           label="Nombre completo"
-				placeholder="Ej: Juan Pérez"
+          placeholder="Ej: Ariel Baudry"
           value={form.full_name}
           onChange={(v) => setForm((p) => ({ ...p, full_name: v }))}
           required
@@ -316,7 +316,7 @@ export default function ProfileClient() {
 
         <Field
           label="Dirección postal"
-				placeholder="Ej: Calle 1234, CABA, Argentina"
+          placeholder="Ej: Calle 129 7304, Quilmes, Buenos Aires"
           value={form.address}
           onChange={(v) => setForm((p) => ({ ...p, address: v }))}
           required
@@ -324,7 +324,7 @@ export default function ProfileClient() {
 
         <Field
           label="Celular"
-				placeholder="Ej: 1155555555 (solo números)"
+          placeholder="Ej: 1139009550 (solo números)"
           inputMode="tel"
           value={form.phone}
           onChange={(v) => setForm((p) => ({ ...p, phone: onlyDigits(v) }))}
