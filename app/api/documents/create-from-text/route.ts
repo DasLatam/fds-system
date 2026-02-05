@@ -269,7 +269,7 @@ export async function POST(req: NextRequest) {
       documentId,
       actorUserId: user.id,
       // usamos un eventType existente en AuditEventType para no romper build
-      eventType: "document_created",
+      eventType: "doc_created",
       ip: req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || null,
       userAgent: req.headers.get("user-agent") || null,
       payload: {
