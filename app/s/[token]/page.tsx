@@ -4,16 +4,7 @@ import SignatureCanvas from "react-signature-canvas";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 
-type Prefill = {
-  fullName: string | null;
-  dni: string | null;
-  cuil: string | null;
-  address: string | null;
-  phone: string | null;
-};
-
 type Preview = {
-  signingRequestId?: string;
   documentId: string;
   title: string;
   email: string;
@@ -21,9 +12,7 @@ type Preview = {
   signingMode: "parallel" | "sequential";
   position: number | null;
   expiresAt: string | null;
-  replacedBy?: string | null;
   pdfUrl: string; // suele ser "/api/preview?token=..."
-  prefill?: Prefill | null;
 };
 
 type SignerCapacity = "self" | "representing";
@@ -49,35 +38,6 @@ export default function SignPage() {
   const companyRoleRef = useRef<HTMLInputElement | null>(null);
 
   const [preview, setPreview] = useState<Preview | null>(null);
-
-  // Autofill (si el firmante tiene perfil)
-  useEffect(() => {
-    const p = preview?.prefill;
-    if (!p) return;
-
-    const digits = (v: string | null) => (v ?? "").replace(/\D+/g, "");
-
-    const fillIfEmpty = (
-      ref: { current: HTMLInputElement | null },
-      value: string | null,
-    ) => {
-      const el = ref.current;
-      if (!el) return;
-      const cur = (el.value ?? "").trim();
-      if (cur.length > 0) return; // no pisar
-      const next = (value ?? "").trim();
-      if (next.length == 0) return;
-      el.value = next;
-    };
-
-    fillIfEmpty(fullNameRef, p.fullName);
-    fillIfEmpty(dniRef, digits(p.dni));
-    fillIfEmpty(cuilRef, digits(p.cuil));
-    fillIfEmpty(addressRef, p.address);
-    fillIfEmpty(phoneRef, digits(p.phone));
-
-    bump();
-  }, [preview]);
   const [loading, setLoading] = useState(true);
 
   // ✅ separar errores

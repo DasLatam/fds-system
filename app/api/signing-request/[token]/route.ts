@@ -83,7 +83,9 @@ export async function GET(
   // Prefill only if the visitor is logged in AND matches the invite email.
   let prefill: any = null;
   try {
-    const supabase = createSupabaseServerClient();
+    // In this repo, createSupabaseServerClient() is async and returns Promise<SupabaseClient>
+    // (it needs access to cookies/session at request time).
+    const supabase = await createSupabaseServerClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();
