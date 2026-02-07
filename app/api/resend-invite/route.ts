@@ -1,149 +1,114 @@
 import { NextResponse } from "next/server";
-import { z } from "zod";
 import { randomUUID } from "crypto";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+
 import { createAdminClient } from "@/lib/supabase/admin";
-import { sendInviteEmail } from "@/lib/mail/send";
-import { logEvent } from "@/lib/audit/logEvent";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-export const runtime = "nodejs";
+function jsonError(status: number, error: string, details?: unknown) {
+  return NextResponse.json({ error, details }, { status });
+}
 
-const BodySchema = z.object({
-  signingRequestId: z.string().uuid(),
-  expiresInDays: z.number().int().min(3).max(30).default(3),
-});
-
-function appUrl() {
-  return (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").replace(/\/$/, "");
+function getBaseUrl(req: Request) {
+  const env = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  if (env) return env.replace(/\/$/, "");
+  return new URL(req.url).origin;
 }
 
 export async function POST(req: Request) {
-  const supabase = await createSupabaseServerClient();
+  const { supabase } = createSupabaseServerClient();
   const admin = createAdminClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const { data: auth, error: authErr } = await supabase.auth.getUser();
+  const user = auth?.user;
+  if (authErr || !user) return jsonError(401, "unauthorized");
 
-  const ct = req.headers.get("content-type") || "";
-  const payload = ct.includes("application/json")
-    ? await req.json().catch(() => null)
-    : Object.fromEntries((await req.formData()).entries());
+  const body = await req.json().catch(() => null);
+  const signingRequestId = body?.signingRequestId as string | undefined;
+  if (!signingRequestId || typeof signingRequestId !== "string") {
+    return jsonError(400, "invalid_body", { field: "signingRequestId" });
+  }
 
-  const parsed = BodySchema.safeParse({
-    signingRequestId: String((payload as any)?.signingRequestId || (payload as any)?.signing_request_id || ""),
-    expiresInDays: Number((payload as any)?.expiresInDays || (payload as any)?.expires_in_days || 3),
-  });
-
-  if (!parsed.success) return NextResponse.json({ error: "invalid_body" }, { status: 400 });
-
-  const { signingRequestId, expiresInDays } = parsed.data;
-
+  // Load current signing request
   const { data: sr, error: srErr } = await admin
     .from("signing_requests")
-    .select("id,document_id,email,status,token")
+    .select("id,document_id,email,status,signing_mode,position,replaced_by")
     .eq("id", signingRequestId)
-    .single();
+    .maybeSingle();
 
-  if (srErr || !sr) return NextResponse.json({ error: "not_found" }, { status: 404 });
+  if (srErr) return jsonError(500, "db_error", srErr);
+  if (!sr) return jsonError(404, "not_found");
 
+  // Ownership check: user must own the document
   const { data: doc, error: docErr } = await admin
     .from("documents")
     .select("id,title,created_by")
     .eq("id", sr.document_id)
-    .single();
+    .maybeSingle();
 
-  if (docErr || !doc) return NextResponse.json({ error: "doc_not_found" }, { status: 404 });
-  if (doc.created_by !== user.id) return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  if (docErr) return jsonError(500, "db_error", docErr);
+  if (!doc) return jsonError(404, "document_not_found");
+  if (doc.created_by !== user.id) return jsonError(403, "forbidden");
 
-  const expiresAt = new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000);
-  const newToken = randomUUID();
+  const now = new Date();
+  const nowIso = now.toISOString();
+  const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
-  // 1) Actualizamos token/estado/vencimiento (NO email_sent_at todavía)
-  const upd = await admin
+  // Create a NEW signing request id (public token) and mark the old one as replaced.
+  const newId = randomUUID();
+
+  const ins = await admin
     .from("signing_requests")
-    .update({
-      token: newToken,
+    .insert({
+      id: newId,
+      document_id: sr.document_id,
+      email: sr.email,
       status: "pending",
-      invited_at: new Date().toISOString(),
-      expires_at: expiresAt.toISOString(),
-      rejection_reason: null, // ✅ existe en tu schema
-      // ❌ NO rejected_at (no existe)
+      signing_mode: sr.signing_mode,
+      position: sr.position,
+      invited_at: nowIso,
+      expires_at: expiresAt,
     })
-    .eq("id", sr.id)
-    .select("id, token")
-    .single();
+    .select("id,email")
+    .maybeSingle();
 
-  if (upd.error || !upd.data) {
-    console.error("resend-invite update failed:", upd.error);
-    return NextResponse.json(
-      { error: "signing_request_update_failed" },
-      { status: 500 }
-    );
-  }
+  if (ins.error || !ins.data) return jsonError(500, "insert_failed", ins.error);
 
-  // 2) Verificación dura: si por cualquier motivo no quedó persistido, NO mandamos mail
-  if (upd.data.token !== newToken) {
-    console.error("resend-invite token mismatch after update", {
-      expected: newToken,
-      got: upd.data.token,
-    });
-    return NextResponse.json(
-      { error: "signing_request_token_not_persisted" },
-      { status: 500 }
-    );
-  }
+  await admin
+    .from("signing_requests")
+    .update({ replaced_by: newId })
+    .eq("id", signingRequestId);
 
-  const signUrl = `${appUrl()}/s/${newToken}`;
+  const baseUrl = getBaseUrl(req);
+  const signUrl = `${baseUrl}/s/${newId}`;
 
-  // 3) Enviamos email
-  try {
-    await sendInviteEmail({
-      to: sr.email,
-      documentTitle: doc.title,
-      signUrl,
-      expiresAtIso: expiresAt.toISOString(),
-      inviterEmail: user.email ?? undefined,
-    });
+  const resendKey = process.env.RESEND_API_KEY;
+  const resendFrom = process.env.RESEND_FROM || "Firma Simple <no-reply@firmasimple.app>";
 
-    // ✅ solo si se envió
-    const sentUpd = await admin
-      .from("signing_requests")
-      .update({ email_sent_at: new Date().toISOString() })
-      .eq("id", sr.id);
-
-    if (sentUpd.error) {
-      console.warn("email_sent_at update failed:", sentUpd.error);
+  if (resendKey) {
+    const { Resend } = await import("resend");
+    const resend = new Resend(resendKey);
+    try {
+      await resend.emails.send({
+        from: resendFrom,
+        to: sr.email,
+        subject: `Reenvío de invitación: ${doc.title ?? "Documento"}`,
+        html: `
+          <div style="font-family:ui-sans-serif,system-ui,Segoe UI,Roboto,Helvetica,Arial;line-height:1.45">
+            <h2 style="margin:0 0 12px 0">Reenvío de invitación</h2>
+            <p style="margin:0 0 12px 0">Te reenviaron la invitación para firmar:</p>
+            <p style="margin:0 0 18px 0"><strong>${doc.title ?? "Documento"}</strong></p>
+            <p style="margin:0 0 18px 0">
+              <a href="${signUrl}" style="display:inline-block;padding:10px 14px;border-radius:10px;background:#111;color:#fff;text-decoration:none">Abrir para firmar</a>
+            </p>
+            <p style="margin:0;color:#555;font-size:12px">Si no esperabas este mensaje, podés ignorarlo.</p>
+          </div>
+        `,
+      });
+      await admin.from("signing_requests").update({ email_sent_at: nowIso }).eq("id", newId);
+    } catch {
+      // ignore
     }
-
-    await logEvent({
-      documentId: doc.id,
-      signingRequestId: sr.id,
-      actorUserId: user.id,
-      actorEmail: sr.email,
-      eventType: "email_sent",
-      payload: { signUrl, resend: true },
-    });
-
-    const redirectUrl = new URL(
-      `/dashboard/doc/${doc.id}`,
-      process.env.NEXT_PUBLIC_APP_URL || "https://firmasimple.vercel.app"
-    );
-    redirectUrl.searchParams.set("toast", "resent");
-    return NextResponse.redirect(redirectUrl, 303);
-  } catch (e: any) {
-    const msg = e?.message || "send_failed";
-
-    await logEvent({
-      documentId: doc.id,
-      signingRequestId: sr.id,
-      actorUserId: user.id,
-      actorEmail: sr.email,
-      eventType: "email_sent",
-      payload: { ok: false, error: msg, action: "resend_invite" },
-    });
-
-    return NextResponse.json({ error: "email_failed", details: msg }, { status: 429 });
   }
+
+  return NextResponse.json({ ok: true, id: newId, url: signUrl });
 }
