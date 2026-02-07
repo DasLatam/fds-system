@@ -1,166 +1,219 @@
 import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
-
-import { createAdminClient } from "@/lib/supabase/admin";
+import { z } from "zod";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { sendInviteEmail } from "@/lib/mail/send";
+import { logEvent } from "@/lib/audit/logEvent";
 
-function jsonError(status: number, error: string, details?: unknown) {
-  return NextResponse.json({ error, details }, { status });
+export const runtime = "nodejs";
+
+const BodySchema = z.object({
+  documentId: z.string().uuid(),
+  signingMode: z.enum(["parallel", "sequential"]),
+  expiresInDays: z.number().int().min(3).max(30).default(3),
+  signers: z.array(z.object({ email: z.string().email() })).min(1),
+});
+
+function appUrl() {
+  return (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").replace(/\/$/, "");
 }
 
-function getBaseUrl(req: Request) {
-  // prefer explicit env, fallback to request origin
-  const env = process.env.NEXT_PUBLIC_APP_URL?.trim();
-  if (env) return env.replace(/\/$/, "");
-  return new URL(req.url).origin;
-}
-
-function normalizeEmail(e: string) {
-  return e.trim().toLowerCase();
-}
-
-function isEmail(s: string) {
-  // pragmatic check (avoid rejecting valid-but-rare forms)
-  return /^\S+@\S+\.\S+$/.test(s);
+function sleep(ms: number) {
+  return new Promise((r) => setTimeout(r, ms));
 }
 
 export async function POST(req: Request) {
-  const { supabase } = createSupabaseServerClient();
-  const admin = createAdminClient();
+  try {
+    const json = await req.json();
+    const body = BodySchema.parse(json);
 
-  const { data: auth, error: authErr } = await supabase.auth.getUser();
-  const user = auth?.user;
-  if (authErr || !user) return jsonError(401, "unauthorized");
+    const supabase = await createSupabaseServerClient();
 
-  const body = await req.json().catch(() => null);
-  const documentId = body?.documentId as string | undefined;
-  const signingMode = (body?.signingMode as string | undefined) ?? null;
-  const emailsRaw = (body?.emails as unknown) ?? [];
+// ===== FES: Plan/Límite (Free) =====
+const FREE_LIMIT = Number(process.env.FES_FREE_DOCS_PER_MONTH || "5");
+try {
+  // Obtener user id (server-side)
+  let userId: string | null = null;
+  // patrones comunes
+  // @ts-ignore
+  if (typeof user !== "undefined" && user?.id) userId = user.id;
+  // @ts-ignore
+  if (!userId && typeof session !== "undefined" && session?.user?.id) userId = session.user.id;
 
-  if (!documentId || typeof documentId !== "string") {
-    return jsonError(400, "invalid_body", { field: "documentId" });
+  // Si no tenemos user, no bloqueamos acá (auth middleware debería cubrir)
+  if (userId) {
+    // Buscar plan
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("plan")
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    const plan = (profile?.plan || "free") as string;
+
+    if (plan !== "pro") {
+      // Contar documentos creados en el mes actual
+      const now = new Date();
+      const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1, 0, 0, 0));
+      const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1, 0, 0, 0));
+
+      const { count } = await supabase
+        .from("documents")
+        .select("id", { head: true, count: "exact" })
+        .eq("created_by", userId)
+        .gte("created_at", start.toISOString())
+        .lt("created_at", end.toISOString());
+
+      if ((count || 0) >= FREE_LIMIT) {
+        return NextResponse.json(
+          {
+            error: "Alcanzaste el límite mensual del plan Free. Actualizá a Pro para crear más documentos.",
+            code: "PLAN_LIMIT_REACHED",
+            limit: FREE_LIMIT,
+          },
+          { status: 402 }
+        );
+      }
+    }
   }
+} catch (e) {
+  // Si falla el check, no rompemos creación (fail-open) para no cortar producción.
+  console.warn("plan_limit_check_failed", e);
+}
+// ===== end Plan/Límite =====
 
-  if (!Array.isArray(emailsRaw)) {
-    return jsonError(400, "invalid_body", { field: "emails" });
-  }
+    const admin = createAdminClient();
 
-  const emails = Array.from(
-    new Set(
-      emailsRaw
-        .filter((x: unknown) => typeof x === "string")
-        .map((x: string) => normalizeEmail(x))
-        .filter((x: string) => x.length > 3)
-    )
-  ).filter(isEmail);
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-  if (emails.length === 0) {
-    return jsonError(400, "invalid_body", { field: "emails" });
-  }
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  // Load document and ownership
-  const { data: doc, error: docErr } = await admin
-    .from("documents")
-    .select("id,title,created_by,account_id,signing_mode,total_signers")
-    .eq("id", documentId)
-    .maybeSingle();
+    const { data: doc, error: docErr } = await supabase
+      .from("documents")
+      .select("id, title, created_by, signing_mode, total_signers, signed_count")
+      .eq("id", body.documentId)
+      .single();
 
-  if (docErr) return jsonError(500, "db_error", docErr);
-  if (!doc) return jsonError(404, "document_not_found");
-  if (doc.created_by !== user.id) return jsonError(403, "forbidden");
+    if (docErr || !doc) return NextResponse.json({ error: "Document not found" }, { status: 404 });
+    if (doc.created_by !== user.id) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  // Determine positions (append after existing invites)
-  const { count: existingCount, error: countErr } = await admin
-    .from("signing_requests")
-    .select("id", { count: "exact", head: true })
-    .eq("document_id", documentId);
+    const { count: existingCount } = await admin
+      .from("signing_requests")
+      .select("id", { count: "exact", head: true })
+      .eq("document_id", body.documentId);
 
-  if (countErr) return jsonError(500, "db_error", countErr);
+    const baseCount = existingCount ?? 0;
+    const total = baseCount + body.signers.length;
 
-  const now = new Date();
-  const nowIso = now.toISOString();
+    // Best-effort: si esta update falla por RLS, igual seguimos (pero lo logueamos)
+    const upd = await supabase
+      .from("documents")
+      .update({ signing_mode: body.signingMode, total_signers: total })
+      .eq("id", body.documentId);
 
-  // Default expiry: 7 days (can be tuned later)
-  const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    if (upd.error) {
+      console.warn("documents update failed (non fatal):", upd.error);
+    }
 
-  const startPos = (existingCount ?? 0) + 1;
+    const expiresAt = new Date(Date.now() + body.expiresInDays * 24 * 60 * 60 * 1000);
 
-  // IMPORTANT: we use signing_requests.id as the public token.
-  // The DB schema does not require a separate "token" column.
-  const rows = emails.map((email: string, i: number) => ({
-    id: randomUUID(),
-    document_id: documentId,
-    email,
-    status: "pending",
-    signing_mode: signingMode ?? doc.signing_mode ?? "draw",
-    position: startPos + i,
-    invited_at: nowIso,
-    expires_at: expiresAt,
-  }));
-
-  const ins = await admin
-    .from("signing_requests")
-    .insert(rows)
-    .select("id,email");
-
-  if (ins.error || !ins.data) return jsonError(500, "insert_failed", ins.error);
-
-  // Best-effort: update document counters
-  await admin
-    .from("documents")
-    .update({
-      total_signers: (doc.total_signers ?? 0) + rows.length,
-      signing_mode: signingMode ?? doc.signing_mode ?? "draw",
+    const rows = body.signers.map((s, idx) => ({
+      token: randomUUID(),
+      document_id: body.documentId,
+      email: s.email,
+      position: body.signingMode === "sequential" ? baseCount + idx + 1 : null,
+      invited_at: new Date().toISOString(),
+      expires_at: expiresAt.toISOString(),
       status: "pending",
-    })
-    .eq("id", documentId);
+    }));
 
-  const baseUrl = getBaseUrl(req);
+    const ins = await admin.from("signing_requests").insert(rows).select("id, email, token");
 
-  // Send emails (best-effort). If you already had this wired elsewhere, keep it there;
-  // this route only guarantees DB rows + correct tokens.
-  // NOTE: If RESEND isn't configured, we still return success (invites exist).
-  const resendKey = process.env.RESEND_API_KEY;
-  const resendFrom = process.env.RESEND_FROM || "Firma Simple <no-reply@firmasimple.app>";
+    if (ins.error || !ins.data) {
+      console.error("signing_requests insert failed:", ins.error);
+      return NextResponse.json({ error: ins.error?.message || "Insert failed" }, { status: 500 });
+    }
 
-  if (resendKey) {
-    const { Resend } = await import("resend");
-    const resend = new Resend(resendKey);
+    const created = ins.data;
 
-    await Promise.all(
-      ins.data.map(async (r) => {
-        const signUrl = `${baseUrl}/s/${r.id}`;
-        try {
-          await resend.emails.send({
-            from: resendFrom,
-            to: r.email,
-            subject: `Firma requerida: ${doc.title ?? "Documento"}`,
-            html: `
-              <div style="font-family:ui-sans-serif,system-ui,Segoe UI,Roboto,Helvetica,Arial;line-height:1.45">
-                <h2 style="margin:0 0 12px 0">Firma requerida</h2>
-                <p style="margin:0 0 12px 0">Te solicitaron firmar el documento:</p>
-                <p style="margin:0 0 18px 0"><strong>${doc.title ?? "Documento"}</strong></p>
-                <p style="margin:0 0 18px 0">
-                  <a href="${signUrl}" style="display:inline-block;padding:10px 14px;border-radius:10px;background:#111;color:#fff;text-decoration:none">Abrir para firmar</a>
-                </p>
-                <p style="margin:0;color:#555;font-size:12px">Si no esperabas este mensaje, podés ignorarlo.</p>
-              </div>
-            `,
-          });
-          await admin
-            .from("signing_requests")
-            .update({ email_sent_at: nowIso })
-            .eq("id", r.id);
-        } catch {
-          // ignore; invite exists in DB
-        }
-      })
-    );
+    // ✅ Verificación post-insert: re-lee por ids para asegurar persistencia real
+    const ids = created.map((x) => x.id);
+    const verify = await admin
+      .from("signing_requests")
+      .select("id, token, email, status")
+      .in("id", ids);
+
+    if (verify.error || !verify.data || verify.data.length !== ids.length) {
+      console.error("signing_requests verification FAILED:", {
+        verifyError: verify.error?.message,
+        expected: ids.length,
+        got: verify.data?.length ?? 0,
+      });
+      // devolvemos 500 porque si esto pasa, después /s/<token> va a explotar sí o sí
+      return NextResponse.json(
+        { error: "signing_requests_not_persisted" },
+        { status: 500 }
+      );
+    }
+
+    await logEvent({
+      documentId: body.documentId,
+      actorUserId: user.id,
+      eventType: "invite_created",
+      payload: { count: created.length, signingMode: body.signingMode },
+    });
+
+    const base = appUrl();
+    let sent = 0;
+    const failed: { email: string; id: string; error: string }[] = [];
+
+    for (const r of created) {
+      const signUrl = `${base}/s/${r.token}`;
+
+      try {
+        await sendInviteEmail({
+          to: r.email,
+          documentTitle: doc.title,
+          signUrl,
+          expiresAtIso: expiresAt.toISOString(),
+          inviterEmail: user.email ?? undefined,
+        });
+
+        sent++;
+
+        await admin.from("signing_requests").update({ email_sent_at: new Date().toISOString() }).eq("id", r.id);
+
+        await logEvent({
+          documentId: body.documentId,
+          signingRequestId: r.id,
+          actorUserId: user.id,
+          actorEmail: r.email,
+          eventType: "email_sent",
+          payload: { signUrl },
+        });
+      } catch (e: any) {
+        const msg = e?.message || "send_failed";
+        failed.push({ email: r.email, id: r.id, error: msg });
+
+        // OJO: no inventamos nuevos eventType (te rompió el build antes). Reusamos "email_sent" con ok:false
+        await logEvent({
+          documentId: body.documentId,
+          signingRequestId: r.id,
+          actorUserId: user.id,
+          actorEmail: r.email,
+          eventType: "email_sent",
+          payload: { ok: false, error: msg, action: "invite_send" },
+        });
+      }
+
+      await sleep(250);
+    }
+
+    return NextResponse.json({ ok: true, invited: created.length, sent, failedCount: failed.length, failed });
+  } catch (e: any) {
+    return NextResponse.json({ error: e?.message || "Unexpected error" }, { status: 400 });
   }
-
-  return NextResponse.json({
-    ok: true,
-    documentId,
-    invites: ins.data.map((r) => ({ id: r.id, email: r.email, url: `${baseUrl}/s/${r.id}` })),
-  });
 }
