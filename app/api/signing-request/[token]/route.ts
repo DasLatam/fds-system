@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 // Public endpoint: resolves a signing link token to the signing request + document preview data.
@@ -19,7 +19,7 @@ export async function GET(
     return NextResponse.json({ error: "invalid_token" }, { status: 400 });
   }
 
-  const admin = createSupabaseAdminClient();
+  const admin = createAdminClient();
 
   // 1) Primary: token column
   let { data: sr, error: srErr } = await admin
