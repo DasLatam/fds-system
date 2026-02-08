@@ -681,12 +681,21 @@ export async function POST(req: NextRequest) {
         const titleForEmail = String((docOwnerRes.data as any)?.title || doc.title || "Documento");
         const completedAtForEmail = String((docOwnerRes.data as any)?.completed_at || nowIso);
 
-        // firmantes (emails)
-        const signersEmailsRes = await admin.from("signing_requests").select("email").eq("document_id", documentId);
+        // firmantes (emails + token)
+        const signersRes = await admin
+          .from("signing_requests")
+          .select("email, token, status")
+          .eq("document_id", documentId);
+
+        const signerRows: Array<{ email?: string | null; token?: string | null; status?: string | null }> = Array.isArray(
+          (signersRes as any)?.data
+        )
+          ? ((signersRes as any).data as any[])
+          : [];
 
         const rawRecipients = [
           createdByEmail,
-          ...(Array.isArray(signersEmailsRes.data) ? signersEmailsRes.data.map((r: any) => String(r.email || "")) : []),
+          ...signerRows.map((r) => String(r?.email || "")),
         ]
           .map((x) => String(x || "").trim())
           .filter(Boolean);
@@ -694,47 +703,132 @@ export async function POST(req: NextRequest) {
         const recipients = Array.from(new Set(rawRecipients.filter((e) => isValidEmail(e))));
         const subject = `✅ Documento finalizado: ${titleForEmail}`;
 
-        const verifyUrl2 = `${process.env.NEXT_PUBLIC_SITE_URL || "https://firmasimple.vercel.app"}/v/${auditCodeForEmail}`;
-        const downloadUrl =
-          finalPathForEmail && (process.env.NEXT_PUBLIC_SITE_URL || "https://firmasimple.vercel.app")
-            ? `${process.env.NEXT_PUBLIC_SITE_URL || "https://firmasimple.vercel.app"}/api/download?documentId=${documentId}&kind=final`
-            : null;
+        const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || "https://firmasimple.vercel.app").replace(/\/+$/, "");
+        const verifyUrl2 = `${siteUrl}/v/${encodeURIComponent(auditCodeForEmail)}`;
 
         if (recipients.length > 0) {
-          const html = baseEmailTemplate({
-            title: "Documento finalizado",
-            preheader: `Documento finalizado: ${titleForEmail}`,
-            intro: `“${titleForEmail}” fue firmado por todos. Podés descargar el PDF final y conservar el código de auditoría para referencia.`,
-            cta: downloadUrl ? { label: "Descargar PDF final", href: downloadUrl } : undefined,
-            childrenHtml: `
+          // Enviamos 1 mail por destinatario para:
+          // - no exponer correos entre sí
+          // - incluir link de descarga con token para firmantes (requerido por /api/download)
+          const results: Array<{ to: string; resend_id: string | null; error?: string }> = [];
+
+          const ownerEmail = isValidEmail(createdByEmail) ? String(createdByEmail).trim() : "";
+          const ownerEmailLc = ownerEmail ? ownerEmail.toLowerCase() : "";
+
+          for (const to of recipients) {
+            const toLc = to.toLowerCase();
+            const signer = signerRows.find((r) => String(r?.email || "").trim().toLowerCase() === toLc);
+            const signerToken =
+              signer && String(signer?.status || "").toLowerCase() === "signed" && signer?.token
+                ? String(signer.token)
+                : null;
+
+            const downloadUrl = signerToken
+              ? `${siteUrl}/api/download?documentId=${encodeURIComponent(documentId)}&kind=final&token=${encodeURIComponent(
+                  signerToken
+                )}`
+              : ownerEmailLc && toLc === ownerEmailLc
+                ? `${siteUrl}/api/download?documentId=${encodeURIComponent(documentId)}&kind=final`
+                : null;
+
+            const introLine = downloadUrl
+              ? `“${escapeHtml(titleForEmail)}” fue firmado por todos. Podés descargar el PDF final y conservar el código de auditoría para referencia.`
+              : `“${escapeHtml(titleForEmail)}” fue firmado por todos. Conservá el código de auditoría para referencia.`;
+
+            const bodyHtml = `
+              <p style="margin:0 0 12px 0; font-size:14px; line-height:1.6;">
+                ${introLine}
+              </p>
+
+              ${
+                downloadUrl
+                  ? `<p style="margin:0 0 16px 0;">
+                      <a
+                        href="${escapeHtml(downloadUrl)}"
+                        style="display:inline-block;background:#059669;color:#ffffff;text-decoration:none;padding:10px 14px;border-radius:10px;font-weight:600;"
+                      >
+                        Descargar PDF final
+                      </a>
+                    </p>`
+                  : `<p style="margin:0 0 16px 0; font-size:13px; line-height:1.6; color:#3f3f46;">
+                      Para descargar el PDF final, ingresá con tu cuenta o pedile al creador del documento que te comparta acceso.
+                    </p>`
+              }
+
               <p style="margin:0 0 10px 0;"><b>Fecha:</b> ${escapeHtml(completedAtForEmail)}</p>
-              <p style="margin:0 0 10px 0;"><b>Código de auditoría:</b> ${escapeHtml(auditCodeForEmail)}</p>
+
+              <p style="margin:0 0 10px 0;">
+                <b>Código de auditoría:</b>
+                <span style="font-family: ui-monospace, SFMono-Regular, Menlo, monospace;">
+                  ${escapeHtml(auditCodeForEmail)}
+                </span>
+              </p>
+
               <p style="margin:0 0 10px 0;">
                 <b>Verificación pública:</b>
-                <a href="${escapeHtml(verifyUrl2)}" style="color:#18181b; text-decoration:underline;">${escapeHtml(verifyUrl2)}</a>
+                <a href="${escapeHtml(verifyUrl2)}" style="color:#2563eb; text-decoration:underline;">
+                  ${escapeHtml(verifyUrl2)}
+                </a>
               </p>
-              <p style="margin:0; color:#71717a; font-size: 12px;">
+
+              <p style="margin:0; color:#71717a; font-size: 12px; line-height:1.6;">
                 FES implementa firma electrónica conforme a la Ley 25.506 (República Argentina). No constituye firma digital certificada.
               </p>
-            `.trim(),
-          });
+            `.trim();
 
-          const sent = await sendResendEmail({
-            to: recipients,
-            subject,
-            html,
-            text: `Documento finalizado: ${titleForEmail}\nFecha: ${completedAtForEmail}\nCódigo de auditoría: ${auditCodeForEmail}\nVerificación: ${verifyUrl2}${downloadUrl ? `\nDescarga: ${downloadUrl}` : ""}`,
-          });
-
-          // Auditoría: registrar que se envió el aviso final
-          try {
-            await admin.from("audit_events").insert({
-              document_id: documentId,
-              event_type: "completion_email_sent",
-              actor_email: isValidEmail(createdByEmail) ? createdByEmail : null,
-              payload: { to: recipients, subject, resend_id: (sent as any)?.id || null },
+            const html = baseEmailTemplate({
+              title: "Documento finalizado",
+              preheader: `Documento finalizado: ${titleForEmail}`,
+              bodyHtml,
             });
-          } catch {}
+
+            const text =
+              `Documento finalizado: ${titleForEmail}` +
+              `\nFecha: ${completedAtForEmail}` +
+              `\nCódigo de auditoría: ${auditCodeForEmail}` +
+              `\nVerificación: ${verifyUrl2}` +
+              (downloadUrl ? `\nDescarga: ${downloadUrl}` : "");
+
+            try {
+              const sent = await sendResendEmail({
+                to: [to],
+                subject,
+                html,
+                text,
+              });
+              results.push({ to, resend_id: (sent as any)?.id || null });
+            } catch (e: any) {
+              console.error("completion email send failed:", to, e);
+              results.push({ to, resend_id: null, error: String(e?.message || e).slice(0, 500) });
+            }
+          }
+
+          const ok = results.filter((r) => !r.error);
+          const fail = results.filter((r) => r.error);
+
+          // Auditoría: registrar envíos OK
+          if (ok.length > 0) {
+            try {
+              await admin.from("audit_events").insert({
+                document_id: documentId,
+                event_type: "completion_email_sent",
+                actor_email: isValidEmail(createdByEmail) ? createdByEmail : null,
+                payload: { to: ok.map((r) => r.to), subject, resend_ids: ok.map((r) => r.resend_id) },
+              });
+            } catch {}
+          }
+
+          // Auditoría: registrar fallos parciales (no rompe el flujo)
+          if (fail.length > 0) {
+            try {
+              await admin.from("audit_events").insert({
+                document_id: documentId,
+                event_type: "completion_email_failed",
+                actor_email: isValidEmail(createdByEmail) ? createdByEmail : null,
+                payload: { error: "Some recipients failed", failures: fail },
+              });
+            } catch {}
+          }
         } else {
           // Auditoría: no había destinatarios válidos (ej: created_by no es email)
           try {
