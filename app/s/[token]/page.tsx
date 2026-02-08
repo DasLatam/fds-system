@@ -48,6 +48,7 @@ export default function SignPage() {
   const [ok, setOk] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [consent, setConsent] = useState(false);
+  const [dataTruth, setDataTruth] = useState(false);
 
   // Capacidad de firma
   const [signerCapacity, setSignerCapacity] = useState<SignerCapacity>("self");
@@ -112,9 +113,27 @@ export default function SignPage() {
     };
   }, [token]);
 
+  const signerSnapshot = useMemo(() => {
+    try {
+      return readSigner();
+    } catch {
+      return { fullName: "", dni: "", cuil: "", address: "", phone: "" };
+    }
+  }, [tick]);
+
+  const signerDataComplete = Boolean(
+    signerSnapshot.fullName &&
+      signerSnapshot.dni &&
+      signerSnapshot.cuil &&
+      signerSnapshot.address &&
+      signerSnapshot.phone &&
+      signerSnapshot.cuil.length === 11
+  );
+
   const canSign = useMemo(() => {
     if (!preview || preview.status !== "pending") return false;
     if (!consent) return false;
+    if (!dataTruth) return false;
     if (!sigDirty) return false;
 
     const s = readSigner();
@@ -131,7 +150,7 @@ export default function SignPage() {
     }
 
     return true;
-  }, [preview, consent, sigDirty, signerCapacity, tick]);
+  }, [preview, consent, dataTruth, sigDirty, signerCapacity, tick]);
 
   function clearSig() {
     sigRef.current?.clear();
@@ -161,6 +180,10 @@ export default function SignPage() {
     }
     if (!consent) {
       setActionErr("Tenés que aceptar el consentimiento.");
+      return;
+    }
+    if (!dataTruth) {
+      setActionErr("Confirmá que tus datos personales son reales y verificables.");
       return;
     }
     if (!sigRef.current || sigRef.current.isEmpty()) {
@@ -369,6 +392,17 @@ export default function SignPage() {
               Estos datos se usan para trazabilidad y evidencia de firma (Ley 25.506, art. 5).
             </p>
 
+            <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+              <span className="font-semibold">Importante:</span> completá con datos reales. Quedan asociados al registro de auditoría y
+              ayudan a sostener la validez probatoria del proceso.
+            </div>
+
+            {signerDataComplete ? (
+              <div className="mt-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
+                Antes de firmar, revisá que <span className="font-semibold">Nombre, DNI, CUIL/CUIT, domicilio y celular</span> estén correctos.
+              </div>
+            ) : null}
+
             <div className="mt-4 grid gap-3">
               <input
                 ref={fullNameRef}
@@ -397,6 +431,10 @@ export default function SignPage() {
                 />
               </div>
 
+              <p className="text-xs text-zinc-500">
+                DNI y CUIL/CUIT deben coincidir con tu documentación. Solo números (sin puntos ni guiones).
+              </p>
+
               <input
                 ref={phoneRef}
                 onChange={bump}
@@ -406,6 +444,8 @@ export default function SignPage() {
                 inputMode="tel"
               />
 
+              <p className="text-xs text-zinc-500">Usá un número de celular real: puede ser requerido para verificación y contacto.</p>
+
               <input
                 ref={addressRef}
                 onChange={bump}
@@ -413,6 +453,11 @@ export default function SignPage() {
                 className="w-full rounded-md border border-zinc-200 px-3 py-2 text-sm"
                 disabled={busy || preview.status !== "pending"}
               />
+
+
+              <p className="text-xs text-zinc-500">
+                La dirección debe ser completa y verificable (calle, número, localidad y provincia).
+              </p>
             </div>
 
             {/* Capacidad de firma */}
@@ -494,6 +539,19 @@ export default function SignPage() {
             <div className="mt-4 flex items-start gap-2">
               <input
                 type="checkbox"
+                checked={dataTruth}
+                onChange={(e) => setDataTruth(e.target.checked)}
+                disabled={busy || preview.status !== "pending"}
+                className="mt-1"
+              />
+              <label className="text-xs text-zinc-700">
+                Confirmo que los datos ingresados son <span className="font-semibold">reales y verificables</span>. Entiendo que se incorporan al registro de auditoría.
+              </label>
+            </div>
+
+            <div className="mt-4 flex items-start gap-2">
+              <input
+                type="checkbox"
                 checked={consent}
                 onChange={(e) => setConsent(e.target.checked)}
                 disabled={busy || preview.status !== "pending"}
@@ -548,7 +606,7 @@ export default function SignPage() {
                 type="button"
                 onClick={submit}
                 disabled={!canSign || busy}
-                className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
+                className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 active:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 disabled:opacity-40"
               >
                 {busy ? "Firmando…" : "Firmar y finalizar"}
               </button>

@@ -23,6 +23,7 @@ export default async function NewDocPage() {
   if (!isProfileComplete(profile as any)) redirect("/profile?next=/dashboard/new");
 
   return (
+    <div className="min-h-screen bg-zinc-50">
     <div className="mx-auto max-w-3xl px-4 py-10">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -32,12 +33,15 @@ export default async function NewDocPage() {
           </p>
         </div>
 
-        <Link href="/dashboard" className="rounded-md border border-zinc-200 px-4 py-2 text-sm font-medium hover:bg-zinc-50">
+        <Link href="/dashboard" className="rounded-md border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-50">
           Volver al panel
         </Link>
       </div>
 
       <div className="mt-6 rounded-2xl border border-zinc-200 bg-white p-6">
+        <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          <span className="font-semibold">Recordatorio:</span> tu perfil debe tener datos reales (nombre, DNI, CUIL/CUIT, domicilio y celular). Se usan en el registro de auditoría.
+        </div>
         <NewDocumentTabs />
       </div>
 
@@ -46,5 +50,6 @@ export default async function NewDocPage() {
         metadatos para respaldar el proceso.
       </p>
     </div>
+  </div>
   );
 }

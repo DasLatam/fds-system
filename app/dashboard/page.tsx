@@ -195,6 +195,8 @@ export default async function DashboardPage() {
     usedThisMonth = count ?? 0;
   }
 
+  const usagePct = activeLimit > 0 ? Math.min(100, Math.round((usedThisMonth / activeLimit) * 100)) : 0;
+
   // =========================
   // Documentos listados (por cuenta activa)
   // =========================
@@ -311,14 +313,38 @@ export default async function DashboardPage() {
   }
 
   return (
+    <div className="min-h-screen bg-zinc-50">
     <div className="mx-auto max-w-5xl px-4 py-10">
-      <div>
-        <h1 className="text-2xl font-semibold">Panel</h1>
-        <p className="mt-1 text-sm text-zinc-600">Crea documentos, invita firmantes y segui el estado.</p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold">Panel</h1>
+          <p className="mt-1 text-sm text-zinc-600">Creá documentos, invitá firmantes y seguí el estado.</p>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href="/dashboard/new"
+            className="inline-flex items-center justify-center rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 active:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2"
+          >
+            Nuevo documento
+          </Link>
+          <Link
+            href="/dashboard/account"
+            className="inline-flex items-center justify-center rounded-md border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-50"
+          >
+            Cuentas
+          </Link>
+          <Link
+            href="/pricing"
+            className="inline-flex items-center justify-center rounded-md border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-50"
+          >
+            Planes
+          </Link>
+        </div>
       </div>
 
       {/* Plan + uso del mes */}
-      <div className="mt-6 rounded-xl border border-zinc-200 p-4">
+      <div className="mt-6 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="text-sm">
             <div className="text-zinc-900">
@@ -345,7 +371,7 @@ export default async function DashboardPage() {
             <div className="mt-1">
               <Link
                 href="/dashboard/account"
-                className="inline-flex rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium hover:bg-zinc-50"
+                className="inline-flex rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-900 hover:bg-zinc-50"
               >
                 Cambiar plan / cuenta activa
               </Link>
@@ -356,7 +382,7 @@ export default async function DashboardPage() {
 
       {/* Métricas (Sprint 1) */}
       <div className="mt-6 grid gap-4 lg:grid-cols-4">
-        <div className="rounded-xl border border-zinc-200 p-4">
+        <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
           <div className="text-xs text-zinc-500">Documentos</div>
           <div className="mt-1 text-2xl font-semibold">{fmt(totalDocs)}</div>
           <div className="mt-2 text-xs text-zinc-600">
@@ -364,7 +390,7 @@ export default async function DashboardPage() {
           </div>
         </div>
 
-        <div className="rounded-xl border border-zinc-200 p-4">
+        <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
           <div className="text-xs text-zinc-500">Firmas</div>
           <div className="mt-1 text-2xl font-semibold">
             {fmt(signedSigners)}/{fmt(totalSigners)}
@@ -372,13 +398,13 @@ export default async function DashboardPage() {
           <div className="mt-2 text-xs text-zinc-600">Firmas completadas vs. totales</div>
         </div>
 
-        <div className="rounded-xl border border-zinc-200 p-4">
+        <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
           <div className="text-xs text-zinc-500">Verificaciones públicas</div>
           <div className="mt-1 text-2xl font-semibold">{fmt(verif7)}</div>
           <div className="mt-2 text-xs text-zinc-600">Últimos 7 días</div>
         </div>
 
-        <div className="rounded-xl border border-zinc-200 p-4">
+        <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
           <div className="text-xs text-zinc-500">Verificaciones (30 días)</div>
           <div className="mt-1 text-2xl font-semibold">{fmt(verif30)}</div>
           <div className="mt-2 text-xs text-zinc-600">
@@ -387,14 +413,36 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      {/* Tus documentos (arriba) */}
-      <div className="mt-6">
-        <DocumentsListClient docs={safeDocs} deleteAction={deleteDocumentAction} />
+      {/* Tus documentos */}
+      <div className="mt-6 rounded-2xl border border-zinc-200 bg-white shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-200 px-5 py-4">
+          <div>
+            <h2 className="text-sm font-semibold text-zinc-900">Tus documentos</h2>
+            <p className="mt-1 text-xs text-zinc-500">Creación, invitaciones y estado de firma.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href="/dashboard/new"
+              className="inline-flex items-center justify-center rounded-md bg-emerald-600 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 active:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2"
+            >
+              Nuevo
+            </Link>
+            <Link
+              href="/dashboard/account"
+              className="inline-flex items-center justify-center rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-50"
+            >
+              Cambiar cuenta
+            </Link>
+          </div>
+        </div>
+        <div className="px-1 py-1">
+          <DocumentsListClient docs={safeDocs} deleteAction={deleteDocumentAction} />
+        </div>
       </div>
 
-      {/* Actividad reciente (abajo) */}
-      <div className="mt-6 rounded-xl border border-zinc-200">
-        <div className="border-b border-zinc-200 px-4 py-3">
+      {/* Actividad reciente */}
+      <div className="mt-6 rounded-2xl border border-zinc-200 bg-white shadow-sm">
+        <div className="border-b border-zinc-200 px-5 py-4">
           <h2 className="text-sm font-medium">Actividad reciente (últimos 25)</h2>
           <p className="mt-1 text-xs text-zinc-500">Eventos relevantes registrados en auditoría.</p>
         </div>
@@ -420,5 +468,6 @@ export default async function DashboardPage() {
         </div>
       </div>
     </div>
+  </div>
   );
 }

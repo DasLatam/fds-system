@@ -45,32 +45,12 @@ export default function LoginPage() {
   }
 
   return (
+    <div className="min-h-screen bg-zinc-50">
     <div className="mx-auto max-w-md px-4 py-12">
       <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">Ingresar</h1>
       <p className="mt-2 text-sm text-zinc-600">
         Accedé a tu cuenta con <span className="font-medium text-zinc-900">Magic Link</span>: te enviamos un correo con un enlace único y de un solo uso.
       </p>
-
-      <div className="mt-4 rounded-2xl border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-700">
-        <div className="font-semibold text-zinc-900">¿Cómo funciona?</div>
-        <ul className="mt-2 list-disc space-y-2 pl-5">
-          <li>
-            Ingresás tu email y te enviamos un <span className="font-medium">link de acceso</span>.
-          </li>
-          <li>
-            El link suele ser de <span className="font-medium">único uso</span> y con validez temporal.
-          </li>
-          <li>
-            Una vez que entrás, la sesión queda activa hasta que cierres sesión o el navegador la invalide.
-          </li>
-          <li>
-            Para volver a entrar más adelante, simplemente solicitás <span className="font-medium">un nuevo link</span>.
-          </li>
-          <li>
-            Esto mejora la seguridad: validamos que realmente controlás ese email y evitamos contraseñas reutilizadas.
-          </li>
-        </ul>
-      </div>
 
       <form onSubmit={onSubmit} className="mt-6 space-y-3">
         <label className="block text-sm font-medium text-zinc-700">Email</label>
@@ -94,6 +74,30 @@ export default function LoginPage() {
           Si no te llega el correo, revisá Spam/Promociones y asegurate de que el dominio no esté bloqueado.
         </p>
       </form>
+      <details className="mt-6 rounded-2xl border border-zinc-200 bg-white p-4 text-sm text-zinc-700">
+        <summary className="cursor-pointer select-none font-semibold text-zinc-900">¿Cómo funciona?</summary>
+        <div className="mt-3">
+          <ul className="list-disc space-y-2 pl-5">
+            <li>
+              Ingresás tu email y te enviamos un <span className="font-medium">link de acceso</span>.
+            </li>
+            <li>
+              El link suele ser de <span className="font-medium">único uso</span> y con validez temporal.
+            </li>
+            <li>
+              Una vez que entrás, la sesión queda activa hasta que cierres sesión o el navegador la invalide.
+            </li>
+            <li>
+              Para volver a entrar más adelante, simplemente solicitás <span className="font-medium">un nuevo link</span>.
+            </li>
+            <li>
+              Esto mejora la seguridad: validamos que realmente controlás ese email y evitamos contraseñas reutilizadas.
+            </li>
+          </ul>
+        </div>
+      </details>
+
     </div>
+  </div>
   );
 }

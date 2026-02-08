@@ -50,6 +50,7 @@ export default async function AccountPage() {
   const activeAccountId = (profile as any)?.default_account_id || (memberships?.[0] as any)?.account_id || null;
 
   return (
+    <div className="min-h-screen bg-zinc-50">
     <div className="mx-auto max-w-4xl px-4 py-10">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -59,7 +60,7 @@ export default async function AccountPage() {
           </p>
         </div>
 
-        <Link href="/dashboard" className="rounded-md border border-zinc-200 px-4 py-2 text-sm font-medium hover:bg-zinc-50">
+        <Link href="/dashboard" className="rounded-md border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-50">
           Volver al panel
         </Link>
       </div>
@@ -71,7 +72,7 @@ export default async function AccountPage() {
           const planCode = planByAccount.get(String(m.account_id)) || (acc?.account_type === "company" ? "company_pro" : "individual_free");
 
           return (
-            <div key={String(m.account_id)} className="rounded-xl border border-zinc-200 bg-white p-4">
+            <div key={String(m.account_id)} className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <div className="text-sm font-semibold text-zinc-900">{acc?.name || "Cuenta"}</div>
@@ -90,7 +91,7 @@ export default async function AccountPage() {
                 ) : (
                   <form action="/api/accounts/set-default" method="post">
                     <input type="hidden" name="accountId" value={String(m.account_id)} />
-                    <button className="rounded-md border border-zinc-200 px-4 py-2 text-sm font-medium hover:bg-zinc-50">
+                    <button className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 active:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2">
                       Usar esta cuenta
                     </button>
                   </form>
@@ -108,5 +109,6 @@ export default async function AccountPage() {
         </p>
       </div>
     </div>
+  </div>
   );
 }

@@ -12,15 +12,23 @@ export default function NewDocumentTabs() {
   const tabs = useMemo(
     () =>
       [
-        { key: "upload" as const, label: "Subir PDF", desc: "Usá un archivo PDF existente." },
-        { key: "redact" as const, label: "Redactar", desc: "Escribí el documento y generá el PDF automáticamente." },
+        {
+          key: "upload" as const,
+          label: "Subir PDF",
+          desc: "Usá un archivo PDF existente y pedí firmas.",
+        },
+        {
+          key: "redact" as const,
+          label: "Redactar",
+          desc: "Escribí el documento y generá el PDF automáticamente.",
+        },
       ],
     []
   );
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap gap-2">
+      <div className="grid gap-3 sm:grid-cols-2">
         {tabs.map((t) => {
           const active = mode === t.key;
           return (
@@ -28,32 +36,34 @@ export default function NewDocumentTabs() {
               key={t.key}
               type="button"
               onClick={() => setMode(t.key)}
-              className={
-                "rounded-full border px-4 py-2 text-sm font-medium transition " +
-                (active ? "border-black bg-zinc-900 text-white" : "border-zinc-200 bg-white hover:bg-zinc-50")
-              }
+              className={[
+                "rounded-2xl border p-4 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2",
+                active
+                  ? "border-emerald-300 bg-emerald-50"
+                  : "border-zinc-200 bg-white hover:bg-zinc-50",
+              ].join(" ")}
+              aria-pressed={active}
             >
-              {t.label}
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold text-zinc-900">{t.label}</div>
+                  <div className="mt-1 text-xs text-zinc-600">{t.desc}</div>
+                </div>
+
+                {active ? (
+                  <span className="mt-0.5 rounded-full bg-emerald-600 px-2.5 py-1 text-[11px] font-semibold text-white">
+                    Seleccionado
+                  </span>
+                ) : null}
+              </div>
             </button>
           );
         })}
       </div>
 
-      <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-700">
-        {mode === "upload" ? (
-          <div>
-            <div className="font-medium">Subir PDF</div>
-            <div className="mt-1">Cargá el archivo y asignale un título. Luego invitás a quienes firman.</div>
-          </div>
-        ) : (
-          <div>
-            <div className="font-medium">Redactar</div>
-            <div className="mt-1">Escribí el documento, aplicá formato básico y guardá. Se genera un PDF para firma.</div>
-          </div>
-        )}
+      <div className="rounded-2xl border border-zinc-200 bg-white p-4">
+        {mode === "upload" ? <UploadForm /> : <RedactForm />}
       </div>
-
-      {mode === "upload" ? <UploadForm /> : <RedactForm />}
     </div>
   );
 }
