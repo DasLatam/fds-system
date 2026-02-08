@@ -5,13 +5,16 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { DOCUMENT_TEMPLATES, type DocumentTemplateId } from "@/lib/templates/documentTemplates";
+import { DOCUMENT_TEMPLATES } from "@/lib/templates/documentTemplates";
 
 type Props = {
   onCreated?: (documentId: string) => void;
 };
 
 type HeadingValue = "p" | "h1" | "h2" | "h3";
+
+// ✅ Derivamos el tipo desde el array real, sin depender de exports adicionales
+type DocumentTemplateId = (typeof DOCUMENT_TEMPLATES)[number]["id"];
 
 type FormatState = {
   bold: boolean;
@@ -75,12 +78,16 @@ function ToolbarButton({
 
 export function RedactForm({ onCreated }: Props) {
   const templates = useMemo(() => DOCUMENT_TEMPLATES, []);
-  const [templateId, setTemplateId] = useState<DocumentTemplateId>("servicios-profesionales");
+
+  // ✅ fallback robusto si cambia el set de templates
+  const defaultId = (templates?.[0]?.id ?? "default") as DocumentTemplateId;
+
+  const [templateId, setTemplateId] = useState<DocumentTemplateId>(defaultId);
   const template = templates.find((t) => t.id === templateId) || templates[0];
 
   const editorRef = useRef<HTMLDivElement>(null);
 
-  const [title, setTitle] = useState(template.title);
+  const [title, setTitle] = useState(template?.title ?? "Documento");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [format, setFormat] = useState<FormatState>({
@@ -143,10 +150,7 @@ export function RedactForm({ onCreated }: Props) {
   function insertLink() {
     focusEditor();
     const existing = safeQueryValue("createLink");
-    const url = window.prompt(
-      "Pegá la URL del enlace:",
-      existing && typeof existing === "string" ? existing : "https://"
-    );
+    const url = window.prompt("Pegá la URL del enlace:", existing && typeof existing === "string" ? existing : "https://");
     if (!url) return;
     exec("createLink", url);
   }
@@ -162,7 +166,6 @@ export function RedactForm({ onCreated }: Props) {
 
   function getHtml() {
     const html = editorRef.current?.innerHTML || "";
-    // Normalización suave para evitar basura común.
     return html.replaceAll("\u200B", "").replaceAll("\uFEFF", "").replaceAll("&nbsp;", " ").trim();
   }
 
@@ -174,7 +177,7 @@ export function RedactForm({ onCreated }: Props) {
   function setEditorHtml(html: string) {
     if (!editorRef.current) return;
     editorRef.current.innerHTML = html;
-    // ubicamos el cursor al final
+
     try {
       const range = document.createRange();
       range.selectNodeContents(editorRef.current);
@@ -183,21 +186,22 @@ export function RedactForm({ onCreated }: Props) {
       sel?.removeAllRanges();
       sel?.addRange(range);
     } catch {}
+
     refreshFormat();
   }
 
   useEffect(() => {
-    // Inicializar con template.
-    if (editorRef.current) {
+    if (editorRef.current && template?.html) {
       setEditorHtml(template.html);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
+    if (!template) return;
     setTitle(template.title);
-    // Si el editor está vacío, reemplazamos por el template seleccionado.
-    if (getPlainText().length === 0) {
+
+    if (getPlainText().length === 0 && template.html) {
       setEditorHtml(template.html);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -205,7 +209,6 @@ export function RedactForm({ onCreated }: Props) {
 
   useEffect(() => {
     const onSelectionChange = () => {
-      // solo refrescamos si el foco está dentro del editor
       const el = editorRef.current;
       if (!el) return;
       const active = document.activeElement;
@@ -226,7 +229,7 @@ export function RedactForm({ onCreated }: Props) {
       const r = await fetch("/api/preview", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ title: title.trim() || template.title, html }),
+        body: JSON.stringify({ title: title.trim() || template?.title || "Documento", html }),
       });
       if (!r.ok) throw new Error("No se pudo generar el borrador.");
       const blob = await r.blob();
@@ -234,7 +237,7 @@ export function RedactForm({ onCreated }: Props) {
       const a = document.createElement("a");
       a.href = url;
       a.download = `${
-        (title.trim() || template.title).replaceAll(/[^a-z0-9\-_ ]/gi, "").slice(0, 64) || "documento"
+        (title.trim() || template?.title || "documento").replaceAll(/[^a-z0-9\-_ ]/gi, "").slice(0, 64) || "documento"
       }.pdf`;
       document.body.appendChild(a);
       a.click();
@@ -274,7 +277,6 @@ export function RedactForm({ onCreated }: Props) {
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(j?.error || "No se pudo crear el documento.");
 
-      // compat: algunas versiones devuelven {documentId}, otras {id}
       const id = String(j?.documentId || j?.id || "");
       if (!id) throw new Error("Respuesta inválida: falta id.");
 
@@ -304,14 +306,10 @@ export function RedactForm({ onCreated }: Props) {
           </select>
           <p className="mt-2 text-xs text-zinc-500">Podés partir de una plantilla y luego editarla a tu gusto.</p>
         </div>
+
         <div>
           <Label>Título</Label>
-          <Input
-            className="mt-1"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Contrato de servicios"
-          />
+          <Input className="mt-1" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Contrato de servicios" />
         </div>
       </div>
 
@@ -352,18 +350,10 @@ export function RedactForm({ onCreated }: Props) {
           <div className="h-6 w-px bg-zinc-200" />
 
           <div className="flex flex-wrap items-center gap-2">
-            <ToolbarButton
-              title="Lista con viñetas"
-              active={format.unorderedList}
-              onClick={() => exec("insertUnorderedList")}
-            >
+            <ToolbarButton title="Lista con viñetas" active={format.unorderedList} onClick={() => exec("insertUnorderedList")}>
               • Lista
             </ToolbarButton>
-            <ToolbarButton
-              title="Lista numerada"
-              active={format.orderedList}
-              onClick={() => exec("insertOrderedList")}
-            >
+            <ToolbarButton title="Lista numerada" active={format.orderedList} onClick={() => exec("insertOrderedList")}>
               1. Lista
             </ToolbarButton>
             <ToolbarButton title="Cita" active={format.blockquote} onClick={() => exec("formatBlock", "BLOCKQUOTE")}>
@@ -410,9 +400,7 @@ export function RedactForm({ onCreated }: Props) {
         </div>
 
         <div className="relative">
-          {isEmpty ? (
-            <div className="pointer-events-none absolute left-4 top-4 text-sm text-zinc-400">{placeholder}</div>
-          ) : null}
+          {isEmpty ? <div className="pointer-events-none absolute left-4 top-4 text-sm text-zinc-400">{placeholder}</div> : null}
           <div
             ref={editorRef}
             contentEditable
@@ -445,5 +433,5 @@ export function RedactForm({ onCreated }: Props) {
   );
 }
 
-// ✅ Esto arregla el build: permite `import RedactForm from "./RedactForm"`
+// ✅ Mantiene compat con `import RedactForm from "./RedactForm"`
 export default RedactForm;
