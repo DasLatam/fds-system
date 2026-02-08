@@ -63,7 +63,9 @@ function ToolbarButton({
       onClick={onClick}
       className={
         "inline-flex h-8 items-center justify-center rounded-md border px-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 " +
-        (active ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50")
+        (active
+          ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+          : "border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50")
       }
     >
       {children}
@@ -141,7 +143,10 @@ export function RedactForm({ onCreated }: Props) {
   function insertLink() {
     focusEditor();
     const existing = safeQueryValue("createLink");
-    const url = window.prompt("Pegá la URL del enlace:", existing && typeof existing === "string" ? existing : "https://");
+    const url = window.prompt(
+      "Pegá la URL del enlace:",
+      existing && typeof existing === "string" ? existing : "https://"
+    );
     if (!url) return;
     exec("createLink", url);
   }
@@ -158,11 +163,7 @@ export function RedactForm({ onCreated }: Props) {
   function getHtml() {
     const html = editorRef.current?.innerHTML || "";
     // Normalización suave para evitar basura común.
-    return html
-      .replaceAll("\u200B", "")
-      .replaceAll("\uFEFF", "")
-      .replaceAll("&nbsp;", " ")
-      .trim();
+    return html.replaceAll("\u200B", "").replaceAll("\uFEFF", "").replaceAll("&nbsp;", " ").trim();
   }
 
   function getPlainText() {
@@ -232,7 +233,9 @@ export function RedactForm({ onCreated }: Props) {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${(title.trim() || template.title).replaceAll(/[^a-z0-9\-_ ]/gi, "").slice(0, 64) || "documento"}.pdf`;
+      a.download = `${
+        (title.trim() || template.title).replaceAll(/[^a-z0-9\-_ ]/gi, "").slice(0, 64) || "documento"
+      }.pdf`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -271,8 +274,9 @@ export function RedactForm({ onCreated }: Props) {
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(j?.error || "No se pudo crear el documento.");
 
-      const id = String(j?.documentId || "");
-      if (!id) throw new Error("Respuesta inválida: falta documentId.");
+      // compat: algunas versiones devuelven {documentId}, otras {id}
+      const id = String(j?.documentId || j?.id || "");
+      if (!id) throw new Error("Respuesta inválida: falta id.");
 
       onCreated?.(id);
     } catch (e: any) {
@@ -302,7 +306,12 @@ export function RedactForm({ onCreated }: Props) {
         </div>
         <div>
           <Label>Título</Label>
-          <Input className="mt-1" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Contrato de servicios" />
+          <Input
+            className="mt-1"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Contrato de servicios"
+          />
         </div>
       </div>
 
@@ -326,37 +335,77 @@ export function RedactForm({ onCreated }: Props) {
           <div className="h-6 w-px bg-zinc-200" />
 
           <div className="flex flex-wrap items-center gap-2">
-            <ToolbarButton title="Negrita" active={format.bold} onClick={() => exec("bold")}>B</ToolbarButton>
-            <ToolbarButton title="Cursiva" active={format.italic} onClick={() => exec("italic")}>I</ToolbarButton>
-            <ToolbarButton title="Subrayado" active={format.underline} onClick={() => exec("underline")}>U</ToolbarButton>
-            <ToolbarButton title="Tachado" active={format.strikeThrough} onClick={() => exec("strikeThrough")}>S</ToolbarButton>
+            <ToolbarButton title="Negrita" active={format.bold} onClick={() => exec("bold")}>
+              B
+            </ToolbarButton>
+            <ToolbarButton title="Cursiva" active={format.italic} onClick={() => exec("italic")}>
+              I
+            </ToolbarButton>
+            <ToolbarButton title="Subrayado" active={format.underline} onClick={() => exec("underline")}>
+              U
+            </ToolbarButton>
+            <ToolbarButton title="Tachado" active={format.strikeThrough} onClick={() => exec("strikeThrough")}>
+              S
+            </ToolbarButton>
           </div>
 
           <div className="h-6 w-px bg-zinc-200" />
 
           <div className="flex flex-wrap items-center gap-2">
-            <ToolbarButton title="Lista con viñetas" active={format.unorderedList} onClick={() => exec("insertUnorderedList")}>• Lista</ToolbarButton>
-            <ToolbarButton title="Lista numerada" active={format.orderedList} onClick={() => exec("insertOrderedList")}>1. Lista</ToolbarButton>
-            <ToolbarButton title="Cita" active={format.blockquote} onClick={() => exec("formatBlock", "BLOCKQUOTE")}>❝</ToolbarButton>
-            <ToolbarButton title="Regla horizontal" onClick={() => exec("insertHorizontalRule")}>―</ToolbarButton>
+            <ToolbarButton
+              title="Lista con viñetas"
+              active={format.unorderedList}
+              onClick={() => exec("insertUnorderedList")}
+            >
+              • Lista
+            </ToolbarButton>
+            <ToolbarButton
+              title="Lista numerada"
+              active={format.orderedList}
+              onClick={() => exec("insertOrderedList")}
+            >
+              1. Lista
+            </ToolbarButton>
+            <ToolbarButton title="Cita" active={format.blockquote} onClick={() => exec("formatBlock", "BLOCKQUOTE")}>
+              ❝
+            </ToolbarButton>
+            <ToolbarButton title="Regla horizontal" onClick={() => exec("insertHorizontalRule")}>
+              ―
+            </ToolbarButton>
           </div>
 
           <div className="h-6 w-px bg-zinc-200" />
 
           <div className="flex flex-wrap items-center gap-2">
-            <ToolbarButton title="Alinear a la izquierda" active={format.justifyLeft} onClick={() => exec("justifyLeft")}>⟸</ToolbarButton>
-            <ToolbarButton title="Centrar" active={format.justifyCenter} onClick={() => exec("justifyCenter")}>≡</ToolbarButton>
-            <ToolbarButton title="Alinear a la derecha" active={format.justifyRight} onClick={() => exec("justifyRight")}>⟹</ToolbarButton>
+            <ToolbarButton title="Alinear a la izquierda" active={format.justifyLeft} onClick={() => exec("justifyLeft")}>
+              ⟸
+            </ToolbarButton>
+            <ToolbarButton title="Centrar" active={format.justifyCenter} onClick={() => exec("justifyCenter")}>
+              ≡
+            </ToolbarButton>
+            <ToolbarButton title="Alinear a la derecha" active={format.justifyRight} onClick={() => exec("justifyRight")}>
+              ⟹
+            </ToolbarButton>
           </div>
 
           <div className="h-6 w-px bg-zinc-200" />
 
           <div className="flex flex-wrap items-center gap-2">
-            <ToolbarButton title="Insertar enlace" active={format.link} onClick={insertLink}>🔗</ToolbarButton>
-            <ToolbarButton title="Quitar enlace" onClick={removeLink}>⨯</ToolbarButton>
-            <ToolbarButton title="Limpiar formato" onClick={clearFormatting}>Tx</ToolbarButton>
-            <ToolbarButton title="Deshacer" onClick={() => exec("undo")}>↶</ToolbarButton>
-            <ToolbarButton title="Rehacer" onClick={() => exec("redo")}>↷</ToolbarButton>
+            <ToolbarButton title="Insertar enlace" active={format.link} onClick={insertLink}>
+              🔗
+            </ToolbarButton>
+            <ToolbarButton title="Quitar enlace" onClick={removeLink}>
+              ⨯
+            </ToolbarButton>
+            <ToolbarButton title="Limpiar formato" onClick={clearFormatting}>
+              Tx
+            </ToolbarButton>
+            <ToolbarButton title="Deshacer" onClick={() => exec("undo")}>
+              ↶
+            </ToolbarButton>
+            <ToolbarButton title="Rehacer" onClick={() => exec("redo")}>
+              ↷
+            </ToolbarButton>
           </div>
         </div>
 
@@ -395,3 +444,6 @@ export function RedactForm({ onCreated }: Props) {
     </form>
   );
 }
+
+// ✅ Esto arregla el build: permite `import RedactForm from "./RedactForm"`
+export default RedactForm;
