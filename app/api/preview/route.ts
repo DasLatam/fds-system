@@ -12,9 +12,11 @@ const PreviewBodySchema = z.object({
   html: z.string().min(1).max(500_000),
 });
 
-// Convierte Uint8Array -> ArrayBuffer “exacto” (sin bytes extra del buffer subyacente)
+// ✅ Convierte Uint8Array -> ArrayBuffer REAL (sin SharedArrayBuffer)
 function u8ToArrayBuffer(u8: Uint8Array): ArrayBuffer {
-  return u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength);
+  const ab = new ArrayBuffer(u8.byteLength);
+  new Uint8Array(ab).set(u8);
+  return ab;
 }
 
 export async function GET(req: NextRequest) {
@@ -77,7 +79,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "download_failed", details: dl.error.message }, { status: 500 });
   }
 
-  // ✅ Devolvemos ArrayBuffer (no Uint8Array) para compatibilidad TS
+  // ArrayBuffer directo del Blob
   const ab = await dl.data.arrayBuffer();
 
   return new NextResponse(ab, {
@@ -105,7 +107,6 @@ export async function POST(req: NextRequest) {
     const bodyText = htmlToPlainText(body.html);
     const pdfBytes = await createSimplePdfBytes({ title: body.title, bodyText });
 
-    // ✅ Convertimos Uint8Array -> ArrayBuffer para que TS no falle
     const ab = u8ToArrayBuffer(pdfBytes);
 
     return new NextResponse(ab, {
