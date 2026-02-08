@@ -13,8 +13,20 @@ type Props = {
 
 type HeadingValue = "p" | "h1" | "h2" | "h3";
 
-// ✅ Derivamos el tipo desde el array real, sin depender de exports adicionales
-type DocumentTemplateId = (typeof DOCUMENT_TEMPLATES)[number]["id"];
+// ✅ DOCUMENT_TEMPLATES viene tipado como DocumentTemplate[] (sin title/html).
+// Definimos un “view model” local con campos opcionales para evitar romper TS.
+type TemplateBase = (typeof DOCUMENT_TEMPLATES)[number];
+type Template = TemplateBase & {
+  title?: string;
+  name?: string;
+  label?: string;
+  html?: string;
+  bodyHtml?: string;
+  content?: string;
+  defaultHtml?: string;
+};
+
+type DocumentTemplateId = Template["id"];
 
 type FormatState = {
   bold: boolean;
@@ -44,6 +56,16 @@ function safeQueryValue(cmd: string) {
   } catch {
     return "";
   }
+}
+
+function getTemplateTitle(t?: Template | null) {
+  const anyT = t as any;
+  return String(anyT?.title || anyT?.name || anyT?.label || "Documento");
+}
+
+function getTemplateHtml(t?: Template | null) {
+  const anyT = t as any;
+  return String(anyT?.html || anyT?.bodyHtml || anyT?.content || anyT?.defaultHtml || "");
 }
 
 function ToolbarButton({
@@ -77,19 +99,22 @@ function ToolbarButton({
 }
 
 export function RedactForm({ onCreated }: Props) {
-  const templates = useMemo(() => DOCUMENT_TEMPLATES, []);
+  const templates = useMemo(() => DOCUMENT_TEMPLATES as readonly Template[], []);
 
-  // ✅ fallback robusto si cambia el set de templates
-  const defaultId = (templates?.[0]?.id ?? "default") as DocumentTemplateId;
-
+  const defaultId = (templates?.[0]?.id ?? ("default" as any)) as DocumentTemplateId;
   const [templateId, setTemplateId] = useState<DocumentTemplateId>(defaultId);
-  const template = templates.find((t) => t.id === templateId) || templates[0];
+
+  const template = (templates.find((t) => t.id === templateId) || templates[0] || null) as Template | null;
+
+  const templateTitle = getTemplateTitle(template);
+  const templateHtml = getTemplateHtml(template);
 
   const editorRef = useRef<HTMLDivElement>(null);
 
-  const [title, setTitle] = useState(template?.title ?? "Documento");
+  const [title, setTitle] = useState<string>(templateTitle);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
   const [format, setFormat] = useState<FormatState>({
     bold: false,
     italic: false,
@@ -191,18 +216,21 @@ export function RedactForm({ onCreated }: Props) {
   }
 
   useEffect(() => {
-    if (editorRef.current && template?.html) {
-      setEditorHtml(template.html);
+    // init
+    if (editorRef.current) {
+      if (templateHtml) setEditorHtml(templateHtml);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    if (!template) return;
-    setTitle(template.title);
+    // al cambiar plantilla: setear título + inyectar html si el editor está vacío
+    const nextTitle = getTemplateTitle(template);
+    setTitle(nextTitle);
 
-    if (getPlainText().length === 0 && template.html) {
-      setEditorHtml(template.html);
+    const nextHtml = getTemplateHtml(template);
+    if (getPlainText().length === 0 && nextHtml) {
+      setEditorHtml(nextHtml);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [templateId]);
@@ -226,19 +254,20 @@ export function RedactForm({ onCreated }: Props) {
     setError(null);
     try {
       const html = getHtml();
+      const fallbackTitle = title.trim() || templateTitle || "Documento";
+
       const r = await fetch("/api/preview", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ title: title.trim() || template?.title || "Documento", html }),
+        body: JSON.stringify({ title: fallbackTitle, html }),
       });
       if (!r.ok) throw new Error("No se pudo generar el borrador.");
+
       const blob = await r.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${
-        (title.trim() || template?.title || "documento").replaceAll(/[^a-z0-9\-_ ]/gi, "").slice(0, 64) || "documento"
-      }.pdf`;
+      a.download = `${fallbackTitle.replaceAll(/[^a-z0-9\-_ ]/gi, "").slice(0, 64) || "documento"}.pdf`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -256,15 +285,8 @@ export function RedactForm({ onCreated }: Props) {
     const html = getHtml();
     const plain = getPlainText();
 
-    if (!t) {
-      setError("Ingresá un título.");
-      return;
-    }
-
-    if (!plain) {
-      setError("Escribí el contenido del documento.");
-      return;
-    }
+    if (!t) return setError("Ingresá un título.");
+    if (!plain) return setError("Escribí el contenido del documento.");
 
     setBusy(true);
     try {
@@ -295,12 +317,12 @@ export function RedactForm({ onCreated }: Props) {
           <Label>Plantilla</Label>
           <select
             className="mt-1 h-9 w-full rounded-md border border-zinc-200 bg-white px-3 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-emerald-600"
-            value={templateId}
-            onChange={(e) => setTemplateId(e.target.value as DocumentTemplateId)}
+            value={templateId as any}
+            onChange={(e) => setTemplateId(e.target.value as any)}
           >
             {templates.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.title}
+              <option key={String(t.id)} value={String(t.id)}>
+                {getTemplateTitle(t)}
               </option>
             ))}
           </select>
@@ -433,5 +455,4 @@ export function RedactForm({ onCreated }: Props) {
   );
 }
 
-// ✅ Mantiene compat con `import RedactForm from "./RedactForm"`
 export default RedactForm;
