@@ -81,6 +81,9 @@ export default function PricingPage() {
         {plans.map((p) => {
           const code = p.code as PlanCode;
 
+          // ✅ UI-only (sin tocar tipos): destacamos el plan Empresa como recomendado
+          const recommended = code === "company_pro";
+
           // Requisito: plan gratuito debe mostrar "antes ARS 9.900,00 / ahora Gratis".
           const listPriceArs = code === "individual_free" ? 9900 : p.listPriceArs;
 
@@ -89,7 +92,7 @@ export default function PricingPage() {
               key={p.code}
               className={
                 "flex h-full flex-col rounded-2xl border bg-white p-6 shadow-sm " +
-                (p.recommended ? "border-emerald-300 ring-1 ring-emerald-200" : "border-zinc-200")
+                (recommended ? "border-emerald-300 ring-1 ring-emerald-200" : "border-zinc-200")
               }
             >
               <div>
@@ -99,7 +102,7 @@ export default function PricingPage() {
                     <p className="mt-1 text-sm text-zinc-600">{p.description}</p>
                   </div>
 
-                  {p.recommended ? (
+                  {recommended ? (
                     <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-900">
                       Recomendado
                     </span>
@@ -113,7 +116,8 @@ export default function PricingPage() {
 
                   <ul className="mt-3 space-y-2 text-sm">
                     <FeatureLine included={true}>
-                      Creación de hasta <span className="font-medium">{p.defaultMonthlyCreateLimit}</span> documentos por mes
+                      Creación de hasta{" "}
+                      <span className="font-medium">{p.defaultMonthlyCreateLimit}</span> documentos por mes
                     </FeatureLine>
                     <FeatureLine included={true}>Acceso por link para firmantes (sin registro adicional)</FeatureLine>
                     <FeatureLine included={true}>Historial del proceso y trazabilidad básica</FeatureLine>
@@ -131,10 +135,7 @@ export default function PricingPage() {
               <div className="mt-6" />
 
               <div className="mt-auto flex flex-col gap-3">
-                <Link
-                  href={code === "individual_free" ? "/login" : "/login"}
-                  className={p.recommended ? CTA_PRIMARY : CTA_SECONDARY}
-                >
+                <Link href="/login" className={recommended ? CTA_PRIMARY : CTA_SECONDARY}>
                   {code === "individual_free" ? "Empezar gratis" : "Elegir este plan"}
                 </Link>
 
