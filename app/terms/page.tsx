@@ -1,126 +1,182 @@
 import Link from "next/link";
 
-function ExternalLink({ href, children }: { href: string; children: React.ReactNode }) {
-  return (
-    <a href={href} target="_blank" rel="noreferrer" className="underline decoration-zinc-300 underline-offset-4 hover:text-zinc-900">
-      {children}
-    </a>
-  );
+export const dynamic = "force-dynamic";
+
+const UPDATED_AT = "2026-02-07";
+
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return <h2 className="mt-10 text-xl font-semibold text-zinc-900">{children}</h2>;
+}
+
+function SubTitle({ children }: { children: React.ReactNode }) {
+  return <h3 className="mt-6 text-base font-semibold text-zinc-900">{children}</h3>;
 }
 
 export default function TermsPage() {
-  const updated = new Date().toISOString().slice(0, 10);
-
   return (
-    <div className="mx-auto max-w-5xl px-4 py-10">
-      <div className="flex flex-col gap-3">
-        <h1 className="text-3xl font-semibold">Términos y Condiciones</h1>
-        <p className="text-sm text-zinc-600">Última actualización: {updated}.</p>
-        <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-5 text-sm text-zinc-700">
-          <b>Resumen:</b> Firma Electrónica Simple ("FES") ofrece una herramienta de <b>firma electrónica</b> (no firma digital certificada) para documentos PDF, con evidencia técnica: hash SHA-256, timestamp, IP, user-agent y auditoría por evento.
-        </div>
+    <div className="mx-auto max-w-4xl px-4 py-12">
+      <div>
+        <h1 className="text-3xl font-semibold tracking-tight text-zinc-900">Términos y condiciones</h1>
+        <p className="mt-2 text-sm text-zinc-600">
+          Última actualización: <span className="font-medium text-zinc-800">{UPDATED_AT}</span>
+        </p>
+        <p className="mt-4 text-sm leading-relaxed text-zinc-700">
+          Estos Términos y Condiciones (los “Términos”) regulan el uso de <span className="font-medium">Firma Electrónica Simple (FES)</span>
+          (el “Servicio”). Al acceder o utilizar el Servicio, aceptás estos Términos. Si no estás de acuerdo, no utilices el Servicio.
+        </p>
       </div>
 
-      <div className="prose prose-zinc mt-8 max-w-none">
-        <h2>1. Definiciones</h2>
-        <ul>
-          <li><b>Firma electrónica:</b> conjunto de datos electrónicos que puede ser utilizado como medio de identificación del firmante y evidencia de su voluntad.</li>
-          <li><b>Documento:</b> PDF subido por el Creador para ser firmado.</li>
-          <li><b>Creador:</b> usuario autenticado que sube un documento y define firmantes.</li>
-          <li><b>Firmante:</b> persona invitada mediante un enlace único que realiza el acto de firma.</li>
-        </ul>
+      <SectionTitle>1. Alcance del Servicio</SectionTitle>
+      <p className="mt-3 text-sm leading-relaxed text-zinc-700">
+        FES permite crear documentos, invitar firmantes y registrar evidencia del proceso de firma para generar un PDF final.
+        El Servicio está orientado a la <span className="font-medium">firma electrónica</span> conforme la Ley 25.506 (República Argentina).
+      </p>
+      <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-zinc-700">
+        <li>
+          <span className="font-medium">Firma electrónica</span>: mecanismo de identificación y consentimiento que se apoya en evidencia técnica y trazabilidad.
+        </li>
+        <li>
+          <span className="font-medium">No es firma digital certificada</span>: FES no reemplaza certificados emitidos por certificadores licenciados.
+        </li>
+        <li>
+          <span className="font-medium">Uso típico</span>: acuerdos, autorizaciones, conformidades, consentimientos, documentos internos y anexos.
+        </li>
+      </ul>
 
-        <h2>2. Marco legal aplicable</h2>
-        <p>
-          FES está diseñado para aportar <b>evidencia técnica</b> consistente con normativa argentina, principalmente:
-        </p>
-        <ul>
+      <SectionTitle>2. Definiciones</SectionTitle>
+      <div className="mt-3 rounded-2xl border border-zinc-200 bg-zinc-50 p-5">
+        <ul className="space-y-2 text-sm text-zinc-700">
           <li>
-            <b>Ley 25.506 (Firma Digital)</b>. FES implementa un mecanismo de <b>firma electrónica</b> (no firma digital con certificado). Documento oficial:
-            {" "}
-            <ExternalLink href="https://www.argentina.gob.ar/normativa/nacional/ley-25506-70749">
-              Argentina.gob.ar (InfoLEG)
-            </ExternalLink>
-            .
+            <span className="font-medium">Usuario</span>: persona que crea documentos, administra una cuenta o utiliza el Servicio.
           </li>
           <li>
-            <b>Código Civil y Comercial</b> – instrumentos particulares y firma (Arts. 286–288). Texto oficial:
-            {" "}
-            <ExternalLink href="https://www.argentina.gob.ar/normativa/nacional/ley-26994-235975">
-              Argentina.gob.ar (InfoLEG)
-            </ExternalLink>
-            .
+            <span className="font-medium">Firmante</span>: persona invitada a firmar un documento.
           </li>
           <li>
-            <b>Ley 25.326 (Datos Personales)</b>. Texto oficial:
-            {" "}
-            <ExternalLink href="https://www.argentina.gob.ar/normativa/nacional/ley-25326-64790">
-              Argentina.gob.ar (InfoLEG)
-            </ExternalLink>
-            .
+            <span className="font-medium">Cuenta</span>: contexto de uso (personal o de empresa) asociado a un plan y límites.
+          </li>
+          <li>
+            <span className="font-medium">Magic Link</span>: enlace de acceso enviado por email, usualmente de un solo uso y con validez temporal.
+          </li>
+          <li>
+            <span className="font-medium">Evidencia / auditoría</span>: registro de eventos y metadatos del flujo de firma (por ejemplo: invitación, apertura, firma, finalización).
           </li>
         </ul>
-        <div className="not-prose mt-4 grid gap-3 rounded-2xl border border-zinc-200 p-5">
-          <div className="text-sm font-medium">Citas breves (referencia orientativa)</div>
-          <ul className="text-sm text-zinc-700">
-            <li>• Ley 25.506: “se entiende por firma electrónica…” (art. 5).</li>
-            <li>• CCCN: “la firma prueba la autoría…” (art. 288).</li>
-            <li>• Ley 25.326: principios de consentimiento e información (arts. 5 y 6).</li>
-          </ul>
-          <p className="text-xs text-zinc-500">
-            Nota: estas citas son breves; el texto completo se consulta en los links oficiales.
-          </p>
-        </div>
+      </div>
 
-        <h2>3. Alcance del servicio</h2>
-        <p>
-          El Creador sube un PDF, define firmantes (paralelo o secuencial) y el sistema envía invitaciones. El Firmante accede con un enlace único, visualiza el PDF y firma con trazo. FES genera un PDF final con un sello de evidencia (hash SHA-256, timestamp e información forense).
-        </p>
-        <p>
-          FES no revisa el contenido del documento ni brinda asesoramiento legal. El Creador es responsable del contenido, de la pertinencia del acto jurídico y de las consecuencias de su uso.
-        </p>
+      <SectionTitle>3. Registro, acceso y cuenta</SectionTitle>
+      <p className="mt-3 text-sm leading-relaxed text-zinc-700">
+        Para ingresar, el Servicio puede utilizar un flujo sin contraseña (“Magic Link”). El acceso se vincula al email.
+        Sos responsable de mantener el control de tu casilla de correo y de cualquier sesión iniciada.
+      </p>
+      <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-zinc-700">
+        <li>No compartas enlaces de acceso ni enlaces de firma.</li>
+        <li>Si sospechás acceso no autorizado, cerrá sesión y solicitá un nuevo Magic Link.</li>
+        <li>Podemos pedir información adicional para prevenir abuso o actividades fraudulentas.</li>
+      </ul>
 
-        <h2>4. Identidad y declaración del firmante</h2>
-        <p>
-          Para reforzar evidencia, el Firmante debe completar datos mínimos de identificación (nombre completo, DNI, CUIL, domicilio y celular) y aceptar un consentimiento informado antes de enviar la firma. En una fase posterior se podrá incorporar verificación adicional (ej.: captura de DNI y prueba de vida).
-        </p>
+      <SectionTitle>4. Uso permitido y responsabilidades</SectionTitle>
+      <SubTitle>4.1. Conducta y contenido</SubTitle>
+      <p className="mt-2 text-sm leading-relaxed text-zinc-700">
+        Te comprometés a utilizar el Servicio de forma lícita y a no cargar o distribuir contenido ilegal, infractor, engañoso o que viole derechos de terceros.
+        El Servicio no está destinado a actividades que requieran validaciones regulatorias específicas.
+      </p>
+      <SubTitle>4.2. Identidad y datos</SubTitle>
+      <p className="mt-2 text-sm leading-relaxed text-zinc-700">
+        La validez probatoria de un proceso de firma depende, entre otros factores, de la consistencia de la evidencia, el contexto y la información aportada.
+        Sos responsable de:
+      </p>
+      <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-zinc-700">
+        <li>Ingresar datos reales y actuales en tu perfil y al completar formularios de firma.</li>
+        <li>Verificar, cuando corresponda, la identidad del firmante por medios propios (por ejemplo, documentación, validaciones internas, etc.).</li>
+        <li>Definir el nivel de formalidad adecuado para cada documento y su caso de uso.</li>
+      </ul>
 
-        <h2>5. Seguridad y registro forense</h2>
-        <p>
-          FES registra auditoría por evento (por ejemplo: creación, carga, invitación, envío, apertura, vista previa, firma, emisión de timestamp y finalización). Además, el PDF final incorpora evidencia técnica.
-        </p>
-        <ul>
-          <li><b>Hash SHA-256</b> del PDF original para detectar modificaciones.</li>
-          <li><b>Timestamp</b> (fecha/hora) y evidencia del entorno (IP, user-agent).</li>
-          <li><b>Enlaces únicos</b> por firmante, con vencimiento configurable.</li>
-          <li><b>Rate limiting</b> y controles en middleware para reducir abuso.</li>
-        </ul>
+      <SectionTitle>5. Evidencia del proceso y PDF final</SectionTitle>
+      <p className="mt-3 text-sm leading-relaxed text-zinc-700">
+        El Servicio registra un historial del flujo de firma para respaldar el documento. Sin perjuicio de mejoras futuras, la evidencia puede incluir, entre otros:
+      </p>
+      <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-zinc-700">
+        <li>Marca temporal de eventos (invitación, apertura, firma, finalización).</li>
+        <li>Identificadores técnicos del documento (por ejemplo, hashes) y del enlace de firma.</li>
+        <li>Metadatos básicos de la interacción (por ejemplo, navegador/dispositivo y dirección IP reportada).</li>
+      </ul>
+      <p className="mt-3 text-sm leading-relaxed text-zinc-700">
+        Al completarse todas las firmas, se genera un PDF final. El documento final puede incluir un código o referencia de auditoría para consulta.
+      </p>
+      <p className="mt-3 text-sm leading-relaxed text-zinc-700">
+        Importante: FES provee herramientas y evidencia técnica, pero no reemplaza asesoramiento legal. La valoración probatoria corresponde a las autoridades competentes y depende del caso concreto.
+      </p>
 
-        <h2>6. Vencimientos, rechazo y reenvíos</h2>
-        <p>
-          Cada invitación tiene un vencimiento mínimo de 3 días (configurable). El Firmante puede <b>rechazar</b> indicando un motivo. En caso de rechazo o vencimiento, el Creador puede re-enviar una nueva invitación.
-        </p>
+      <SectionTitle>6. Planes, límites y cambios</SectionTitle>
+      <p className="mt-3 text-sm leading-relaxed text-zinc-700">
+        El Servicio puede ofrecer distintos planes (por ejemplo, gratuito, individual y empresa) con límites y funcionalidades.
+        Los límites suelen aplicarse a la <span className="font-medium">creación</span> de documentos por mes y por cuenta activa.
+      </p>
+      <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-zinc-700">
+        <li>Los precios y beneficios pueden cambiar con aviso razonable.</li>
+        <li>Podemos introducir planes por volumen o acuerdos comerciales para organizaciones.</li>
+        <li>El abuso del Servicio puede derivar en restricciones, suspensión o cancelación.</li>
+      </ul>
 
-        <h2>7. Planes, uso gratuito y límites</h2>
-        <p>
-          Firmar siempre es gratuito. Para subir documentos se ofrece un cupo gratuito semanal y planes por volumen.
-          Los precios y condiciones se detallan en {" "}
-          <Link href="/pricing">Planes</Link>.
-        </p>
+      <SectionTitle>7. Seguridad y disponibilidad</SectionTitle>
+      <p className="mt-3 text-sm leading-relaxed text-zinc-700">
+        Aplicamos buenas prácticas para proteger el Servicio y la información procesada. En particular:
+      </p>
+      <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-zinc-700">
+        <li>Usamos cifrado en tránsito (HTTPS/TLS) para la comunicación con el Servicio.</li>
+        <li>Implementamos controles de acceso y validaciones para reducir riesgos de uso indebido.</li>
+        <li>Podemos limitar solicitudes (rate limiting) y aplicar medidas antifraude.</li>
+      </ul>
+      <p className="mt-3 text-sm leading-relaxed text-zinc-700">
+        El Servicio se brinda “tal cual” y “según disponibilidad”. Podemos realizar mantenimiento, cambios y mejoras que temporalmente afecten la disponibilidad.
+      </p>
 
-        <h2>8. Retención y disponibilidad</h2>
-        <p>
-          Por políticas de seguridad y trazabilidad, FES puede conservar documentos y evidencias por hasta <b>10 años</b>. El acceso se limita a las partes autorizadas. La disponibilidad a terceros se realiza únicamente ante orden judicial o requerimiento legal aplicable.
-        </p>
+      <SectionTitle>8. Propiedad intelectual</SectionTitle>
+      <p className="mt-3 text-sm leading-relaxed text-zinc-700">
+        El software, marca, diseño y materiales del Servicio son propiedad del proveedor del Servicio o de sus licenciantes.
+        Vos conservás los derechos sobre el contenido que subas o generes (documentos), y nos otorgás una licencia limitada para procesarlo únicamente
+        con el fin de prestar el Servicio.
+      </p>
 
-        <h2>9. Limitación de responsabilidad</h2>
-        <p>
-          El servicio se brinda “tal cual”. FES no garantiza que el documento sea admisible o suficiente como prueba en todos los casos: eso depende del acto jurídico, jurisdicción, pericia y demás circunstancias.
-        </p>
+      <SectionTitle>9. Limitación de responsabilidad</SectionTitle>
+      <p className="mt-3 text-sm leading-relaxed text-zinc-700">
+        En la medida permitida por la ley, el proveedor del Servicio no será responsable por daños indirectos, lucro cesante, pérdida de datos o interrupciones
+        derivadas del uso o imposibilidad de uso del Servicio. La responsabilidad total, de corresponder, se limitará al monto efectivamente abonado por el Usuario
+        por el Servicio en un período razonable previo al reclamo.
+      </p>
 
-        <h2>10. Contacto</h2>
-        <p>
-          Para consultas de soporte o solicitudes legales: <b>firmasimple@daslatam.org</b> (a definir en producción).
+      <SectionTitle>10. Suspensión y terminación</SectionTitle>
+      <p className="mt-3 text-sm leading-relaxed text-zinc-700">
+        Podemos suspender o terminar el acceso al Servicio si detectamos uso abusivo, violaciones a estos Términos o requerimientos legales.
+        También podés dejar de usar el Servicio en cualquier momento.
+      </p>
+
+      <SectionTitle>11. Modificaciones de estos Términos</SectionTitle>
+      <p className="mt-3 text-sm leading-relaxed text-zinc-700">
+        Podemos actualizar estos Términos para reflejar cambios del Servicio, legales o de seguridad. Publicaremos la versión vigente en este sitio.
+        El uso continuado del Servicio implica aceptación de los cambios.
+      </p>
+
+      <SectionTitle>12. Contacto</SectionTitle>
+      <p className="mt-3 text-sm leading-relaxed text-zinc-700">
+        Para consultas generales, privacidad o reclamos, podés contactarnos a través de los canales disponibles en el Servicio.
+        También podés revisar la política de privacidad:
+      </p>
+      <p className="mt-3 text-sm">
+        <Link className="font-medium text-emerald-700 hover:text-emerald-800" href="/privacy">
+          Ver Política de Privacidad
+        </Link>
+      </p>
+
+      <div className="mt-12 rounded-2xl border border-zinc-200 bg-zinc-50 p-5">
+        <div className="text-sm font-semibold text-zinc-900">Glosario rápido</div>
+        <p className="mt-2 text-sm leading-relaxed text-zinc-700">
+          <span className="font-medium">Magic Link</span>: enlace que llega por email para acceder o firmar sin contraseña.
+          <br />
+          <span className="font-medium">Auditoría</span>: historial del proceso que ayuda a respaldar el documento.
+          <br />
+          <span className="font-medium">Cuenta activa</span>: cuenta (personal/empresa) cuyo plan y límites aplican en el momento.
         </p>
       </div>
     </div>

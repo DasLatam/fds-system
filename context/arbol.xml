@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <repo root="fds-system">
   <file name=".gitignore"/>
+  <file name=".patch_backup_signing-request_20260207_125422.tgz"/>
   <file name=".vercelignore"/>
   <file name="README.md"/>
   <dir name="app">
@@ -37,14 +38,20 @@
         </dir>
       </dir>
       <dir name="documents">
+        <dir name="create-from-text">
+          <file name="create-from-text_route.ts"/>
+          <file name="route.ts"/>
+        </dir>
         <dir name="upload">
           <file name="route.ts"/>
+          <file name="upload_route.ts"/>
         </dir>
       </dir>
       <dir name="download">
         <file name="route.ts"/>
       </dir>
       <dir name="invite">
+        <file name="app_api_invite_route.ts"/>
         <file name="route.ts"/>
         <file name="route.ts.bak_2026-01-30T185708347Z"/>
       </dir>
@@ -67,6 +74,7 @@
         <file name="route.ts"/>
       </dir>
       <dir name="resend-invite">
+        <file name="app_api_resend-invite_route.ts"/>
         <file name="route.ts"/>
       </dir>
       <dir name="sign">
@@ -102,6 +110,8 @@
         </dir>
       </dir>
       <dir name="new">
+        <file name="NewDocumentTabs.tsx"/>
+        <file name="RedactForm.tsx"/>
         <file name="UploadForm.tsx"/>
         <file name="page.tsx"/>
       </dir>
@@ -147,7 +157,45 @@
       </dir>
     </dir>
   </dir>
+  <dir name="components">
+    <dir name="ui">
+      <file name="button.tsx"/>
+      <file name="card.tsx"/>
+      <file name="input.tsx"/>
+      <file name="label.tsx"/>
+    </dir>
+  </dir>
   <dir name="context">
+    <dir name=".backup_20260204_220620">
+      <dir name="app">
+        <dir name="admin">
+          <file name="page.tsx"/>
+        </dir>
+        <file name="layout.tsx"/>
+        <file name="page.tsx"/>
+        <dir name="privacy">
+          <file name="page.tsx"/>
+        </dir>
+        <dir name="profile">
+          <file name="page.tsx"/>
+          <file name="profile-client.tsx"/>
+        </dir>
+        <dir name="s">
+          <dir name="[token]">
+            <file name="page.tsx"/>
+          </dir>
+        </dir>
+        <dir name="signed">
+          <file name="page.tsx"/>
+        </dir>
+        <dir name="terms">
+          <file name="page.tsx"/>
+        </dir>
+      </dir>
+      <file name="middleware.ts"/>
+    </dir>
+    <file name=".fes_menu_files.txt"/>
+    <file name=".tgz_filelist.txt"/>
     <file name="PROMPT FES.txt"/>
     <file name="arbol.xml"/>
     <file name="commits-numstat.txt"/>
@@ -160,7 +208,17 @@
     <file name="context-runtime.sh"/>
     <file name="context-supabase-dump.sh"/>
     <file name="context-tech.sh"/>
+    <file name="fes-fixes-next-updated.tgz"/>
+    <file name="fes-fixes-next.tgz"/>
+    <file name="fes-menu.tgz"/>
+    <file name="menu_files.txt"/>
     <file name="prompt-master-fes.md"/>
+    <dir name="scripts">
+      <file name="apply-tgz-with-backup.sh"/>
+      <file name="backfill-audit.ts"/>
+      <file name="make-fes-menu-tgz.sh"/>
+      <file name="set-audit-code.ts"/>
+    </dir>
     <dir name="supabase">
       <file name="context-supabase.sql"/>
       <file name="schema.json"/>
@@ -170,6 +228,7 @@
   <dir name="lib">
     <file name="audit.ts"/>
     <dir name="audit">
+      <file name="labels.ts"/>
       <file name="logEvent.ts"/>
     </dir>
     <dir name="mail">
@@ -184,8 +243,12 @@
     </dir>
     <dir name="pdf">
       <file name="finalizePdf.ts"/>
+      <file name="simplePdf.ts"/>
     </dir>
+    <file name="plans.server.ts"/>
+    <file name="plans.ts"/>
     <dir name="security">
+      <file name="admin.server.ts"/>
       <file name="owner.ts"/>
       <file name="profile.ts"/>
       <file name="ratelimit.ts"/>
@@ -195,6 +258,9 @@
       <file name="browser.ts"/>
       <file name="env.ts"/>
       <file name="server.ts"/>
+    </dir>
+    <dir name="templates">
+      <file name="documentTemplates.ts"/>
     </dir>
     <dir name="utils">
       <file name="crypto.ts"/>
@@ -206,10 +272,6 @@
   <file name="package-lock.json"/>
   <file name="package.json"/>
   <file name="postcss.config.mjs"/>
-  <dir name="scripts">
-    <file name="backfill-audit.ts"/>
-    <file name="set-audit-code.ts"/>
-  </dir>
   <dir name="supabase">
     <file name="schema.sql"/>
   </dir>

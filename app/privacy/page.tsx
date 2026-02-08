@@ -1,90 +1,160 @@
 import Link from "next/link";
 
-function ExternalLink({ href, children }: { href: string; children: React.ReactNode }) {
-  return (
-    <a href={href} target="_blank" rel="noreferrer" className="underline decoration-zinc-300 underline-offset-4 hover:text-zinc-900">
-      {children}
-    </a>
-  );
+export const dynamic = "force-dynamic";
+
+const UPDATED_AT = "2026-02-07";
+
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return <h2 className="mt-10 text-xl font-semibold text-zinc-900">{children}</h2>;
+}
+
+function SubTitle({ children }: { children: React.ReactNode }) {
+  return <h3 className="mt-6 text-base font-semibold text-zinc-900">{children}</h3>;
 }
 
 export default function PrivacyPage() {
-  const updated = new Date().toISOString().slice(0, 10);
-
   return (
-    <div className="mx-auto max-w-5xl px-4 py-10">
-      <div className="flex flex-col gap-3">
-        <h1 className="text-3xl font-semibold">Política de Privacidad</h1>
-        <p className="text-sm text-zinc-600">Última actualización: {updated}.</p>
-        <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-5 text-sm text-zinc-700">
-          Tratamos datos personales y evidencia de firma (incluye datos identificatorios y trazo manuscrito). Aplican principios de la Ley 25.326. Conservamos evidencia hasta 10 años por seguridad y trazabilidad.
-        </div>
+    <div className="mx-auto max-w-4xl px-4 py-12">
+      <div>
+        <h1 className="text-3xl font-semibold tracking-tight text-zinc-900">Política de privacidad</h1>
+        <p className="mt-2 text-sm text-zinc-600">
+          Última actualización: <span className="font-medium text-zinc-800">{UPDATED_AT}</span>
+        </p>
+        <p className="mt-4 text-sm leading-relaxed text-zinc-700">
+          Esta Política explica qué datos tratamos cuando usás Firma Electrónica Simple (FES), para qué los usamos y qué opciones tenés.
+          El objetivo es ser claros y prácticos: si algo no se entiende, escribinos.
+        </p>
       </div>
 
-      <div className="prose prose-zinc mt-8 max-w-none">
-        <h2>1. Normativa</h2>
-        <p>
-          Esta política se interpreta principalmente conforme a la <b>Ley 25.326</b> (Protección de Datos Personales) y normativa complementaria.
-          Texto oficial: <ExternalLink href="https://www.argentina.gob.ar/normativa/nacional/ley-25326-64790">Argentina.gob.ar (InfoLEG)</ExternalLink>.
-        </p>
+      <SectionTitle>1. Alcance y roles</SectionTitle>
+      <p className="mt-3 text-sm leading-relaxed text-zinc-700">
+        Esta Política aplica al uso del Servicio (web y APIs). En general:
+      </p>
+      <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-zinc-700">
+        <li>
+          FES actúa como proveedor del Servicio y trata datos necesarios para operar la plataforma.
+        </li>
+        <li>
+          En documentos entre partes, es posible que el Usuario que crea el documento sea quien define el contenido y los firmantes.
+        </li>
+      </ul>
 
-        <h2>2. Qué datos recolectamos</h2>
-        <ul>
-          <li><b>Cuenta:</b> email, identificador de usuario.</li>
-          <li><b>Identidad declarada:</b> nombre completo, DNI, CUIL, domicilio y celular (obligatorio antes del uso).</li>
-          <li><b>Empresas (si aplica):</b> CUIT, razón social y datos del representante.</li>
-          <li><b>Evidencia de firma:</b> trazo manuscrito (firma capturada), hash de documentos, timestamps y auditoría por evento.</li>
-          <li><b>Datos técnicos:</b> IP, user-agent, timestamps, identificadores de sesión y logs de seguridad.</li>
-        </ul>
+      <SectionTitle>2. Qué datos recopilamos</SectionTitle>
+      <SubTitle>2.1. Datos de cuenta y perfil</SubTitle>
+      <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-zinc-700">
+        <li>Email (para acceso y notificaciones).</li>
+        <li>Nombre y datos de identificación que el Usuario cargue en su perfil (por ejemplo: DNI/CUIL, dirección, teléfono).</li>
+        <li>Preferencias básicas del Servicio y estado de cuenta.</li>
+      </ul>
 
-        <h2>3. Finalidades</h2>
-        <ul>
-          <li>Prestar el servicio de firma y generar documentos finales con evidencia.</li>
-          <li>Seguridad, prevención de fraude y abuso (rate limiting, monitoreo).</li>
-          <li>Auditoría y trazabilidad (registro forense) asociada a cada documento.</li>
-          <li>Cumplimiento legal y respuesta a requerimientos válidos.</li>
-        </ul>
+      <SubTitle>2.2. Datos de documentos y firmas</SubTitle>
+      <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-zinc-700">
+        <li>Contenido del documento que el Usuario sube o redacta.</li>
+        <li>Datos que completan los firmantes en formularios (por ejemplo: nombre, documento, aclaración, etc.).</li>
+        <li>Archivos PDF generados o subidos y su versión final.</li>
+      </ul>
 
-        <h2>4. Base legal y consentimiento</h2>
-        <p>
-          El tratamiento se realiza con base en el consentimiento del usuario y/o la necesidad de ejecutar el servicio solicitado.
-          Para firmar, el firmante debe aceptar un consentimiento informado y declarar sus datos identificatorios.
-        </p>
+      <SubTitle>2.3. Datos técnicos y de uso</SubTitle>
+      <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-zinc-700">
+        <li>Registros de auditoría del flujo de firma (por ejemplo: invitación, apertura, firma, finalización).</li>
+        <li>Metadatos técnicos habituales (por ejemplo: fecha/hora, navegador/dispositivo, dirección IP reportada, identificadores técnicos).</li>
+        <li>Cookies o almacenamiento local necesarios para sesión y funcionamiento básico.</li>
+      </ul>
 
-        <h2>5. Retención: 10 años</h2>
-        <p>
-          Por razones de seguridad, trazabilidad y potenciales controversias, conservamos documentos y evidencia por hasta <b>10 años</b>.
-          Luego de ese plazo, podremos anonimizar o eliminar datos según corresponda.
-        </p>
+      <SectionTitle>3. Para qué usamos los datos</SectionTitle>
+      <p className="mt-3 text-sm leading-relaxed text-zinc-700">Usamos los datos para:</p>
+      <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-zinc-700">
+        <li>Proveer el Servicio: crear documentos, invitar firmantes, generar PDFs y mostrar estados.</li>
+        <li>Autenticación y seguridad: validar acceso por email, prevenir fraude y abuso.</li>
+        <li>Notificaciones: enviar Magic Links y emails transaccionales (invitación, recordatorios, documento final).</li>
+        <li>Mejoras del producto: diagnósticos, métricas agregadas y mejoras de UX (cuando corresponda).</li>
+        <li>Cumplimiento: responder requerimientos legales válidos y proteger derechos/seguridad de usuarios.</li>
+      </ul>
 
-        <h2>6. Acceso y compartición</h2>
-        <p>
-          No vendemos datos personales. Compartimos datos únicamente con proveedores necesarios para operar el servicio (por ejemplo, almacenamiento y correo)
-          y bajo acuerdos de confidencialidad y seguridad.
-        </p>
-        <p>
-          Podemos disponibilizar información a terceros sólo ante <b>orden judicial</b> o requerimiento legal aplicable.
-        </p>
+      <SectionTitle>4. Base legal y consentimiento</SectionTitle>
+      <p className="mt-3 text-sm leading-relaxed text-zinc-700">
+        Tratamos datos principalmente para ejecutar el Servicio que solicitás (relación contractual) y por interés legítimo en seguridad y estabilidad.
+        Cuando la ley lo requiera, pediremos consentimiento. Podés retirar tu consentimiento en cualquier momento, aunque eso puede limitar el uso del Servicio.
+      </p>
 
-        <h2>7. Seguridad</h2>
-        <ul>
-          <li>Bucket de almacenamiento privado, acceso mediante credenciales server-side (admin client).</li>
-          <li>Hash SHA-256 y sello de evidencia incorporado al PDF final.</li>
-          <li>Auditoría por evento y logs para investigación forense.</li>
-          <li>Controles de abuso (rate limiting) y validaciones del lado servidor.</li>
-        </ul>
+      <SectionTitle>5. Cómo compartimos datos</SectionTitle>
+      <p className="mt-3 text-sm leading-relaxed text-zinc-700">
+        No vendemos tu información personal. Podemos compartir datos con proveedores que nos ayudan a operar el Servicio, por ejemplo:
+      </p>
+      <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-zinc-700">
+        <li>Infraestructura y base de datos (p. ej., Supabase).</li>
+        <li>Hosting y entrega (p. ej., Vercel).</li>
+        <li>Envío de emails transaccionales (p. ej., Resend).</li>
+      </ul>
+      <p className="mt-3 text-sm leading-relaxed text-zinc-700">
+        Estos proveedores actúan como encargados y están autorizados a tratar datos solo para prestar sus servicios.
+      </p>
 
-        <h2>8. Derechos del titular</h2>
-        <p>
-          Podés solicitar acceso, rectificación o actualización de tus datos. Para ello, escribinos por los canales de soporte.
-        </p>
-        <p>
-          También podés actualizar tu información desde la sección <Link href="/profile">Perfil</Link>.
-        </p>
+      <SectionTitle>6. Transferencias internacionales</SectionTitle>
+      <p className="mt-3 text-sm leading-relaxed text-zinc-700">
+        Dependiendo de la infraestructura utilizada, los datos pueden almacenarse o procesarse en servidores ubicados fuera de Argentina.
+        Cuando aplica, buscamos utilizar proveedores con prácticas razonables de seguridad y acuerdos contractuales apropiados.
+      </p>
 
-        <h2>9. Cambios</h2>
-        <p>
-          Podemos actualizar esta política. La fecha de última actualización se muestra al inicio.
+      <SectionTitle>7. Conservación y eliminación</SectionTitle>
+      <p className="mt-3 text-sm leading-relaxed text-zinc-700">
+        Conservamos datos el tiempo necesario para operar el Servicio y cumplir obligaciones legales o resolver disputas.
+        En términos generales:
+      </p>
+      <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-zinc-700">
+        <li>Datos de cuenta: mientras mantengas una cuenta activa o hasta que solicites eliminación, sujeto a retenciones legales mínimas.</li>
+        <li>Documentos y PDFs: mientras estén disponibles en tu cuenta o hasta que solicites su eliminación, sujeto a limitaciones técnicas o legales.</li>
+        <li>Auditoría y seguridad: por un período razonable para prevenir fraude y mantener trazabilidad.</li>
+      </ul>
+
+      <SectionTitle>8. Seguridad</SectionTitle>
+      <p className="mt-3 text-sm leading-relaxed text-zinc-700">
+        Implementamos medidas de seguridad razonables para proteger la información, incluyendo cifrado en tránsito (HTTPS/TLS), controles de acceso y validaciones.
+        Ningún sistema es 100% infalible: también es importante que cuides tu email, tus enlaces y tus dispositivos.
+      </p>
+
+      <SectionTitle>9. Derechos de las personas usuarias</SectionTitle>
+      <p className="mt-3 text-sm leading-relaxed text-zinc-700">
+        Podés solicitar acceso, rectificación, actualización o eliminación de tus datos, y oponerte o limitar ciertos tratamientos.
+        En Argentina, estos derechos se enmarcan en la Ley 25.326 y normativa complementaria.
+      </p>
+      <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-zinc-700">
+        <li>Acceso: conocer qué datos tenemos sobre vos.</li>
+        <li>Rectificación/actualización: corregir datos inexactos.</li>
+        <li>Eliminación: solicitar borrado, cuando sea aplicable.</li>
+        <li>Oposición/limitación: en ciertos supuestos.</li>
+      </ul>
+
+      <SectionTitle>10. Emails y comunicaciones</SectionTitle>
+      <p className="mt-3 text-sm leading-relaxed text-zinc-700">
+        Enviamos emails transaccionales indispensables para el funcionamiento (Magic Links, invitaciones y documento final). Podés dejar de recibir comunicaciones
+        no esenciales cuando exista esa opción, pero los emails operativos pueden continuar mientras uses el Servicio.
+      </p>
+
+      <SectionTitle>11. Cambios a esta Política</SectionTitle>
+      <p className="mt-3 text-sm leading-relaxed text-zinc-700">
+        Podemos actualizar esta Política para reflejar cambios del Servicio, legales o de seguridad. Publicaremos la versión vigente en este sitio.
+      </p>
+
+      <SectionTitle>12. Contacto</SectionTitle>
+      <p className="mt-3 text-sm leading-relaxed text-zinc-700">
+        Para ejercer derechos o consultas de privacidad, contactanos a través de los canales disponibles en el Servicio.
+        También podés revisar los términos:
+      </p>
+      <p className="mt-3 text-sm">
+        <Link className="font-medium text-emerald-700 hover:text-emerald-800" href="/terms">
+          Ver Términos y Condiciones
+        </Link>
+      </p>
+
+      <div className="mt-12 rounded-2xl border border-zinc-200 bg-zinc-50 p-5">
+        <div className="text-sm font-semibold text-zinc-900">Glosario rápido</div>
+        <p className="mt-2 text-sm leading-relaxed text-zinc-700">
+          <span className="font-medium">Datos de auditoría</span>: eventos y metadatos del proceso de firma.
+          <br />
+          <span className="font-medium">Encargados</span>: proveedores que procesan datos para operar el Servicio.
+          <br />
+          <span className="font-medium">Magic Link</span>: enlace de acceso por email (sin contraseña).
         </p>
       </div>
     </div>

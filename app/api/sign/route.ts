@@ -5,6 +5,7 @@ import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import QRCode from "qrcode";
 import crypto from "crypto";
 import { getResend } from "@/lib/mail/resendClient";
+import { baseEmailTemplate } from "@/lib/mail/templates/base";
 
 export const runtime = "nodejs";
 
@@ -38,6 +39,15 @@ function isValidEmail(v?: string | null) {
   const s = String(v).trim();
   if (!s.includes("@")) return false;
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
+}
+
+function escapeHtml(s: string) {
+  return String(s)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
 }
 
 async function logAuditBasic(
@@ -691,21 +701,23 @@ export async function POST(req: NextRequest) {
             : null;
 
         if (recipients.length > 0) {
-          const html = `
-            <div style="font-family: ui-sans-serif, system-ui; line-height: 1.4">
-              <h2 style="margin:0 0 10px 0;">Documento finalizado</h2>
-              <p style="margin:0 0 10px 0;"><b>${titleForEmail}</b> fue firmado por todos.</p>
+          const html = baseEmailTemplate({
+            title: "Documento finalizado",
+            preheader: `Documento finalizado: ${titleForEmail}`,
+            intro: `“${titleForEmail}” fue firmado por todos. Podés descargar el PDF final y conservar el código de auditoría para referencia.`,
+            cta: downloadUrl ? { label: "Descargar PDF final", href: downloadUrl } : undefined,
+            childrenHtml: `
+              <p style="margin:0 0 10px 0;"><b>Fecha:</b> ${escapeHtml(completedAtForEmail)}</p>
+              <p style="margin:0 0 10px 0;"><b>Código de auditoría:</b> ${escapeHtml(auditCodeForEmail)}</p>
               <p style="margin:0 0 10px 0;">
-                <b>Fecha:</b> ${completedAtForEmail}<br/>
-                <b>Código de auditoría:</b> ${auditCodeForEmail}<br/>
-                <b>Verificación:</b> <a href="${verifyUrl2}">${verifyUrl2}</a><br/>
-                ${downloadUrl ? `<b>Descarga:</b> <a href="${downloadUrl}">${downloadUrl}</a><br/>` : ""}
+                <b>Verificación pública:</b>
+                <a href="${escapeHtml(verifyUrl2)}" style="color:#18181b; text-decoration:underline;">${escapeHtml(verifyUrl2)}</a>
               </p>
-              <p style="margin:0; color:#666; font-size: 12px;">
-                Este servicio implementa firma electrónica conforme a la Ley 25.506 (República Argentina).
+              <p style="margin:0; color:#71717a; font-size: 12px;">
+                FES implementa firma electrónica conforme a la Ley 25.506 (República Argentina). No constituye firma digital certificada.
               </p>
-            </div>
-          `.trim();
+            `.trim(),
+          });
 
           const sent = await sendResendEmail({
             to: recipients,

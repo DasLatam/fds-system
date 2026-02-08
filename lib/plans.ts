@@ -88,6 +88,8 @@ export function formatArs(amount: number) {
     return new Intl.NumberFormat("es-AR", {
       style: "currency",
       currency: "ARS",
+      // UI: mostrar "ARS" en vez del símbolo "$".
+      currencyDisplay: "code",
       minimumFractionDigits: 2,
     }).format(amount);
   } catch {

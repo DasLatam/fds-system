@@ -6,7 +6,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sha256Hex } from "@/lib/utils/crypto";
 import { logEvent } from "@/lib/audit/logEvent";
-import { createSimplePdfBytes } from "@/lib/pdf/simplePdf";
+import { createSimplePdfBytes, htmlToPlainText } from "@/lib/pdf/simplePdf";
 
 export const runtime = "nodejs";
 
@@ -110,33 +110,6 @@ function isOnboardingComplete(profile: any) {
       profile?.address &&
       profile?.phone
   );
-}
-
-function htmlToPlainText(html: string) {
-  const raw = String(html || "");
-  // Normalización suave: <br> y </p> como saltos
-  let s = raw
-    .replace(/<\s*br\s*\/?\s*>/gi, "\n")
-    .replace(/<\/\s*p\s*>/gi, "\n")
-    .replace(/<\/\s*div\s*>/gi, "\n")
-    .replace(/<\s*li\s*>/gi, "• ")
-    .replace(/<\/\s*li\s*>/gi, "\n");
-
-  // strip tags restantes
-  s = s.replace(/<[^>]+>/g, "");
-
-  // decode entidades básicas
-  s = s
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, "\"")
-    .replace(/&#39;/g, "'");
-
-  // compactar espacios
-  s = s.replace(/\r\n/g, "\n").replace(/\n{3,}/g, "\n\n");
-  return s.trim();
 }
 
 export async function POST(req: NextRequest) {

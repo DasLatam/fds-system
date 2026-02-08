@@ -49,7 +49,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   <NavLink href="/terms">Términos</NavLink>
                   <NavLink href="/privacy">Privacidad</NavLink>
 
-                  <Link href="/login" className="rounded-md bg-black px-3 py-1.5 text-sm font-medium text-white">
+                  <Link
+                    href="/login"
+                    className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-emerald-700 active:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2"
+                  >
                     Ingresar
                   </Link>
                 </>

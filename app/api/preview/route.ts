@@ -1,7 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSimplePdfBytes, htmlToPlainText } from "@/lib/pdf/simplePdf";
 
 export const runtime = "nodejs";
+
+const PreviewBodySchema = z.object({
+  title: z.string().min(1).max(120),
+  html: z.string().min(1).max(500_000),
+});
 
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
@@ -87,3 +96,33 @@ export async function GET(req: NextRequest) {
     },
   });
 }
+
+// Preview privado: usado en el flujo de "Redactar" para descargar un borrador.
+// Requiere sesión.
+export async function POST(req: NextRequest) {
+  try {
+    const supabase = await createSupabaseServerClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+
+    const body = PreviewBodySchema.parse(await req.json());
+    const bodyText = htmlToPlainText(body.html);
+    const pdfBytes = await createSimplePdfBytes({ title: body.title, bodyText });
+
+    return new NextResponse(pdfBytes, {
+      status: 200,
+      headers: {
+        "content-type": "application/pdf",
+        "content-disposition": `attachment; filename="${body.title.replaceAll(/[^a-z0-9\-_ ]/gi, "").slice(0, 64) || "documento"}.pdf"`,
+        "cache-control": "no-store",
+      },
+    });
+  } catch (e: any) {
+    const msg = e?.message || "preview_failed";
+    return NextResponse.json({ error: "preview_failed", details: msg }, { status: 400 });
+  }
+}
+
