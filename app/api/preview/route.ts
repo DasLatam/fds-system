@@ -12,6 +12,11 @@ const PreviewBodySchema = z.object({
   html: z.string().min(1).max(500_000),
 });
 
+// Convierte Uint8Array -> ArrayBuffer “exacto” (sin bytes extra del buffer subyacente)
+function u8ToArrayBuffer(u8: Uint8Array): ArrayBuffer {
+  return u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength);
+}
+
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const value = (url.searchParams.get("token") || "").trim();
@@ -40,10 +45,7 @@ export async function GET(req: NextRequest) {
 
   if (srRes.error) {
     console.error("preview signing_requests error:", srRes.error);
-    return NextResponse.json(
-      { error: "sr_query_failed", details: srRes.error.message },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "sr_query_failed", details: srRes.error.message }, { status: 500 });
   }
 
   const sr = srRes.data;
@@ -59,18 +61,11 @@ export async function GET(req: NextRequest) {
   }
   if (sr.status === "expired") return NextResponse.json({ error: "invalid_or_expired" }, { status: 404 });
 
-  const docRes = await admin
-    .from("documents")
-    .select("original_path")
-    .eq("id", sr.document_id)
-    .maybeSingle();
+  const docRes = await admin.from("documents").select("original_path").eq("id", sr.document_id).maybeSingle();
 
   if (docRes.error) {
     console.error("preview documents error:", docRes.error);
-    return NextResponse.json(
-      { error: "doc_query_failed", details: docRes.error.message },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "doc_query_failed", details: docRes.error.message }, { status: 500 });
   }
 
   const originalPath = docRes.data?.original_path;
@@ -79,15 +74,13 @@ export async function GET(req: NextRequest) {
   const dl = await admin.storage.from("fds").download(originalPath);
   if (dl.error) {
     console.error("preview storage download error:", dl.error);
-    return NextResponse.json(
-      { error: "download_failed", details: dl.error.message },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "download_failed", details: dl.error.message }, { status: 500 });
   }
 
-  const bytes = new Uint8Array(await dl.data.arrayBuffer());
+  // ✅ Devolvemos ArrayBuffer (no Uint8Array) para compatibilidad TS
+  const ab = await dl.data.arrayBuffer();
 
-  return new NextResponse(bytes, {
+  return new NextResponse(ab, {
     status: 200,
     headers: {
       "content-type": "application/pdf",
@@ -97,7 +90,7 @@ export async function GET(req: NextRequest) {
   });
 }
 
-// Preview privado: usado en el flujo de "Redactar" para descargar un borrador.
+// Preview privado: usado en "Redactar" para descargar borrador.
 // Requiere sesión.
 export async function POST(req: NextRequest) {
   try {
@@ -112,11 +105,16 @@ export async function POST(req: NextRequest) {
     const bodyText = htmlToPlainText(body.html);
     const pdfBytes = await createSimplePdfBytes({ title: body.title, bodyText });
 
-    return new NextResponse(pdfBytes, {
+    // ✅ Convertimos Uint8Array -> ArrayBuffer para que TS no falle
+    const ab = u8ToArrayBuffer(pdfBytes);
+
+    return new NextResponse(ab, {
       status: 200,
       headers: {
         "content-type": "application/pdf",
-        "content-disposition": `attachment; filename="${body.title.replaceAll(/[^a-z0-9\-_ ]/gi, "").slice(0, 64) || "documento"}.pdf"`,
+        "content-disposition": `attachment; filename="${
+          body.title.replaceAll(/[^a-z0-9\-_ ]/gi, "").slice(0, 64) || "documento"
+        }.pdf"`,
         "cache-control": "no-store",
       },
     });
@@ -125,4 +123,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "preview_failed", details: msg }, { status: 400 });
   }
 }
-
