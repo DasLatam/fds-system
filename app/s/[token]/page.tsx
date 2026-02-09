@@ -13,6 +13,17 @@ type Preview = {
   position: number | null;
   expiresAt: string | null;
   pdfUrl: string; // suele ser "/api/preview?token=..."
+  prefill?: {
+    fullName?: string | null;
+    dni?: string | null;
+    taxId?: string | null;
+    address?: string | null;
+    phone?: string | null;
+    companyName?: string | null;
+    companyCuit?: string | null;
+    companyAddress?: string | null;
+    companyRole?: string | null;
+  } | null;
 };
 
 type SignerCapacity = "self" | "representing";
@@ -98,6 +109,35 @@ export default function SignPage() {
         if (!res.ok) throw new Error(data?.error || "No se pudo cargar el documento.");
 
         if (mounted) {
+          // Prefill (si el firmante ya tiene perfil / está logueado)
+          const p = (data as any)?.prefill as Preview["prefill"];
+          if (p) {
+            const setIfEmpty = (ref: React.RefObject<HTMLInputElement | null>, value?: string | null) => {
+              const v = String(value || "").trim();
+              if (!v) return;
+              const cur = (ref.current?.value || "").trim();
+              if (!cur && ref.current) ref.current.value = v;
+            };
+
+            setIfEmpty(fullNameRef, p.fullName ?? undefined);
+            setIfEmpty(dniRef, p.dni ?? undefined);
+            setIfEmpty(cuilRef, p.taxId ?? undefined);
+            setIfEmpty(addressRef, p.address ?? undefined);
+            setIfEmpty(phoneRef, p.phone ?? undefined);
+
+            setIfEmpty(companyNameRef, p.companyName ?? undefined);
+            setIfEmpty(companyCuitRef, p.companyCuit ?? undefined);
+            setIfEmpty(companyAddressRef, p.companyAddress ?? undefined);
+            setIfEmpty(companyRoleRef, p.companyRole ?? undefined);
+
+            const hasCompany = Boolean(
+              (p.companyName && String(p.companyName).trim()) ||
+                (p.companyCuit && String(p.companyCuit).trim()) ||
+                (p.companyRole && String(p.companyRole).trim())
+            );
+            if (hasCompany) setSignerCapacity("representing");
+          }
+
           setPreview(data as Preview);
           setTimeout(() => bump(), 50);
         }

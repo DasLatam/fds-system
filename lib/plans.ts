@@ -10,6 +10,13 @@ export type PlanDefinition = {
   /** Etiqueta corta (chips, etc.) */
   shortLabel: string;
 
+  /** Nombre usado en UI (fallback: label) */
+  name?: string;
+  /** Descripción usada en UI (cards, planes, etc.) */
+  description?: string;
+  /** Si es el plan sugerido (UI) */
+  recommended?: boolean;
+
   /** Precio vigente (mensual), en ARS */
   priceArs: number;
   /** Precio de lista (tachado) */
@@ -33,7 +40,11 @@ export const PLAN_DEFINITIONS: Record<PlanCode, PlanDefinition> = {
     choice: "free",
     label: "Personal Gratuito",
     shortLabel: "Gratuito",
+    name: "Personal Gratuito",
+    description: "Ideal para uso personal y documentos ocasionales.",
     priceArs: 0,
+    // Requisito de marketing: antes ARS 9.900,00 / ahora Gratis.
+    listPriceArs: 9900,
     defaultMonthlyCreateLimit: 4,
     highlights: ["Para uso personal", "Firmas ilimitadas", "Hasta 4 documentos/mes"],
     benefits: [
@@ -48,6 +59,9 @@ export const PLAN_DEFINITIONS: Record<PlanCode, PlanDefinition> = {
     choice: "individual_pro",
     label: "Personal Profesional",
     shortLabel: "Personal PRO",
+    name: "Personal Profesional",
+    description: "Para profesionales que firman y envían documentos todas las semanas.",
+    recommended: true,
     // Propuesta del usuario: 24.500 oferta; se muestra lista más alta.
     priceArs: 24500,
     listPriceArs: 39900,
@@ -66,6 +80,8 @@ export const PLAN_DEFINITIONS: Record<PlanCode, PlanDefinition> = {
     choice: "company_pro",
     label: "Empresa",
     shortLabel: "Empresa",
+    name: "Empresa",
+    description: "Para equipos y organizaciones con varios responsables.",
     pricePrefix: "desde",
     priceArs: 57600,
     listPriceArs: 89900,

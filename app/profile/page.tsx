@@ -57,6 +57,14 @@ export default async function ProfilePage({ searchParams }: PageProps) {
         <p className="mt-2 text-sm text-zinc-600">Completá tus datos para poder crear, enviar y firmar documentos.</p>
       </div>
 
+      <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+        <div className="font-semibold">Importante: usá datos reales y verificables</div>
+        <p className="mt-2 leading-relaxed">
+          Los datos que cargás (nombre, DNI, CUIT/CUIL, domicilio y teléfono) pueden quedar asentados en el proceso de firma y en el registro de auditoría del documento.
+          Si la información no es real, podés tener problemas para acreditar identidad, validez probatoria o resolver conflictos.
+        </p>
+      </div>
+
       <ProfileClient next={next} initial={initial} />
     </div>
   );
