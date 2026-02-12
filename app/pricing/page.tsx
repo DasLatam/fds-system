@@ -22,7 +22,8 @@ export default function PricingPage() {
     PLAN_DEFINITIONS.company_pro,
   ];
 
-  const allFeatures = PLAN_DEFINITIONS.company_pro.featureBullets;
+  // Base de features: el plan Empresa define el set “completo”
+  const allFeatures = PLAN_DEFINITIONS.company_pro.benefits ?? [];
 
   return (
     <div className="min-h-screen bg-zinc-50">
@@ -30,7 +31,11 @@ export default function PricingPage() {
         <div className="mx-auto max-w-2xl text-center">
           <h1 className="text-3xl font-semibold text-zinc-900">Planes simples, precios claros</h1>
           <p className="mt-3 text-base text-zinc-600">
-            Elegí el plan según tu uso. Siempre podés cambiarlo desde <Link href="/dashboard/account" className="underline">Cuentas</Link>.
+            Elegí el plan según tu uso. Siempre podés cambiarlo desde{" "}
+            <Link href="/dashboard/account" className="underline">
+              Cuentas
+            </Link>
+            .
           </p>
         </div>
 
@@ -40,6 +45,8 @@ export default function PricingPage() {
             const isCompany = p.code === "company_pro";
             const offer = p.priceArs;
             const old = p.oldPriceArs;
+
+            const planBenefits = p.benefits ?? [];
 
             return (
               <div
@@ -65,6 +72,7 @@ export default function PricingPage() {
                   <div className="text-3xl font-semibold text-zinc-900">
                     {offer === 0 ? "Gratis" : formatArs(offer)}
                   </div>
+
                   <div className="mt-1 text-sm text-zinc-600">
                     {old && old > offer ? (
                       <span className="line-through">{formatArs(old)}</span>
@@ -72,6 +80,7 @@ export default function PricingPage() {
                       <span className="line-through">{formatArs(9900)}</span>
                     ) : null}
                   </div>
+
                   {p.billingPeriod ? <div className="mt-1 text-xs text-zinc-500">{p.billingPeriod}</div> : null}
                 </div>
 
@@ -79,10 +88,15 @@ export default function PricingPage() {
                   <div className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Incluye</div>
                   <ul className="mt-3 space-y-2 text-sm">
                     {allFeatures.map((feat) => {
-                      const included = p.featureBullets.includes(feat);
+                      const included = planBenefits.includes(feat);
                       return (
                         <li key={feat} className={included ? "text-zinc-800" : "text-zinc-500"}>
-                          {included ? "•" : "•"} {included ? feat : <span className="line-through">{feat}</span>}
+                          •{" "}
+                          {included ? (
+                            feat
+                          ) : (
+                            <span className="line-through">{feat}</span>
+                          )}
                         </li>
                       );
                     })}
