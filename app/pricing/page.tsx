@@ -1,10 +1,17 @@
 import Link from "next/link";
-
-import { PLAN_DEFINITIONS, type PlanCode } from "@/lib/plans";
+import { PLAN_DEFINITIONS } from "@/lib/plans";
 
 export const dynamic = "force-dynamic";
 
-const RECOMMENDED: PlanCode = "individual_pro";
+const RECOMMENDED_CODE = "individual_pro";
+
+// Precio “antes” (solo donde aplica). No depende del tipo PlanDefinition.
+const OLD_PRICE_BY_CODE: Record<string, number | undefined> = {
+  individual_free: 9900,
+  // Si en el futuro querés mostrar “antes” para otros planes:
+  // individual_pro: 19900,
+  // company_pro: 0,
+};
 
 function formatArs(value: number) {
   return new Intl.NumberFormat("es-AR", {
@@ -41,10 +48,11 @@ export default function PricingPage() {
 
         <div className="mt-10 grid gap-6 md:grid-cols-3">
           {plans.map((p) => {
-            const isRecommended = p.code === RECOMMENDED;
+            const isRecommended = p.code === RECOMMENDED_CODE;
             const isCompany = p.code === "company_pro";
-            const offer = p.priceArs;
-            const old = p.oldPriceArs;
+
+            const offer = p.priceArs ?? 0;
+            const old = OLD_PRICE_BY_CODE[p.code];
 
             const planBenefits = p.benefits ?? [];
 
@@ -59,8 +67,10 @@ export default function PricingPage() {
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <h2 className="text-lg font-semibold text-zinc-900">{p.label}</h2>
-                    <p className="mt-1 text-sm text-zinc-600">{p.highlights?.[0] || ""}</p>
+                    {/* Evito depender de propiedades que no estén tipadas */}
+                    <p className="mt-1 text-sm text-zinc-600">{(p as any).description ?? (p as any).shortLabel ?? ""}</p>
                   </div>
+
                   {isRecommended ? (
                     <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
                       Sugerido
@@ -68,22 +78,24 @@ export default function PricingPage() {
                   ) : null}
                 </div>
 
+                {/* Precio: oferta arriba, anterior abajo tachado */}
                 <div className="mt-5">
                   <div className="text-3xl font-semibold text-zinc-900">
                     {offer === 0 ? "Gratis" : formatArs(offer)}
                   </div>
 
                   <div className="mt-1 text-sm text-zinc-600">
-                    {old && old > offer ? (
-                      <span className="line-through">{formatArs(old)}</span>
-                    ) : p.code === "individual_free" ? (
-                      <span className="line-through">{formatArs(9900)}</span>
+                    {typeof old === "number" && old > offer ? (
+                      <span>
+                        Antes <span className="line-through">{formatArs(old)}</span>
+                      </span>
                     ) : null}
                   </div>
 
-                  {p.billingPeriod ? <div className="mt-1 text-xs text-zinc-500">{p.billingPeriod}</div> : null}
+                  {offer > 0 ? <div className="mt-1 text-xs text-zinc-500">Por mes</div> : null}
                 </div>
 
+                {/* Features normalizadas con el plan Empresa como baseline */}
                 <div className="mt-5">
                   <div className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Incluye</div>
                   <ul className="mt-3 space-y-2 text-sm">
