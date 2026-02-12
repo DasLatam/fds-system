@@ -104,9 +104,12 @@ export default async function AccountPage() {
             ))}
           </ul>
           <div className="mt-3">
-            <Button asChild className="bg-emerald-600 text-white hover:bg-emerald-700">
-              <Link href="/profile?next=/dashboard/account">Completar identidad</Link>
-            </Button>
+            <Link
+  href="/profile?next=/dashboard/account"
+  className="inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium bg-emerald-600 text-white hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300"
+>
+  Completar identidad
+</Link>
           </div>
         </div>
       )}
