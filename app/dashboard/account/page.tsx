@@ -105,11 +105,11 @@ export default async function AccountPage() {
           </ul>
           <div className="mt-3">
             <Link
-  href="/profile?next=/dashboard/account"
-  className="inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium bg-emerald-600 text-white hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300"
->
-  Completar identidad
-</Link>
+              href="/profile?next=/dashboard/account"
+              className="inline-flex items-center justify-center rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300"
+            >
+              Completar identidad
+            </Link>
           </div>
         </div>
       )}
@@ -126,10 +126,10 @@ export default async function AccountPage() {
                 return (
                   <div key={a.id} className="flex items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-white p-3">
                     <div>
-                      <div className="text-sm font-medium text-zinc-900">{a.name || (a.account_type === "company" ? "Empresa" : "Personal")}</div>
-                      <div className="mt-1 text-xs text-zinc-600">
-                        Tipo: {a.account_type === "company" ? "Empresa" : "Personal"}
+                      <div className="text-sm font-medium text-zinc-900">
+                        {a.name || (a.account_type === "company" ? "Empresa" : "Personal")}
                       </div>
+                      <div className="mt-1 text-xs text-zinc-600">Tipo: {a.account_type === "company" ? "Empresa" : "Personal"}</div>
                     </div>
                     {isActive ? (
                       <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-700">Activa</span>
@@ -217,7 +217,7 @@ export default async function AccountPage() {
                     </div>
 
                     <ul className="mt-4 list-disc pl-5 text-sm text-zinc-700">
-                      {p.featureBullets.slice(0, 4).map((b) => (
+                      {p.benefits.slice(0, 4).map((b) => (
                         <li key={b}>{b}</li>
                       ))}
                     </ul>
@@ -227,7 +227,11 @@ export default async function AccountPage() {
             </div>
 
             <div className="mt-4 rounded-xl border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-700">
-              ¿Necesitás plan Empresa? <Link href="/contact" className="font-medium text-emerald-700 hover:underline">Contactanos</Link>.
+              ¿Necesitás plan Empresa?{" "}
+              <Link href="/contact" className="font-medium text-emerald-700 hover:underline">
+                Contactanos
+              </Link>
+              .
             </div>
           </CardContent>
         </Card>
