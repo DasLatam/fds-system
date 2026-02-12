@@ -91,11 +91,17 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 <Link href="/pricing" className="hover:text-zinc-800">
                   Planes
                 </Link>
+                <Link href="/contact" className="hover:text-zinc-800">
+                  Contacto
+                </Link>
               </div>
             </div>
             <p className="mt-3 leading-relaxed">
               Este servicio implementa firma electrónica conforme a la Ley 25.506 (República Argentina). No constituye firma
               digital certificada en los términos de la misma ley.
+            </p>
+            <p className="mt-2 leading-relaxed">
+              Tecnologías: Next.js + Vercel · Supabase · Resend · Upstash · Cloudflare Turnstile.
             </p>
           </div>
         </footer>

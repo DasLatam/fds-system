@@ -23,7 +23,22 @@ const FlatSnakeSchema = z.object({
   cuil: z.string().min(5),
   address: z.string().min(5),
   phone: z.string().min(5),
-});
+  // Campos extendidos (opcionales)
+  first_name: z.string().min(1).optional(),
+  middle_name: z.string().optional(),
+  last_name: z.string().min(1).optional(),
+  street: z.string().optional(),
+  street_number: z.string().optional(),
+  locality: z.string().optional(),
+  city: z.string().optional(),
+  province: z.string().optional(),
+  country: z.string().optional(),
+  postal_code: z.string().optional(),
+  dni_type: z.string().optional(),
+  dni_number: z.string().optional(),
+  dni_front_path: z.string().optional(),
+  dni_back_path: z.string().optional(),
+}).passthrough();
 
 const FlatCamelSchema = z.object({
   fullName: z.string().min(2),
@@ -31,7 +46,22 @@ const FlatCamelSchema = z.object({
   cuil: z.string().min(5),
   address: z.string().min(5),
   phone: z.string().min(5),
-});
+  // Campos extendidos (opcionales)
+  firstName: z.string().min(1).optional(),
+  middleName: z.string().optional(),
+  lastName: z.string().min(1).optional(),
+  street: z.string().optional(),
+  streetNumber: z.string().optional(),
+  locality: z.string().optional(),
+  city: z.string().optional(),
+  province: z.string().optional(),
+  country: z.string().optional(),
+  postalCode: z.string().optional(),
+  dniType: z.string().optional(),
+  dniNumber: z.string().optional(),
+  dniFrontPath: z.string().optional(),
+  dniBackPath: z.string().optional(),
+}).passthrough();
 
 const OnboardingSchema = z.object({
   plan: z.enum(["free", "individual_pro", "company_pro"]),
@@ -41,7 +71,7 @@ const OnboardingSchema = z.object({
     cuil: z.string().min(5).max(32),
     address: z.string().min(5).max(200),
     phone: z.string().min(5).max(50),
-  }),
+  }).passthrough(),
   company: z
     .object({
       name: z.string().min(2).max(200),
@@ -51,6 +81,58 @@ const OnboardingSchema = z.object({
     })
     .optional(),
 });
+
+function onlyDigits(input: string) {
+  return String(input || "").replace(/\D+/g, "");
+}
+
+function pickDefined<T extends Record<string, any>>(obj: T) {
+  const out: Record<string, any> = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (v === undefined) continue;
+    if (typeof v === "string" && v.trim() === "") continue;
+    out[k] = v;
+  }
+  return out;
+}
+
+function normalizeExtendedFields(json: any) {
+  // Acepta claves camelCase o snake_case; persiste en snake_case (DB)
+  const first = (json?.firstName ?? json?.first_name) as string | undefined;
+  const middle = (json?.middleName ?? json?.middle_name) as string | undefined;
+  const last = (json?.lastName ?? json?.last_name) as string | undefined;
+
+  const street = (json?.street ?? json?.street) as string | undefined;
+  const streetNumber = (json?.streetNumber ?? json?.street_number) as string | undefined;
+  const locality = (json?.locality ?? json?.locality) as string | undefined;
+  const city = (json?.city ?? json?.city) as string | undefined;
+  const province = (json?.province ?? json?.province) as string | undefined;
+  const country = (json?.country ?? json?.country) as string | undefined;
+  const postalCode = (json?.postalCode ?? json?.postal_code) as string | undefined;
+
+  const dniType = (json?.dniType ?? json?.dni_type) as string | undefined;
+  const dniNumberRaw = (json?.dniNumber ?? json?.dni_number) as string | undefined;
+
+  const dniFrontPath = (json?.dniFrontPath ?? json?.dni_front_path) as string | undefined;
+  const dniBackPath = (json?.dniBackPath ?? json?.dni_back_path) as string | undefined;
+
+  return pickDefined({
+    first_name: first?.trim(),
+    middle_name: middle?.trim(),
+    last_name: last?.trim(),
+    street: street?.trim(),
+    street_number: streetNumber?.trim(),
+    locality: locality?.trim(),
+    city: city?.trim(),
+    province: province?.trim(),
+    country: country?.trim(),
+    postal_code: postalCode?.trim(),
+    dni_type: dniType?.trim(),
+    dni_number: dniNumberRaw ? onlyDigits(dniNumberRaw) : undefined,
+    dni_front_path: dniFrontPath?.trim(),
+    dni_back_path: dniBackPath?.trim(),
+  });
+}
 
 function plus30Days() {
   const now = new Date();
@@ -131,14 +213,22 @@ function normalizeFlatProfilePayload(json: any):
   | { full_name: string; dni: string; cuil: string; address: string; phone: string }
   | null {
   const snake = FlatSnakeSchema.safeParse(json);
-  if (snake.success) return snake.data;
+  if (snake.success) {
+    return {
+      full_name: snake.data.full_name,
+      dni: onlyDigits(snake.data.dni),
+      cuil: onlyDigits(snake.data.cuil),
+      address: snake.data.address,
+      phone: snake.data.phone,
+    };
+  }
 
   const camel = FlatCamelSchema.safeParse(json);
   if (camel.success) {
     return {
       full_name: camel.data.fullName,
-      dni: camel.data.dni,
-      cuil: camel.data.cuil,
+      dni: onlyDigits(camel.data.dni),
+      cuil: onlyDigits(camel.data.cuil),
       address: camel.data.address,
       phone: camel.data.phone,
     };
@@ -149,8 +239,8 @@ function normalizeFlatProfilePayload(json: any):
   if (nested.success) {
     return {
       full_name: nested.data.profile.fullName,
-      dni: nested.data.profile.dni,
-      cuil: nested.data.profile.cuil,
+      dni: onlyDigits(nested.data.profile.dni),
+      cuil: onlyDigits(nested.data.profile.cuil),
       address: nested.data.profile.address,
       phone: nested.data.profile.phone,
     };
@@ -158,7 +248,13 @@ function normalizeFlatProfilePayload(json: any):
 
   const nestedSnake = z.object({ profile: FlatSnakeSchema }).safeParse(json);
   if (nestedSnake.success) {
-    return nestedSnake.data.profile;
+    return {
+      full_name: nestedSnake.data.profile.full_name,
+      dni: onlyDigits(nestedSnake.data.profile.dni),
+      cuil: onlyDigits(nestedSnake.data.profile.cuil),
+      address: nestedSnake.data.profile.address,
+      phone: nestedSnake.data.profile.phone,
+    };
   }
 
   return null;
@@ -175,13 +271,24 @@ export async function GET() {
 
   if (!user) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
 
-  const { data: profile, error } = await supabase
-    .from("profiles")
-    .select("user_id,email,full_name,dni,cuil,address,phone,is_paused,plan,default_account_id,created_at,updated_at")
-    .eq("user_id", user.id)
-    .maybeSingle();
+  const baseSelect = "user_id,email,full_name,dni,cuil,address,phone,is_paused,plan,default_account_id,created_at,updated_at";
+  const extendedSelect =
+    baseSelect +
+    ",first_name,middle_name,last_name,street,street_number,locality,city,province,country,postal_code,dni_type,dni_number,dni_front_path,dni_back_path";
 
-  if (error) return NextResponse.json({ error: "db_error" }, { status: 500 });
+  let profile: any = null;
+  {
+    const res = await supabase.from("profiles").select(extendedSelect).eq("user_id", user.id).maybeSingle();
+    if (!res.error) {
+      profile = res.data;
+    } else if (isMissingColumnError(res.error)) {
+      const fallback = await supabase.from("profiles").select(baseSelect).eq("user_id", user.id).maybeSingle();
+      if (fallback.error) return NextResponse.json({ error: "db_error" }, { status: 500 });
+      profile = fallback.data;
+    } else {
+      return NextResponse.json({ error: "db_error" }, { status: 500 });
+    }
+  }
 
   // Plan activo por cuenta activa (best-effort; si falla, devolvemos null)
   let activePlanCode: string | null = null;
@@ -356,10 +463,14 @@ export async function POST(req: NextRequest) {
   const flat = normalizeFlatProfilePayload(json);
   if (!flat) return NextResponse.json({ error: "invalid_body" }, { status: 400 });
 
+  // Campos extendidos (si vienen) — soportamos envío en root o en { profile: ... }
+  const extended = normalizeExtendedFields(json?.profile ?? json);
+
   const payload = {
     user_id: user.id,
     email: (user.email ?? "").toLowerCase(),
     ...flat,
+    ...extended,
     updated_at: new Date().toISOString(),
   };
 

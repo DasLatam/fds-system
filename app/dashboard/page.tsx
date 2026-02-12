@@ -43,6 +43,38 @@ function monthLabelEs(year: number, month0: number) {
   return `${m} ${year}`;
 }
 
+function eventLabelEs(eventType: string): string {
+  const t = String(eventType || "").trim();
+  const map: Record<string, string> = {
+    // Documento / flujo
+    document_created: "Documento creado",
+    document_updated: "Documento actualizado",
+    document_completed: "Documento finalizado",
+    document_signed: "Documento firmado",
+    document_finalized: "Documento finalizado",
+    // Invitaciones / emails
+    invite_sent: "Invitación enviada",
+    invite_resent: "Invitación reenviada",
+    signing_request_created: "Solicitud de firma creada",
+    signing_link_opened: "Link de firma abierto",
+    signing_link_viewed: "Link de firma abierto",
+    completion_email_sent: "Email de finalización enviado",
+    // Firmas
+    signer_completed: "Firma completada",
+    signature_completed: "Firma completada",
+    signer_declined: "Firma rechazada",
+    // Validación
+    verification_match: "Verificación OK",
+    verification_mismatch: "Verificación NO coincide",
+  };
+
+  if (map[t]) return map[t];
+
+  // fallback: título legible
+  const pretty = t.replaceAll(/[_\-]+/g, " ").trim();
+  return pretty || "Evento";
+}
+
 async function deleteDocumentAction(formData: FormData) {
   "use server";
 
@@ -96,12 +128,32 @@ export default async function DashboardPage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("user_id,email,full_name,dni,cuil,address,phone,is_paused,plan,default_account_id")
+    .select(
+      "user_id,email,full_name,dni,cuil,address,phone,is_paused,plan,default_account_id,first_name,middle_name,last_name,street,street_number,locality,city,province,country,postal_code,dni_type,dni_number,dni_front_path,dni_back_path"
+    )
     .eq("user_id", user.id)
     .maybeSingle();
 
   if (profile?.is_paused) redirect("/profile?paused=1");
   if (!isProfileComplete(profile as any)) redirect("/profile?next=/dashboard");
+
+  const missingIdentityDetails = (() => {
+    const p: any = profile || {};
+    const missing: string[] = [];
+    if (!p.first_name) missing.push("Nombre");
+    if (!p.last_name) missing.push("Apellido");
+    if (!p.dni_type) missing.push("Tipo de DNI");
+    if (!p.dni_number) missing.push("Número de DNI");
+    if (!p.street) missing.push("Calle");
+    if (!p.street_number) missing.push("Altura");
+    if (!p.city) missing.push("Ciudad");
+    if (!p.province) missing.push("Provincia");
+    if (!p.country) missing.push("País");
+    if (!p.postal_code) missing.push("Código Postal");
+    if (!p.dni_front_path) missing.push("DNI frente (recomendado)");
+    if (!p.dni_back_path) missing.push("DNI dorso (recomendado)");
+    return missing;
+  })();
 
   // =========================
   // Plan activo + uso mensual
@@ -343,6 +395,28 @@ export default async function DashboardPage() {
         </div>
       </div>
 
+      {missingIdentityDetails.length > 0 ? (
+        <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">
+          <div className="font-semibold">Tu identidad está incompleta</div>
+          <p className="mt-1 text-amber-900/80">
+            Para darle más validez probatoria a tus documentos, completá datos reales y verificables. Te falta:
+          </p>
+          <ul className="mt-2 list-disc pl-5 text-amber-900/90">
+            {missingIdentityDetails.slice(0, 8).map((m) => (
+              <li key={m}>{m}</li>
+            ))}
+          </ul>
+          <div className="mt-3">
+            <Link
+              href="/profile?next=/dashboard"
+              className="inline-flex rounded-md border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold text-amber-900 hover:bg-amber-50"
+            >
+              Completar identidad
+            </Link>
+          </div>
+        </div>
+      ) : null}
+
       {/* Plan + uso del mes */}
       <div className="mt-6 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -417,8 +491,8 @@ export default async function DashboardPage() {
       <div className="mt-6 rounded-2xl border border-zinc-200 bg-white shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-200 px-5 py-4">
           <div>
-            <h2 className="text-sm font-semibold text-zinc-900">Tus documentos</h2>
-            <p className="mt-1 text-xs text-zinc-500">Creación, invitaciones y estado de firma.</p>
+            <h2 className="text-base font-semibold text-zinc-900">Tus documentos</h2>
+            <p className="mt-1 text-sm text-zinc-600">Creación, invitaciones y estado de firma.</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <Link
@@ -441,12 +515,17 @@ export default async function DashboardPage() {
       </div>
 
       {/* Actividad reciente */}
-      <div className="mt-6 rounded-2xl border border-zinc-200 bg-white shadow-sm">
-        <div className="border-b border-zinc-200 px-5 py-4">
-          <h2 className="text-sm font-medium">Actividad reciente (últimos 25)</h2>
-          <p className="mt-1 text-xs text-zinc-500">Eventos relevantes registrados en auditoría.</p>
-        </div>
-        <div className="divide-y divide-zinc-200">
+      <details className="mt-6 rounded-2xl border border-zinc-200 bg-white shadow-sm">
+        <summary className="cursor-pointer list-none px-5 py-4 select-none">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <div className="text-base font-semibold text-zinc-900">Actividad reciente (últimos 25)</div>
+              <div className="mt-1 text-sm text-zinc-600">Eventos relevantes registrados en auditoría.</div>
+            </div>
+            <div className="mt-0.5 text-xs font-medium text-zinc-500">Mostrar</div>
+          </div>
+        </summary>
+        <div className="border-t border-zinc-200 divide-y divide-zinc-200">
           {activity.length === 0 ? (
             <div className="px-4 py-6 text-sm text-zinc-600">Sin actividad aún.</div>
           ) : (
@@ -454,19 +533,23 @@ export default async function DashboardPage() {
               <div key={e.id} className="px-4 py-3 text-sm">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="font-medium text-zinc-900">
-                    {e.event_type}{" "}
+                    {eventLabelEs(e.event_type)}
                     <span className="ml-2 text-xs font-normal text-zinc-500">
                       {titleById.get(e.document_id) || e.document_id}
                     </span>
                   </div>
                   <div className="text-xs text-zinc-500">{formatDate(e.created_at)}</div>
                 </div>
-                <div className="text-xs text-zinc-600">{e.actor_email || "—"}</div>
+                <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-zinc-600">
+                  <span>{e.actor_email || "Sistema"}</span>
+                  <span className="text-zinc-300">·</span>
+                  <span className="font-mono text-[11px] text-zinc-500">{e.event_type}</span>
+                </div>
               </div>
             ))
           )}
         </div>
-      </div>
+      </details>
     </div>
   </div>
   );

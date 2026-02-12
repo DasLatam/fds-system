@@ -1,162 +1,131 @@
 import Link from "next/link";
-import { PLAN_DEFINITIONS, formatArs } from "@/lib/plans";
+
+import { PLAN_DEFINITIONS, type PlanCode } from "@/lib/plans";
 
 export const dynamic = "force-dynamic";
 
-type PlanCode = keyof typeof PLAN_DEFINITIONS;
+const RECOMMENDED: PlanCode = "individual_pro";
 
-const CTA_PRIMARY =
-  "inline-flex items-center justify-center rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 active:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2";
-
-const CTA_SECONDARY =
-  "inline-flex items-center justify-center rounded-md border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-900 transition-colors hover:bg-zinc-50 active:bg-zinc-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2";
-
-function PriceBlock({
-  priceArs,
-  listPriceArs,
-  suffix,
-}: {
-  priceArs: number;
-  listPriceArs?: number;
-  suffix?: string;
-}) {
-  const isFree = Number(priceArs) === 0;
-  return (
-    <div className="mt-4">
-      <div className="text-3xl font-semibold tracking-tight text-zinc-900">
-        {isFree ? "Gratis" : formatArs(priceArs)}
-        {suffix ? <span className="ml-2 text-sm font-medium text-zinc-500">{suffix}</span> : null}
-      </div>
-
-      {typeof listPriceArs === "number" && listPriceArs > 0 ? (
-        <div className="mt-2 text-sm text-zinc-500">
-          <span className="mr-2">Antes</span>
-          <span className="line-through">{formatArs(listPriceArs)}</span>
-        </div>
-      ) : null}
-
-      <div className="mt-2 text-xs text-zinc-500">Fácil de firmar: Magic Link por email.</div>
-    </div>
-  );
-}
-
-function FeatureLine({ included, children }: { included: boolean; children: React.ReactNode }) {
-  return (
-    <li className={`flex items-start gap-2 ${included ? "text-zinc-700" : "text-zinc-400"}`}>
-      <span
-        className={
-          "mt-1 inline-block h-1.5 w-1.5 rounded-full " + (included ? "bg-emerald-600" : "bg-zinc-300")
-        }
-      />
-      <span className={included ? "" : "line-through"}>{children}</span>
-      {!included ? <span className="ml-2 text-xs no-underline">(No incluido)</span> : null}
-    </li>
-  );
-}
-
-function isIncluded(code: PlanCode, feature: string): boolean {
-  // Matriz simple de inclusión. Las features que "no aplican" se muestran tachadas.
-  if (feature === "team_admin") return code === "company_pro";
-  if (feature === "templates") return code === "company_pro";
-  if (feature === "volume") return code === "company_pro";
-  if (feature === "support") return code === "individual_pro" || code === "company_pro";
-  return true;
+function formatArs(value: number) {
+  return new Intl.NumberFormat("es-AR", {
+    style: "currency",
+    currency: "ARS",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
 }
 
 export default function PricingPage() {
-  const plans = Object.values(PLAN_DEFINITIONS)
-    // free, individual, company
-    .sort((a, b) => a.priceArs - b.priceArs);
+  const plans = [
+    PLAN_DEFINITIONS.individual_free,
+    PLAN_DEFINITIONS.individual_pro,
+    PLAN_DEFINITIONS.company_pro,
+  ];
+
+  const allFeatures = PLAN_DEFINITIONS.company_pro.featureBullets;
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-12">
-      <div className="text-center">
-        <h1 className="text-3xl font-semibold tracking-tight">Planes simples</h1>
-        <p className="mt-2 text-sm text-zinc-600">
-          Elegí el plan que necesitás hoy. Podés cambiarlo más adelante.
-        </p>
-      </div>
+    <div className="min-h-screen bg-zinc-50">
+      <div className="mx-auto max-w-5xl px-4 py-12">
+        <div className="mx-auto max-w-2xl text-center">
+          <h1 className="text-3xl font-semibold text-zinc-900">Planes simples, precios claros</h1>
+          <p className="mt-3 text-base text-zinc-600">
+            Elegí el plan según tu uso. Siempre podés cambiarlo desde <Link href="/dashboard/account" className="underline">Cuentas</Link>.
+          </p>
+        </div>
 
-      <div className="mt-10 grid gap-5 md:grid-cols-3">
-        {plans.map((p) => {
-          const code = p.code as PlanCode;
+        <div className="mt-10 grid gap-6 md:grid-cols-3">
+          {plans.map((p) => {
+            const isRecommended = p.code === RECOMMENDED;
+            const isCompany = p.code === "company_pro";
+            const offer = p.priceArs;
+            const old = p.oldPriceArs;
 
-          return (
-            <div
-              key={p.code}
-              className={
-                "flex h-full flex-col rounded-2xl border bg-white p-6 shadow-sm " +
-                (p.recommended ? "border-emerald-300 ring-1 ring-emerald-200" : "border-zinc-200")
-              }
-            >
-              <div>
-                <div className="flex items-center justify-between gap-3">
+            return (
+              <div
+                key={p.code}
+                className={
+                  "flex h-full flex-col rounded-2xl border bg-white p-6 shadow-sm " +
+                  (isRecommended ? "border-emerald-300 ring-1 ring-emerald-200" : "border-zinc-200")
+                }
+              >
+                <div className="flex items-start justify-between gap-3">
                   <div>
-                    <h2 className="text-lg font-semibold text-zinc-900">{p.name}</h2>
-                    <p className="mt-1 text-sm text-zinc-600">{p.description}</p>
+                    <h2 className="text-lg font-semibold text-zinc-900">{p.label}</h2>
+                    <p className="mt-1 text-sm text-zinc-600">{p.highlights?.[0] || ""}</p>
                   </div>
-
-                  {p.recommended ? (
-                    <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-900">
-                      Recomendado
+                  {isRecommended ? (
+                    <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                      Sugerido
                     </span>
                   ) : null}
                 </div>
 
-                <PriceBlock priceArs={p.priceArs} listPriceArs={p.listPriceArs} suffix={"/ mes"} />
+                <div className="mt-5">
+                  <div className="text-3xl font-semibold text-zinc-900">
+                    {offer === 0 ? "Gratis" : formatArs(offer)}
+                  </div>
+                  <div className="mt-1 text-sm text-zinc-600">
+                    {old && old > offer ? (
+                      <span className="line-through">{formatArs(old)}</span>
+                    ) : p.code === "individual_free" ? (
+                      <span className="line-through">{formatArs(9900)}</span>
+                    ) : null}
+                  </div>
+                  {p.billingPeriod ? <div className="mt-1 text-xs text-zinc-500">{p.billingPeriod}</div> : null}
+                </div>
 
-                <div className="mt-5 rounded-xl border border-zinc-200 bg-zinc-50 p-4">
-                  <div className="text-xs font-semibold uppercase tracking-wide text-zinc-600">Incluye</div>
-
+                <div className="mt-5">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Incluye</div>
                   <ul className="mt-3 space-y-2 text-sm">
-                    <FeatureLine included={true}>
-                      Creación de hasta <span className="font-medium">{p.defaultMonthlyCreateLimit}</span> documentos por mes
-                    </FeatureLine>
-                    <FeatureLine included={true}>Acceso por link para firmantes (sin registro adicional)</FeatureLine>
-                    <FeatureLine included={true}>Historial del proceso y trazabilidad básica</FeatureLine>
-                    <FeatureLine included={true}>Autocompletado con tus datos de perfil</FeatureLine>
-                    <FeatureLine included={isIncluded(code, "support")}>Mesa de ayuda y soporte</FeatureLine>
-                    <FeatureLine included={isIncluded(code, "team_admin")}>
-                      Varios responsables de firma y administración (cuentas de equipo)
-                    </FeatureLine>
-                    <FeatureLine included={isIncluded(code, "templates")}>Plantillas editables (próximamente)</FeatureLine>
-                    <FeatureLine included={isIncluded(code, "volume")}>Planes por volumen y facturación a empresas</FeatureLine>
+                    {allFeatures.map((feat) => {
+                      const included = p.featureBullets.includes(feat);
+                      return (
+                        <li key={feat} className={included ? "text-zinc-800" : "text-zinc-500"}>
+                          {included ? "•" : "•"} {included ? feat : <span className="line-through">{feat}</span>}
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
+
+                <div className="mt-auto pt-6">
+                  {isCompany ? (
+                    <Link
+                      href="/contact"
+                      className="inline-flex w-full items-center justify-center rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 active:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2"
+                    >
+                      Contactar
+                    </Link>
+                  ) : (
+                    <Link
+                      href="/login?next=/dashboard/account"
+                      className={
+                        "inline-flex w-full items-center justify-center rounded-md px-4 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 " +
+                        (isRecommended
+                          ? "bg-emerald-600 text-white hover:bg-emerald-700 active:bg-emerald-800 focus-visible:ring-emerald-600"
+                          : "border border-zinc-200 bg-white text-zinc-900 hover:bg-zinc-50 focus-visible:ring-zinc-400")
+                      }
+                    >
+                      Elegir plan
+                    </Link>
+                  )}
+
+                  <p className="mt-3 text-xs text-zinc-500">
+                    Firma electrónica simple (Ley 25.506 art. 5). No es firma digital certificada.
+                  </p>
+                </div>
               </div>
+            );
+          })}
+        </div>
 
-              <div className="mt-6" />
-
-              <div className="mt-auto flex flex-col gap-3">
-                <Link
-                  href={code === "individual_free" ? "/login" : "/login"}
-                  className={p.recommended ? CTA_PRIMARY : CTA_SECONDARY}
-                >
-                  {code === "individual_free" ? "Empezar gratis" : "Elegir este plan"}
-                </Link>
-
-                <Link href="/" className="text-center text-sm text-zinc-500 hover:text-zinc-800">
-                  Ver la demo
-                </Link>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      <div className="mt-10 rounded-2xl border border-zinc-200 bg-white p-6">
-        <h3 className="text-base font-semibold text-zinc-900">Notas legales y de uso</h3>
-        <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-zinc-600">
-          <li>
-            FES implementa firma electrónica conforme a la Ley 25.506 (Argentina). No constituye firma digital certificada.
-          </li>
-          <li>
-            Los límites mensuales aplican a la <span className="font-medium">creación</span> de documentos en la cuenta activa.
-          </li>
-          <li>
-            Podés cambiar de plan en cualquier momento. Si necesitás mayor volumen, el plan Empresa contempla opciones por volumen.
-          </li>
-        </ul>
+        <div className="mt-10 rounded-2xl border border-zinc-200 bg-white p-6 text-sm text-zinc-700">
+          <div className="font-semibold text-zinc-900">¿Qué significa “Fácil de firmar”?</div>
+          <p className="mt-2">
+            Que podés invitar a firmantes por link, desde cualquier lugar, con trazabilidad y auditoría de eventos.
+          </p>
+        </div>
       </div>
     </div>
   );

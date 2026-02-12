@@ -104,12 +104,19 @@ function wrapText(text: string, font: FontLike, fontSize: number, maxWidth: numb
 }
 
 export async function createSimplePdfBytes(opts: { title: string; bodyText: string }): Promise<Uint8Array> {
+  // El título se usa como identificador/metadata y nombre de archivo, pero NO debe imprimirse
+  // como encabezado dentro del PDF (el contenido lo define el texto redactado).
   const title = String(opts?.title || "").trim() || "Documento";
   const bodyText = String(opts?.bodyText || "").replace(/\r\n?/g, "\n").trim();
 
   const pdf = await PDFDocument.create();
+  // Metadata (no visible en el documento)
+  try {
+    pdf.setTitle(title);
+  } catch {
+    // noop
+  }
   const fontRegular = await pdf.embedFont(StandardFonts.Helvetica);
-  const fontBold = await pdf.embedFont(StandardFonts.HelveticaBold);
 
   // A4 portrait
   const pageWidth = 595.28;
@@ -120,7 +127,6 @@ export async function createSimplePdfBytes(opts: { title: string; bodyText: stri
   const marginBottom = 56;
   const contentWidth = pageWidth - marginX * 2;
 
-  const titleSize = 18;
   const bodySize = 12;
   const leading = 1.35;
 
@@ -132,22 +138,6 @@ export async function createSimplePdfBytes(opts: { title: string; bodyText: stri
     page = pdf.addPage([pageWidth, pageHeight]);
     y = pageHeight - marginTop;
   };
-
-  // Title
-  const titleLines = wrapText(title, fontBold, titleSize, contentWidth);
-  for (const line of titleLines) {
-    ensureSpace(titleSize * leading);
-    page.drawText(line, {
-      x: marginX,
-      y: y - titleSize,
-      size: titleSize,
-      font: fontBold,
-      color: rgb(0, 0, 0),
-    });
-    y -= titleSize * leading;
-  }
-
-  y -= 8;
 
   const rawLines = bodyText ? bodyText.split("\n") : [];
   const baseIndent = 0;

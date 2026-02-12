@@ -35,7 +35,9 @@ export default async function ProfilePage({ searchParams }: PageProps) {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("email, full_name, dni, cuil, address, phone, is_paused, plan")
+    .select(
+      "email, full_name, dni, cuil, address, phone, is_paused, plan, first_name, middle_name, last_name, street, street_number, locality, city, province, country, postal_code, dni_type, dni_number, dni_front_path, dni_back_path"
+    )
     .eq("user_id", user.id)
     .maybeSingle();
 
@@ -46,6 +48,21 @@ export default async function ProfilePage({ searchParams }: PageProps) {
     cuil: (profile?.cuil || "").toString(),
     address: (profile?.address || "").toString(),
     phone: (profile?.phone || "").toString(),
+    // Campos extendidos (opcionales)
+    firstName: (profile as any)?.first_name?.toString() || "",
+    middleName: (profile as any)?.middle_name?.toString() || "",
+    lastName: (profile as any)?.last_name?.toString() || "",
+    street: (profile as any)?.street?.toString() || "",
+    streetNumber: (profile as any)?.street_number?.toString() || "",
+    locality: (profile as any)?.locality?.toString() || "",
+    city: (profile as any)?.city?.toString() || "",
+    province: (profile as any)?.province?.toString() || "",
+    country: (profile as any)?.country?.toString() || "",
+    postalCode: (profile as any)?.postal_code?.toString() || "",
+    dniType: (profile as any)?.dni_type?.toString() || "",
+    dniNumber: (profile as any)?.dni_number?.toString() || "",
+    dniFrontPath: (profile as any)?.dni_front_path?.toString() || "",
+    dniBackPath: (profile as any)?.dni_back_path?.toString() || "",
     paused: Boolean(profile?.is_paused),
     planHint: (profile?.plan || "").toString(),
   };
