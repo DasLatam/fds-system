@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import type { PlanCode } from "@/lib/plans";
 
 export const runtime = "nodejs";
 
 type Body = {
   accountId?: string;
   account_id?: string;
-  planCode?: PlanCode | string;
+  planCode?: string;
   plan_code?: string;
 };
 
@@ -20,7 +19,8 @@ function json(status: number, data: any) {
 
 export async function POST(req: NextRequest) {
   try {
-    const supabase = createSupabaseServerClient();
+    // ✅ FIX: este helper devuelve Promise<SupabaseClient>, hay que await
+    const supabase = await createSupabaseServerClient();
 
     const {
       data: { user },
@@ -41,7 +41,10 @@ export async function POST(req: NextRequest) {
       return json(400, { error: "missing_plan_code" });
     }
     if (!ALLOWED_PERSONAL_PLANS.has(planCodeRaw)) {
-      return json(400, { error: "invalid_plan_code", allowed: Array.from(ALLOWED_PERSONAL_PLANS) });
+      return json(400, {
+        error: "invalid_plan_code",
+        allowed: Array.from(ALLOWED_PERSONAL_PLANS),
+      });
     }
 
     // Validar membresía (solo owner/admin puede cambiar plan)
