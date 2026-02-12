@@ -1,91 +1,109 @@
-import { NextResponse } from "next/server";
-import { z } from "zod";
+import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { PLAN_CODES, type PlanCode } from "@/lib/plans";
+import type { PlanCode } from "@/lib/plans";
 
 export const runtime = "nodejs";
 
-const Schema = z.object({
-  planCode: z.custom<PlanCode>((val) => typeof val === "string" && (PLAN_CODES as readonly string[]).includes(val)),
-});
+type Body = {
+  accountId?: string;
+  account_id?: string;
+  planCode?: PlanCode | string;
+  plan_code?: string;
+};
 
-function redirectBack(to: string) {
-  return NextResponse.redirect(new URL(to, process.env.NEXT_PUBLIC_SITE_URL || "https://firmasimple.vercel.app"), {
-    status: 303,
-  });
+const ALLOWED_PERSONAL_PLANS = new Set<string>(["individual_free", "individual_pro"]);
+
+function json(status: number, data: any) {
+  return NextResponse.json(data, { status });
 }
 
-export async function POST(req: Request) {
-  const form = await req.formData();
-  const parsed = Schema.safeParse({ planCode: form.get("planCode") });
-  if (!parsed.success) return redirectBack("/dashboard/account");
+export async function POST(req: NextRequest) {
+  try {
+    const supabase = createSupabaseServerClient();
 
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error: userErr,
+    } = await supabase.auth.getUser();
 
-  if (!user) return redirectBack("/login?next=/dashboard/account");
+    if (userErr || !user) return json(401, { error: "unauthorized" });
 
-  // Cuenta activa (personal) tomada del profile.
-  const { data: profile, error: pErr } = await supabase
-    .from("profiles")
-    .select("default_account_id")
-    .eq("user_id", user.id)
-    .maybeSingle();
+    const body = (await req.json().catch(() => ({}))) as Body;
 
-  if (pErr || !profile?.default_account_id) return redirectBack("/dashboard/account");
+    const accountId = body.accountId ?? body.account_id;
+    const planCodeRaw = body.planCode ?? body.plan_code;
 
-  const accountId = String((profile as any).default_account_id);
+    if (!accountId || typeof accountId !== "string") {
+      return json(400, { error: "missing_account_id" });
+    }
+    if (!planCodeRaw || typeof planCodeRaw !== "string") {
+      return json(400, { error: "missing_plan_code" });
+    }
+    if (!ALLOWED_PERSONAL_PLANS.has(planCodeRaw)) {
+      return json(400, { error: "invalid_plan_code", allowed: Array.from(ALLOWED_PERSONAL_PLANS) });
+    }
 
-  // Verificar que el usuario sea miembro activo y que la cuenta sea personal.
-  const { data: membership } = await supabase
-    .from("account_memberships")
-    .select("role,status")
-    .eq("user_id", user.id)
-    .eq("account_id", accountId)
-    .eq("status", "active")
-    .maybeSingle();
+    // Validar membresía (solo owner/admin puede cambiar plan)
+    const { data: member, error: memberErr } = await supabase
+      .from("account_members")
+      .select("role,status")
+      .eq("account_id", accountId)
+      .eq("user_id", user.id)
+      .maybeSingle();
 
-  if (!membership || (membership as any).role !== "owner") return redirectBack("/dashboard/account");
+    if (memberErr) return json(500, { error: "membership_check_failed" });
+    if (!member || member.status !== "active") return json(403, { error: "forbidden" });
+    if (member.role !== "owner" && member.role !== "admin") return json(403, { error: "forbidden_role" });
 
-  const { data: account } = await supabase
-    .from("accounts")
-    .select("account_type")
-    .eq("id", accountId)
-    .maybeSingle();
+    // Validar tipo de cuenta personal
+    const { data: account, error: accErr } = await supabase
+      .from("accounts")
+      .select("account_type")
+      .eq("id", accountId)
+      .maybeSingle();
 
-  if ((account as any)?.account_type !== "personal") return redirectBack("/dashboard/account");
+    if (accErr) return json(500, { error: "account_lookup_failed" });
+    if (!account) return json(404, { error: "account_not_found" });
+    if (account.account_type !== "personal") {
+      return json(400, { error: "only_personal_accounts_can_change_plan" });
+    }
 
-  const planCode = parsed.data.planCode;
+    const admin = createAdminClient();
 
-  // Empresa no se selecciona desde acá.
-  if (planCode === "company_pro") return redirectBack("/contact");
-
-  const admin = createAdminClient();
-
-  // Buscar la suscripción activa y actualizarla. Si no existe, crear.
-  const { data: sub } = await admin
-    .from("subscriptions")
-    .select("id")
-    .eq("account_id", accountId)
-    .eq("status", "active")
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (sub?.id) {
-    await admin.from("subscriptions").update({ plan_code: planCode }).eq("id", sub.id);
-  } else {
-    await admin
+    // Buscar suscripción activa
+    const { data: sub, error: subErr } = await admin
       .from("subscriptions")
-      .insert({
-        account_id: accountId,
-        plan_code: planCode,
-        status: "active",
-      });
-  }
+      .select("id,plan_code,status")
+      .eq("account_id", accountId)
+      .eq("status", "active")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-  return redirectBack("/dashboard/account");
+    if (subErr) return json(500, { error: "subscription_lookup_failed" });
+
+    if (sub?.id) {
+      const { error: updErr } = await admin
+        .from("subscriptions")
+        .update({ plan_code: planCodeRaw, updated_at: new Date().toISOString() })
+        .eq("id", sub.id);
+
+      if (updErr) return json(500, { error: "subscription_update_failed" });
+    } else {
+      const { error: insErr } = await admin.from("subscriptions").insert({
+        account_id: accountId,
+        plan_code: planCodeRaw,
+        status: "active",
+        provider: "manual",
+        started_at: new Date().toISOString(),
+      });
+
+      if (insErr) return json(500, { error: "subscription_insert_failed" });
+    }
+
+    return json(200, { ok: true, accountId, planCode: planCodeRaw });
+  } catch (e: any) {
+    return json(500, { error: "unexpected_error", message: e?.message ?? String(e) });
+  }
 }
